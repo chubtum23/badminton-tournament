@@ -140,9 +140,13 @@ Each row carries played, won, lost, games won/lost, points for/against, point di
 `buildBracket(settings, poolStandingsByPool)`:
 - Take the top `advance_per_pool` from each pool.
 - Bracket size is the next power of two ≥ number of qualifiers. Extra slots become byes.
-- Placement uses standard cross-pool pairing so pool winners are on opposite halves and
-  first-round matches pair a pool winner with a runner-up from a different pool
-  (A1 v B2, B1 v A2, C1 v D2, D1 v C2, ...). With byes, pool winners receive them first.
+- Placement: qualifiers get a global seed order (all pool winners first, then all
+  runners-up, and so on) and sit in the standard bracket layout (seed 1 v seed N,
+  seeds 1 and 2 in opposite halves). Within each rank tier the pool order is rotated by
+  the smallest amount that avoids two teams from the same pool meeting in round one.
+  With two pools this gives A1 v B2 and B1 v A2; with four pools A1 v D2, D1 v A2,
+  B1 v C2, C1 v B2. Because byes go to the highest global seeds, pool winners receive
+  them first.
 - Emits every match for every round with `next_match_id` and `next_match_side` links.
 Pool finishing position is the only input. Seeds are not consulted.
 
