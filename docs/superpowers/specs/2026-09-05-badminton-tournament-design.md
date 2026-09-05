@@ -89,8 +89,8 @@ Notes:
 ```
 pending   -> both teams known                 -> ready
 ready     -> admin assigns court              -> live
-live      -> team submits full result         -> submitted
-live      -> admin enters full result         -> done
+ready|live -> team submits full result        -> submitted
+ready|live -> admin enters full result        -> done
 submitted -> opponent submits same result     -> done
 submitted -> opponent submits different one   -> disputed
 submitted -> admin confirms                   -> done
