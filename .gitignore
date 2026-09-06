@@ -10,3 +10,5 @@ apps/web/.env.local
 supabase/.temp/
 !apps/web/.env.example
 *.tsbuildinfo
+apps/web/test-results/
+apps/web/playwright-report/
