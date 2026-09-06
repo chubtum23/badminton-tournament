@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { getTournamentBySlug } from '@/lib/db/queries';
+import { currentParticipant } from '@/lib/participant/token';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,9 @@ export default async function PublicLayout({ children, params }: { children: Rea
   const sb = await createServerSupabase();
   const t = await getTournamentBySlug(sb, slug);
   if (!t) notFound();
-  const tabs = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket']] as const;
+  const me = await currentParticipant(slug);
+  const tabs: Array<readonly [string, string]> = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket'], ['/announcements', 'Announcements']];
+  if (me) tabs.push(['/team', `My team: ${me.team.name}`]);
   return (
     <div className="mx-auto max-w-4xl p-4 space-y-4">
       <header>
