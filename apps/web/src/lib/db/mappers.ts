@@ -9,7 +9,11 @@ export function rowToMatch(r: MatchRow): Match {
   };
 }
 
-export function matchToRow(m: Match, tournamentId: string): MatchRow {
+/**
+ * `Match` in @tournament/core has no completion timestamp, so `finished_at` is owned by the
+ * caller (see enterResult) and deliberately left out of the mapped row.
+ */
+export function matchToRow(m: Match, tournamentId: string): Omit<MatchRow, 'finished_at'> {
   return {
     id: m.id, tournament_id: tournamentId, stage: m.stage, pool_id: m.poolId, round: m.round, slot: m.slot,
     team_a_id: m.teamAId, team_b_id: m.teamBId, court: m.court, status: m.status,

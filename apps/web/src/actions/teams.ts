@@ -12,17 +12,11 @@ export async function addTeams(slug: string, formData: FormData): Promise<Action
   if (problems.length) return fail('invalid_input', problems.join('; '));
   if (teams.length === 0) return fail('invalid_input', 'No teams entered');
 
-  for (const t of teams) {
-    const team = await ctx.sb.from('teams').insert({ tournament_id: ctx.tournament.id, name: t.name.slice(0, 40) }).select('id').single();
-    if (team.error) return fail('invalid_input', team.error.message);
-    const players = await ctx.sb.from('players')
-      .insert(t.players.map((name) => ({ tournament_id: ctx.tournament.id, name }))).select('id');
-    if (players.error) return fail('invalid_input', players.error.message);
-    const links = await ctx.sb.from('team_players').insert(players.data.map((p) => ({ team_id: team.data.id, player_id: p.id })));
-    if (links.error) return fail('invalid_input', links.error.message);
-  }
+  // One transaction: a failure part-way through must not leave half-imported teams behind.
+  const res = await ctx.sb.rpc('add_teams', { p_tournament: ctx.tournament.id, p_teams: teams });
+  if (res.error) return fail(res.error.code === '42501' ? 'not_admin' : 'invalid_input', res.error.message);
   revalidatePath(`/admin/${slug}`);
-  return ok({ added: teams.length });
+  return ok({ added: Number(res.data ?? teams.length) });
 }
 
 export async function setSeed(slug: string, teamId: string, seed: number | null): Promise<ActionResult> {
@@ -39,8 +33,9 @@ export async function deleteTeam(slug: string, teamId: string): Promise<ActionRe
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Teams can only be removed during setup');
-  const del = await ctx.sb.from('teams').delete().eq('id', teamId).eq('tournament_id', ctx.tournament.id);
-  if (del.error) return fail('invalid_input', del.error.message);
+  // delete_team() also removes the team's players, which nothing else references.
+  const del = await ctx.sb.rpc('delete_team', { p_team: teamId });
+  if (del.error) return fail(del.error.code === '42501' ? 'not_admin' : 'invalid_input', del.error.message);
   revalidatePath(`/admin/${slug}`);
   return ok(undefined);
 }
@@ -49,7 +44,9 @@ export async function regenerateToken(slug: string, teamId: string): Promise<Act
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   const res = await ctx.sb.rpc('regenerate_team_token', { team: teamId });
-  if (res.error) return fail('not_admin', res.error.message);
+  // 42501 is the insufficient_privilege raised by regenerate_team_token(); anything else is a
+  // real database failure and should not be reported to the admin as a permissions problem.
+  if (res.error) return fail(res.error.code === '42501' ? 'not_admin' : 'invalid_input', res.error.message);
   revalidatePath(`/admin/${slug}`);
   return ok(res.data as string);
 }

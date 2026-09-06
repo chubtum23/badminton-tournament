@@ -57,6 +57,8 @@ export interface MatchRow {
   winner_id: string | null;
   next_match_id: string | null;
   next_match_side: 'a' | 'b' | null;
+  /** Set when the match reached 'done'; null otherwise (and on rows written before this column existed). */
+  finished_at: string | null;
 }
 
 export interface GameRow {

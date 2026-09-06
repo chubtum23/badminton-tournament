@@ -21,6 +21,9 @@ async function playAllOpen(page: Page, slugName: string, max: number) {
 }
 
 test('an admin runs an 8-team tournament from setup to a champion', async ({ page }) => {
+  // Destructive admin actions (re-entering a done result, removing a team) ask for confirmation.
+  page.on('dialog', (d) => d.accept());
+
   // sign in
   await page.goto('/login');
   await page.fill('input[name="email"]', email);

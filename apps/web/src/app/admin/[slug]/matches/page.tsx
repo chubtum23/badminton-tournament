@@ -56,7 +56,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
               </form>
             )}
             {m.teamAId && m.teamBId && m.status !== 'pending' && (
-              <ScoreForm matchId={m.id} settings={settings} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={score} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} />
+              <ScoreForm matchId={m.id} settings={settings} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={score} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} confirmMessage={m.status === 'done' ? 'This match already has a result. Re-entering it will reset every later match that depended on it. Continue?' : undefined} />
             )}
           </MatchCard>
         ))}

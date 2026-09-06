@@ -235,3 +235,41 @@ grant execute on function public.create_tournament(text, text) to authenticated,
 -- ---------- realtime ----------
 -- Without this the client subscriptions in the app never receive anything.
 alter publication supabase_realtime add table public.tournaments, public.matches, public.games, public.score_submissions, public.announcements;
+
+-- ---------- team import / removal (atomic) ----------
+-- Importing a batch of teams row by row from the app leaves half-created teams behind when a
+-- later row fails a check constraint; both of these run as one transaction instead.
+create or replace function public.add_teams(p_tournament uuid, p_teams jsonb) returns int
+language plpgsql volatile security definer set search_path = public as $$
+declare t jsonb; team_id uuid; player_id uuid; p text; n int := 0;
+begin
+  if not public.is_tournament_admin(p_tournament) then raise exception 'not_admin' using errcode = '42501'; end if;
+  if (select status from public.tournaments where id = p_tournament) <> 'setup' then raise exception 'stale_state'; end if;
+  for t in select * from jsonb_array_elements(p_teams) loop
+    insert into public.teams (tournament_id, name) values (p_tournament, t->>'name') returning id into team_id;
+    for p in select * from jsonb_array_elements_text(t->'players') loop
+      insert into public.players (tournament_id, name) values (p_tournament, p) returning id into player_id;
+      insert into public.team_players (team_id, player_id) values (team_id, player_id);
+    end loop;
+    n := n + 1;
+  end loop;
+  return n;
+end; $$;
+
+revoke execute on function public.add_teams(uuid, jsonb) from public, anon;
+grant execute on function public.add_teams(uuid, jsonb) to authenticated, service_role;
+
+-- Deleting a team must also take its players with it; nothing else references them.
+create or replace function public.delete_team(p_team uuid) returns void
+language plpgsql volatile security definer set search_path = public as $$
+declare t uuid;
+begin
+  select tournament_id into t from public.teams where id = p_team;
+  if t is null or not public.is_tournament_admin(t) then raise exception 'not_admin' using errcode = '42501'; end if;
+  if (select status from public.tournaments where id = t) <> 'setup' then raise exception 'stale_state'; end if;
+  delete from public.players where id in (select player_id from public.team_players where team_id = p_team);
+  delete from public.teams where id = p_team;
+end; $$;
+
+revoke execute on function public.delete_team(uuid) from public, anon;
+grant execute on function public.delete_team(uuid) to authenticated, service_role;

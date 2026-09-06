@@ -5,7 +5,7 @@ import type { MatchRow, TournamentRow, GameRow, TeamRow } from './types';
 const row: MatchRow = {
   id: 'm1', tournament_id: 't1', stage: 'knockout', pool_id: null, round: 2, slot: 1,
   team_a_id: 'a', team_b_id: null, court: 3, status: 'live', winner_id: null,
-  next_match_id: 'm9', next_match_side: 'b',
+  next_match_id: 'm9', next_match_side: 'b', finished_at: null,
 };
 
 describe('match mapping', () => {
@@ -15,7 +15,10 @@ describe('match mapping', () => {
       id: 'm1', stage: 'knockout', poolId: null, round: 2, slot: 1, teamAId: 'a', teamBId: null,
       court: 3, status: 'live', winnerId: null, nextMatchId: 'm9', nextMatchSide: 'b',
     });
-    expect(matchToRow(m, 't1')).toEqual(row);
+    // matchToRow does not own finished_at (see mappers.ts), so it is absent from the mapped row.
+    const { finished_at, ...withoutFinishedAt } = row;
+    expect(matchToRow(m, 't1')).toEqual(withoutFinishedAt);
+    expect(finished_at).toBeNull();
   });
 });
 

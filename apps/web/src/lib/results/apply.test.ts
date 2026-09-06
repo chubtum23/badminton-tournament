@@ -69,6 +69,13 @@ describe('planCourt', () => {
     expect(planCourt([s1, s2], 's2', 2, 4)).toMatchObject({ id: 's2', status: 'live', court: 2 });
     expect(planCourt([s1, s2], 's1', null, 4)).toMatchObject({ id: 's1', status: 'ready', court: null });
   });
+  it('moves a live match to another free court', () => {
+    expect(planCourt([s1, s2], 's1', 3, 4)).toMatchObject({ id: 's1', status: 'live', court: 3 });
+  });
+  it('refuses moving a live match onto a court another live match holds', () => {
+    const other = { ...s2, status: 'live' as const, court: 2 };
+    expect(planCourt([s1, other], 's1', 2, 4)).toMatchObject({ error: expect.stringMatching(/in use/) });
+  });
   it('refuses a court in use, an out-of-range court, and a non-ready match', () => {
     expect(planCourt([s1, s2], 's2', 1, 4)).toMatchObject({ error: expect.stringMatching(/in use/) });
     expect(planCourt([s1, s2], 's2', 5, 4)).toMatchObject({ error: expect.stringMatching(/between 1 and 4/) });

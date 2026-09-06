@@ -2,9 +2,11 @@
 import { Fragment, useState } from 'react';
 import { gamesNeeded, validateGame, type Settings, type Game } from '@tournament/core';
 
-export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, submitLabel }: {
+export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, submitLabel, confirmMessage }: {
   matchId: string; settings: Settings; existing: Game[]; teamA: string; teamB: string;
   action: (formData: FormData) => void; submitLabel: string;
+  /** When set, the submit is gated behind a window.confirm() with this text. */
+  confirmMessage?: string;
 }) {
   const rows = Array.from({ length: settings.gamesPerMatch }, (_, i) => i + 1);
   const [vals, setVals] = useState<Record<string, string>>(() => {
@@ -25,7 +27,12 @@ export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, s
   const status = winsA >= needed ? `${teamA} wins the match` : winsB >= needed ? `${teamB} wins the match` : `${winsA}-${winsB} in games`;
 
   return (
-    <form action={action} data-testid="score-form" className="space-y-2 text-sm">
+    <form
+      action={action}
+      onSubmit={(e) => { if (confirmMessage && !window.confirm(confirmMessage)) e.preventDefault(); }}
+      data-testid="score-form"
+      className="space-y-2 text-sm"
+    >
       <input type="hidden" name="matchId" value={matchId} />
       <div className="grid grid-cols-[auto_1fr_1fr_2fr] items-center gap-2">
         <span />

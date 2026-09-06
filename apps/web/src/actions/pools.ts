@@ -37,7 +37,13 @@ export async function moveTeam(slug: string, teamId: string, poolId: string): Pr
   if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Pools are locked');
   const pools = await listPools(ctx.sb, ctx.tournament.id);
   if (!pools.some((p) => p.id === poolId)) return fail('invalid_input', 'Unknown pool');
-  const upd = await ctx.sb.from('teams').update({ pool_id: poolId }).eq('id', teamId).eq('tournament_id', ctx.tournament.id);
+  // Append to the end of the target pool rather than colliding with whatever holds pool_order 0.
+  const last = await ctx.sb.from('teams').select('pool_order')
+    .eq('tournament_id', ctx.tournament.id).eq('pool_id', poolId)
+    .order('pool_order', { ascending: false }).limit(1).maybeSingle();
+  if (last.error) return fail('invalid_input', last.error.message);
+  const pool_order = (last.data?.pool_order ?? -1) + 1;
+  const upd = await ctx.sb.from('teams').update({ pool_id: poolId, pool_order }).eq('id', teamId).eq('tournament_id', ctx.tournament.id);
   if (upd.error) return fail('invalid_input', upd.error.message);
   revalidatePath(`/admin/${slug}/pools`);
   return ok(undefined);

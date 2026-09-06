@@ -60,7 +60,8 @@ export function planCourt(matches: Match[], matchId: string, court: number | nul
     return { ...match, court: null, status: 'ready' };
   }
   if (!Number.isInteger(court) || court < 1 || court > courtCount) return { error: `court must be between 1 and ${courtCount}` };
-  if (match.status !== 'ready') return { error: 'match is not ready' };
+  // 'live' is allowed so a match already on court can be moved to a different free court.
+  if (match.status !== 'ready' && match.status !== 'live') return { error: 'match is not ready' };
   const busy = matches.find((m) => m.id !== matchId && m.status === 'live' && m.court === court);
   if (busy) return { error: `court ${court} is in use` };
   return { ...match, court, status: 'live' };

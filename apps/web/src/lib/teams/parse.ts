@@ -20,14 +20,18 @@ export function parseTeamLines(text: string): { teams: ParsedTeam[]; problems: s
     const players = (playersPart ?? '').split(/[&+/,]/).map((p) => p.trim()).filter(Boolean);
     if (players.length === 0) { problems.push(`line ${n}: no player names`); return; }
     if (players.length > 2) { problems.push(`line ${n}: a team has at most 2 players`); return; }
+    // Mirrors the database checks: players.name <= 60, teams.name <= 40.
+    if (players.some((p) => p.length > 60)) { problems.push(`line ${n}: player name longer than 60 characters`); return; }
     let duplicate = false;
     for (const p of players) {
       const key = p.toLowerCase();
       if (seen.has(key)) { problems.push(`line ${n}: player "${p}" appears more than once`); duplicate = true; break; }
     }
     if (duplicate) return;
+    const name = explicitName || players.join(' & ');
+    if (name.length > 40) { problems.push(`line ${n}: team name longer than 40 characters`); return; }
     for (const p of players) seen.add(p.toLowerCase());
-    teams.push({ name: explicitName || players.join(' & '), players });
+    teams.push({ name, players });
   });
   return { teams, problems };
 }

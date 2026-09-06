@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { addTeams, deleteTeam, regenerateToken, setSeed } from '@/actions/teams';
 import type { TeamWithPlayers } from '@/lib/db/queries';
+import { ConfirmButton } from './ConfirmButton';
 
 export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
   slug: string; teams: TeamWithPlayers[]; tokens: Record<string, string>; locked: boolean; baseUrl: string;
@@ -53,7 +54,12 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
                 ) : <span className="text-xs text-slate-400">n/a</span>}
               </td>
               <td className="py-2">
-                {!locked && <form action={remove}><input type="hidden" name="teamId" value={t.id} /><button className="text-xs text-red-700 underline">Remove</button></form>}
+                {!locked && (
+                  <form action={remove}>
+                    <input type="hidden" name="teamId" value={t.id} />
+                    <ConfirmButton message={`Remove ${t.name} and their players? This cannot be undone.`} className="text-xs text-red-700 underline">Remove</ConfirmButton>
+                  </form>
+                )}
               </td>
             </tr>
           ))}
