@@ -17,7 +17,7 @@ create table public.tournaments (
   games_per_match int not null default 3,
   points_per_game int not null default 15,
   win_by_two boolean not null default true,
-  max_points int,
+  max_points int default 21,
   court_count int not null default 2 check (court_count between 1 and 50),
   advance_per_pool int not null default 2 check (advance_per_pool between 1 and 8),
   created_at timestamptz not null default now()
@@ -116,6 +116,9 @@ language sql stable security definer set search_path = public as $$
   );
 $$;
 
+-- Called from RLS policies; must remain executable by all API roles.
+grant execute on function public.is_tournament_admin(uuid) to anon, authenticated, service_role;
+
 -- ---------- RLS ----------
 alter table public.tournaments enable row level security;
 alter table public.tournament_admins enable row level security;
@@ -207,5 +210,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.team_edit_tokens(uuid) from anon;
-revoke execute on function public.regenerate_team_token(uuid) from anon;
+revoke execute on function public.team_edit_tokens(uuid) from public, anon;
+revoke execute on function public.regenerate_team_token(uuid) from public, anon;
+grant execute on function public.team_edit_tokens(uuid) to authenticated, service_role;
+grant execute on function public.regenerate_team_token(uuid) to authenticated, service_role;
