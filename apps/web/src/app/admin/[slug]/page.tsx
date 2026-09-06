@@ -1,6 +1,10 @@
 import { requireAdmin } from '@/actions/guard';
 import { updateSettings } from '@/actions/tournaments';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
+import { TeamsAdmin } from '@/components/TeamsAdmin';
+import { listTeamsWithPlayers } from '@/lib/db/queries';
+import { getEditTokens } from '@/actions/teams';
 
 export default async function SetupPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string }> }) {
   const { slug } = await params;
@@ -9,6 +13,9 @@ export default async function SetupPage({ params, searchParams }: { params: Prom
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
   const locked = t.status !== 'setup';
+  const [teams, tokens, hdrs] = await Promise.all([listTeamsWithPlayers(ctx.sb, t.id), getEditTokens(slug), headers()]);
+  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
+  const baseUrl = `${host.startsWith('localhost') ? 'http' : 'https'}://${host}`;
 
   async function save(formData: FormData) {
     'use server';
@@ -31,6 +38,7 @@ export default async function SetupPage({ params, searchParams }: { params: Prom
           {!locked && <div className="col-span-full"><button className="rounded bg-slate-900 px-4 py-2 text-white">Save settings</button></div>}
         </form>
       </section>
+      <TeamsAdmin slug={slug} teams={teams} tokens={tokens} locked={locked} baseUrl={baseUrl} />
     </div>
   );
 }
