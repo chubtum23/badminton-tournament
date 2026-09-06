@@ -77,8 +77,11 @@ describe('rollback', () => {
   it('clears the winner from a ready next match without flagging a reset', () => {
     const { changed, resetMatchIds } = rollback(all, 'q3');
     expect(resetMatchIds).toEqual([]);
-    expect(changed).toHaveLength(1);
+    expect(changed).toHaveLength(2);
     expect(changed[0]).toMatchObject({ id: 's2', teamAId: null, teamBId: null, status: 'pending', winnerId: null });
+    expect(changed[1]).toMatchObject({
+      id: 'q3', status: 'ready', winnerId: null, court: null, teamAId: 'B1', teamBId: 'C2',
+    });
   });
 
   it('cascades through a done semi into the final and flags the semi for reset', () => {
@@ -87,7 +90,8 @@ describe('rollback', () => {
     const byId = new Map(changed.map((m) => [m.id, m]));
     expect(byId.get('s1')).toMatchObject({ teamAId: null, teamBId: 'D1', status: 'pending', winnerId: null });
     expect(byId.get('f')).toMatchObject({ teamAId: null, teamBId: null, status: 'pending', winnerId: null });
-    expect(changed).toHaveLength(2);
+    expect(byId.get('q1')).toMatchObject({ status: 'ready', winnerId: null, teamAId: 'A1', teamBId: 'D2' });
+    expect(changed).toHaveLength(3);
   });
 
   it('flags a live downstream match for reset and clears its court', () => {
@@ -95,12 +99,38 @@ describe('rollback', () => {
     const { changed, resetMatchIds } = rollback([...all.filter((m) => m.id !== 'f'), liveFinal], 's1');
     expect(resetMatchIds).toEqual(['f']);
     expect(changed[0]).toMatchObject({ id: 'f', teamAId: null, teamBId: 'B1', court: null, status: 'pending' });
+    expect(changed[changed.length - 1]).toMatchObject({ id: 's1', status: 'ready', winnerId: null });
   });
 
-  it('does nothing for a match without a winner or without a next match', () => {
+  it('does nothing for a match without a winner, and only resets the match itself when it has no next match', () => {
     expect(rollback(all, 'q4')).toEqual({ changed: [], resetMatchIds: [] });
     const doneFinal = { ...f, teamBId: 'B1', status: 'done' as const, winnerId: 'A1' };
-    expect(rollback([doneFinal], 'f')).toEqual({ changed: [], resetMatchIds: [] });
+    const { changed, resetMatchIds } = rollback([doneFinal], 'f');
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatchObject({ status: 'ready', winnerId: null });
+    expect(resetMatchIds).toEqual([]);
+  });
+
+  it('resets a bye (one team) to pending rather than ready', () => {
+    const bye = ko({
+      id: 'bye', round: 1, slot: 1, teamAId: 'A1', teamBId: null, status: 'done', winnerId: 'A1',
+      nextMatchId: 's', nextMatchSide: 'a',
+    });
+    const s = ko({ id: 's', round: 2, slot: 1, teamAId: 'A1', teamBId: null, status: 'pending' });
+    const { changed } = rollback([bye, s], 'bye');
+    const byId = new Map(changed.map((m) => [m.id, m]));
+    expect(byId.get('s')).toMatchObject({ teamAId: null });
+    expect(byId.get('bye')).toMatchObject({ status: 'pending', winnerId: null });
+  });
+
+  it('composes with advance to re-enter a different winner', () => {
+    const { changed } = rollback(all, 'q1');
+    const changedMap = new Map(changed.map((m) => [m.id, m]));
+    const updated = all.map((m) => changedMap.get(m.id) ?? m);
+    expect(() => advance(updated, 'q1', 'D2')).not.toThrow();
+    const advanced = new Map(advance(updated, 'q1', 'D2').map((m) => [m.id, m]));
+    expect(advanced.get('q1')).toMatchObject({ status: 'done', winnerId: 'D2' });
+    expect(advanced.get('s1')).toMatchObject({ teamAId: 'D2' });
   });
 
   it('rollback does not mutate the inputs', () => {

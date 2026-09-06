@@ -76,10 +76,7 @@ describe('a 16-team, 4-pool tournament', () => {
     expect(resetMatchIds.sort()).toEqual(ko.filter((m) => m.round! > 1 && [m.teamAId, m.teamBId].includes('t1')).map((m) => m.id).sort());
     const changedMap = new Map(changed.map((m) => [m.id, m]));
     ko = ko.map((m) => changedMap.get(m.id) ?? m);
-    // Re-enter the quarter-final with the other team winning this time. The admin
-    // resets the match itself to ready (e.g. by clearing its games) before resubmitting;
-    // advance() refuses to overwrite a done match's winner otherwise.
-    ko = ko.map((m) => (m.id === qf.id ? { ...m, status: 'ready' as const, winnerId: null } : m));
+    // Re-enter the quarter-final with the other team winning this time.
     const loser = qf.teamAId === 't1' ? qf.teamBId! : qf.teamAId!;
     const redo = new Map(advance(ko, qf.id, loser).map((m) => [m.id, m]));
     ko = ko.map((m) => redo.get(m.id) ?? m);

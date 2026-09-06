@@ -164,7 +164,8 @@ is already done; the caller must `rollback` first.
 `rollback(matches, matchId)` — when an admin edits a `done` match, clears the old winner
 from downstream matches recursively, resets their status (and deletes their games and
 submissions) and returns the list of affected matches so the UI can ask for confirmation
-before committing.
+before committing. It also returns the edited match itself reset to `ready` (winner and
+court cleared), so the caller applies the changes and calls `advance` with the new winner.
 
 ### 6.6 Live board
 `liveBoard(matches)` — "now playing": matches with status `live`, grouped by court.

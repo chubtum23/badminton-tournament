@@ -30,7 +30,7 @@ export function advance(matches: readonly Match[], matchId: string, winnerId: st
 }
 
 export interface RollbackResult {
-  /** Downstream matches that changed, as new objects. */
+  /** The edited match reset to ready/pending, plus every downstream match that changed, as new objects. */
   changed: Match[];
   /** Downstream matches that were past 'ready' and lose their games and submissions. */
   resetMatchIds: string[];
@@ -38,7 +38,10 @@ export interface RollbackResult {
 
 /**
  * Undo the downstream effects of a match's current winner so its result can be re-entered.
- * Recurses through every match the old winner had reached.
+ * Recurses through every match the old winner had reached. The edited match itself is also
+ * reset (to 'ready' or 'pending', winner and court cleared) so `advance` can be called with
+ * the new winner directly; it is not added to `resetMatchIds` since the caller is deliberately
+ * replacing its result.
  */
 export function rollback(matches: readonly Match[], matchId: string): RollbackResult {
   const working = new Map(matches.map((m) => [m.id, { ...m }]));
@@ -66,6 +69,17 @@ export function rollback(matches: readonly Match[], matchId: string): RollbackRe
     changed.set(next.id, next);
   };
 
+  if (!match.winnerId) return { changed: [], resetMatchIds: [] };
+
   clearDownstream(match);
+
+  const resetMatch: Match = {
+    ...match,
+    winnerId: null,
+    court: null,
+    status: match.teamAId && match.teamBId ? 'ready' : 'pending',
+  };
+  changed.set(match.id, resetMatch);
+
   return { changed: [...changed.values()], resetMatchIds };
 }
