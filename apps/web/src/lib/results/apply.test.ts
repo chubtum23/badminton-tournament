@@ -55,6 +55,38 @@ describe('planResult', () => {
     expect(r.updates.find((m) => m.id === 's1')).toMatchObject({ status: 'done', winnerId: 'B' });
   });
 
+  it('correcting a semi-final score without changing its winner keeps the final done', () => {
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
+    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A', court: null };
+    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(15, 10, 15, 13) });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.winnerId).toBe('A');
+    expect(r.clearGamesFor).toEqual([]);
+    expect(r.terminalStillDone).toBe(true);
+  });
+
+  it('flipping a semi-final winner rolls the done final back to ready', () => {
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
+    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A', court: null };
+    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(10, 15, 10, 15) });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.winnerId).toBe('B');
+    expect(r.clearGamesFor).toEqual(['f']);
+    const final = r.updates.find((m) => m.id === 'f');
+    expect(final).toMatchObject({ teamAId: 'B', teamBId: 'C', status: 'ready', winnerId: null });
+    expect(r.terminalStillDone).toBe(false);
+  });
+
+  it('completing the final reports it as done and the tournament as finished', () => {
+    const readyFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'ready' as const };
+    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [readyFinal], matchId: 'f', games: g(15, 1, 15, 1) });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.tournamentFinished).toBe(true);
+    expect(r.terminalStillDone).toBe(true);
+  });
+
   it('pool matches complete without a next match', () => {
     const pm = base({ id: 'p1', stage: 'pool', poolId: 'P', round: null, teamAId: 'A', teamBId: 'B', status: 'ready' });
     const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [pm], matchId: 'p1', games: g(15, 3, 15, 3) });

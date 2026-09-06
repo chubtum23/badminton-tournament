@@ -68,18 +68,29 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
   for (const m of plan.updates) {
     if (m.id === matchId) continue; // already claimed above
     const row = matchToRow(m, ctx.tournament.id);
-    const upd = await ctx.sb.from('matches').update({
+    const before = rows.find((r) => r.id === m.id);
+    const wasAlreadyDone = before?.status === 'done';
+    const update: Record<string, unknown> = {
       team_a_id: row.team_a_id, team_b_id: row.team_b_id, court: row.court, status: row.status, winner_id: row.winner_id,
-      // Rolled-back matches lose their completion stamp; re-advanced ones get a fresh one.
-      finished_at: row.status === 'done' ? now : null,
-    }).eq('id', m.id);
+    };
+    // Rolled-back matches lose their completion stamp; newly-advanced ones get a fresh one. A
+    // match that was already done and stays done (untouched by this plan) keeps its original
+    // finished_at rather than being stamped with `now`.
+    if (row.status === 'done') {
+      if (!wasAlreadyDone) update.finished_at = now;
+    } else {
+      update.finished_at = null;
+    }
+    const upd = await ctx.sb.from('matches').update(update).eq('id', m.id);
     if (upd.error) return fail('invalid_input', upd.error.message);
   }
   if (plan.tournamentFinished) {
     const fin = await ctx.sb.from('tournaments').update({ status: 'finished' }).eq('id', ctx.tournament.id).eq('status', 'knockout');
     if (fin.error) return fail('invalid_input', fin.error.message);
-  } else if (wasFinished) {
-    // Editing an earlier result re-opened the bracket: the tournament is no longer finished.
+  } else if (wasFinished && !plan.terminalStillDone) {
+    // Editing an earlier result changed the champion (or un-completed the final): the tournament
+    // is no longer finished. A correction that leaves the final's winner untouched keeps the
+    // tournament finished, so the champion banner doesn't disappear until the final is re-saved.
     const reopen = await ctx.sb.from('tournaments').update({ status: 'knockout' }).eq('id', ctx.tournament.id).eq('status', 'finished');
     if (reopen.error) return fail('invalid_input', reopen.error.message);
   }

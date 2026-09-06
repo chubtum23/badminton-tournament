@@ -9,6 +9,8 @@ export interface ResultPlan {
   clearGamesFor: string[];
   winnerId: string;
   tournamentFinished: boolean;
+  /** Whether the terminal knockout match (the final) is `done` after this plan is applied. */
+  terminalStillDone: boolean;
 }
 
 export type ResultError = { error: 'invalid_score' | 'match_not_editable' | 'incomplete'; message: string };
@@ -43,12 +45,14 @@ export function planResult(input: { settings: Settings; matches: Match[]; matchI
   applyChanges(advance(working, matchId, winnerId));
 
   const completed = touched.get(matchId)!;
+  const terminal = working.find((m) => m.stage === 'knockout' && m.nextMatchId === null);
   return {
     updates: [...touched.values()],
     gamesToWrite: [...games].sort((x, y) => x.gameNo - y.gameNo),
     clearGamesFor,
     winnerId,
     tournamentFinished: completed.stage === 'knockout' && completed.nextMatchId === null,
+    terminalStillDone: terminal !== undefined && terminal.status === 'done',
   };
 }
 
