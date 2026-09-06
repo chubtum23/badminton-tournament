@@ -27,7 +27,10 @@ export async function listTeams(sb: SupabaseClient, tournamentId: string): Promi
 
 export async function listMatches(sb: SupabaseClient, tournamentId: string): Promise<MatchRow[]> {
   return must(
-    await sb.from('matches').select('*').eq('tournament_id', tournamentId).order('round').order('slot'),
+    // stage descending because 'pool' > 'knockout' alphabetically and pool matches come first
+    // chronologically; pool rows have a null round, so nullsFirst keeps them ahead of round 1.
+    await sb.from('matches').select('*').eq('tournament_id', tournamentId)
+      .order('stage', { ascending: false }).order('round', { nullsFirst: true }).order('slot'),
     'matches',
   ) as MatchRow[];
 }

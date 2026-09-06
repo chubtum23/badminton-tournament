@@ -19,7 +19,13 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const board = liveBoard(matches, stage, pools.map((p) => p.id));
   const label = (m: typeof matches[number]) => m.stage === 'pool' ? pools.find((p) => p.id === m.poolId)?.name ?? 'Pool' : `Round ${m.round}`;
   const seeded = teams.filter((x) => x.seed !== null).sort((x, y) => (x.seed ?? 0) - (y.seed ?? 0));
-  const recent = matches.filter((m) => m.status === 'done' && m.teamAId && m.teamBId).slice(-6).reverse();
+  // Most recently completed first. Rows written before finished_at existed have a null stamp and
+  // sort last, keeping them out of the way of anything with a real completion time.
+  const recent = bundle.matches
+    .filter((r) => r.status === 'done' && r.team_a_id && r.team_b_id)
+    .sort((x, y) => (y.finished_at ?? '').localeCompare(x.finished_at ?? ''))
+    .slice(0, 6)
+    .map(rowToMatch);
 
   return (
     <div className="space-y-6">

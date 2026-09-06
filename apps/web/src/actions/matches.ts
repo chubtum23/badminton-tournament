@@ -26,18 +26,6 @@ export async function assignCourt(slug: string, matchId: string, court: number |
   return ok(undefined);
 }
 
-/** Parses game{n}a / game{n}b fields; stops at the first blank pair. */
-export async function gamesFromForm(formData: FormData, maxGames: number): Promise<Game[]> {
-  const games: Game[] = [];
-  for (let n = 1; n <= maxGames; n++) {
-    const a = String(formData.get(`game${n}a`) ?? '').trim();
-    const b = String(formData.get(`game${n}b`) ?? '').trim();
-    if (a === '' && b === '') break;
-    games.push({ gameNo: n, scoreA: Number(a), scoreB: Number(b) });
-  }
-  return games;
-}
-
 export async function enterResult(slug: string, matchId: string, games: Game[]): Promise<ActionResult<{ winnerId: string }>> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');

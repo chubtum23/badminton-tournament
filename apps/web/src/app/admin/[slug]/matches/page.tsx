@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { assignCourt, enterResult, gamesFromForm } from '@/actions/matches';
+import { assignCourt, enterResult } from '@/actions/matches';
+import { gamesFromForm } from '@/lib/results/form';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
@@ -30,7 +31,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   }
   async function score(formData: FormData) {
     'use server';
-    const gs = await gamesFromForm(formData, settings.gamesPerMatch);
+    const gs = gamesFromForm(formData, settings.gamesPerMatch);
     redirectWithMsg(here, await enterResult(slug, String(formData.get('matchId')), gs), 'Result saved');
   }
 
