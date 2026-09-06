@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateGame, matchResult } from './scoring';
+import { validateGame, matchResult, winnerTeamId, validateSettings } from './scoring';
 import { BADMINTON_DEFAULTS, type Settings } from './types';
 
 const s = BADMINTON_DEFAULTS; // to 15, win by two, cap 21
@@ -15,9 +15,9 @@ describe('validateGame', () => {
   });
 
   it('rejects ties, negatives and non-integers', () => {
-    expect(validateGame(s, 15, 15).ok).toBe(false);
-    expect(validateGame(s, -1, 15).ok).toBe(false);
-    expect(validateGame(s, 15.5, 10).ok).toBe(false);
+    expect(validateGame(s, 15, 15)).toEqual({ ok: false, reason: 'a game cannot end in a tie' });
+    expect(validateGame(s, -1, 15)).toEqual({ ok: false, reason: 'scores must be non-negative whole numbers' });
+    expect(validateGame(s, 15.5, 10)).toEqual({ ok: false, reason: 'scores must be non-negative whole numbers' });
   });
 
   it('enforces win by two at the target', () => {
@@ -106,5 +106,57 @@ describe('matchResult', () => {
     const single: Settings = { ...s, gamesPerMatch: 1 };
     expect(matchResult(single, [g(1, 15, 8)])).toMatchObject({ complete: true, winner: 'a' });
     expect(matchResult(single, [g(1, 15, 8), g(2, 15, 8)]).ok).toBe(false);
+  });
+});
+
+describe('winnerTeamId', () => {
+  const match = { teamAId: 'A1', teamBId: 'B1' };
+
+  it('maps side a to teamAId', () => {
+    expect(winnerTeamId(match, 'a')).toBe('A1');
+  });
+
+  it('maps side b to teamBId', () => {
+    expect(winnerTeamId(match, 'b')).toBe('B1');
+  });
+
+  it('maps null to null', () => {
+    expect(winnerTeamId(match, null)).toBeNull();
+  });
+
+  it('returns null when the winning side has no team', () => {
+    expect(winnerTeamId({ teamAId: null, teamBId: 'B1' }, 'a')).toBeNull();
+  });
+});
+
+describe('validateSettings', () => {
+  it('accepts the badminton defaults', () => {
+    expect(validateSettings(BADMINTON_DEFAULTS)).toEqual([]);
+  });
+
+  it('rejects an even gamesPerMatch', () => {
+    expect(validateSettings({ ...s, gamesPerMatch: 2 })).toContain('gamesPerMatch must be a positive odd integer');
+  });
+
+  it('rejects a zero gamesPerMatch', () => {
+    expect(validateSettings({ ...s, gamesPerMatch: 0 })).toContain('gamesPerMatch must be a positive odd integer');
+  });
+
+  it('rejects a zero pointsPerGame', () => {
+    expect(validateSettings({ ...s, pointsPerGame: 0 })).toContain('pointsPerGame must be a positive integer');
+  });
+
+  it('rejects a maxPoints below pointsPerGame', () => {
+    expect(validateSettings({ ...s, pointsPerGame: 15, maxPoints: 11 })).toContain(
+      'maxPoints must be null or at least pointsPerGame',
+    );
+  });
+
+  it('accepts a null maxPoints', () => {
+    expect(validateSettings({ ...s, maxPoints: null })).toEqual([]);
+  });
+
+  it('accepts maxPoints equal to pointsPerGame', () => {
+    expect(validateSettings({ ...s, pointsPerGame: 15, maxPoints: 15 })).toEqual([]);
   });
 });

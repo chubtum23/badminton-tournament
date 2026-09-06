@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BADMINTON_DEFAULTS, assignPools, poolMatches, poolStandings, buildBracket,
-  advance, rollback, matchResult, liveBoard, type Match, type Game, type TeamRef, type PoolResult,
+  advance, rollback, matchResult, winnerTeamId, liveBoard, type Match, type Game, type TeamRef, type PoolResult,
 } from './index';
 import { seededRng, idGen } from './testUtils';
 
@@ -20,7 +20,8 @@ function playAll(matches: Match[], games: Record<string, Game[]>): Match[] {
     const result = matchResult(BADMINTON_DEFAULTS, g);
     if (!result.ok || !result.complete) throw new Error('bad simulated result');
     games[next.id] = g;
-    const winner = result.winner === 'a' ? next.teamAId! : next.teamBId!;
+    const winner = winnerTeamId(next, result.winner);
+    if (winner === null) throw new Error('bad simulated result');
     const changed = new Map(advance(state, next.id, winner).map((m) => [m.id, m]));
     state = state.map((m) => changed.get(m.id) ?? m);
   }

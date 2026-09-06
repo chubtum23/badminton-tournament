@@ -1,4 +1,4 @@
-import type { Game, Settings, Side } from './types';
+import type { Game, Match, Settings, Side } from './types';
 
 export type GameValidation = { ok: true; winner: Side } | { ok: false; reason: string };
 
@@ -61,4 +61,25 @@ export function matchResult(s: Settings, games: readonly Game[]): MatchResult {
 
   const winner: Side | null = gamesA >= needed ? 'a' : gamesB >= needed ? 'b' : null;
   return { ok: true, complete: winner !== null, winner, gamesA, gamesB };
+}
+
+/** Map a matchResult winner side to the team occupying that side. */
+export function winnerTeamId(match: Pick<Match, 'teamAId' | 'teamBId'>, winner: Side | null): string | null {
+  if (winner === null) return null;
+  return winner === 'a' ? match.teamAId : match.teamBId;
+}
+
+/** Validate a Settings object. Returns a list of human-readable problems; empty means valid. */
+export function validateSettings(s: Settings): string[] {
+  const problems: string[] = [];
+  if (!Number.isInteger(s.gamesPerMatch) || s.gamesPerMatch <= 0 || s.gamesPerMatch % 2 === 0) {
+    problems.push('gamesPerMatch must be a positive odd integer');
+  }
+  if (!Number.isInteger(s.pointsPerGame) || s.pointsPerGame <= 0) {
+    problems.push('pointsPerGame must be a positive integer');
+  }
+  if (s.maxPoints !== null && (!Number.isInteger(s.maxPoints) || s.maxPoints < s.pointsPerGame)) {
+    problems.push('maxPoints must be null or at least pointsPerGame');
+  }
+  return problems;
 }
