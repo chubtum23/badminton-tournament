@@ -43,20 +43,22 @@ export function Bracket({ matches, teams, games, hrefFor }: {
             <div className="mb-2 rounded bg-blue-900 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-white">
               {roundTitle(i + 1, totalRounds)}
             </div>
-            {list.map((m) => {
-              const box = (
-                <div className={`bk-box relative w-full divide-y rounded border-2 bg-white text-sm ${m.status === 'live' ? 'border-emerald-500 shadow-md' : 'border-blue-900'}`}>
-                  {row(m, m.teamAId, 'a')}
-                  {row(m, m.teamBId, 'b')}
-                  {m.status === 'live' && m.court && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {m.court} · live</div>}
-                </div>
-              );
-              return (
-                <div key={m.id} className="bk-slot">
-                  {hrefFor ? <Link href={hrefFor(m)} className="w-full">{box}</Link> : box}
-                </div>
-              );
-            })}
+            <div className="bk-slots">
+              {list.map((m) => {
+                const box = (
+                  <div className={`bk-box relative w-full divide-y rounded border-2 bg-white text-sm ${m.status === 'live' ? 'border-emerald-500 shadow-md' : 'border-blue-900'}`}>
+                    {row(m, m.teamAId, 'a')}
+                    {row(m, m.teamBId, 'b')}
+                    {m.status === 'live' && m.court && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {m.court} · live</div>}
+                  </div>
+                );
+                return (
+                  <div key={m.id} className="bk-slot">
+                    {hrefFor ? <Link href={hrefFor(m)} className="w-full">{box}</Link> : box}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
