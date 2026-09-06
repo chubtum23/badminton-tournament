@@ -16,7 +16,7 @@ describe('advance', () => {
     expect(changed[1]).toMatchObject({ id: 'f', teamAId: 'B2', teamBId: null, status: 'pending' });
   });
 
-  it('does not mutate the inputs', () => {
+  it('advance does not mutate the inputs', () => {
     advance([semi1, semi2, final], 's1', 'B2');
     expect(semi1.status).toBe('live');
     expect(final.teamAId).toBeNull();
@@ -41,6 +41,25 @@ describe('advance', () => {
 
   it('rejects an unknown match', () => {
     expect(() => advance([semi1], 'nope', 'A1')).toThrow('unknown match nope');
+  });
+
+  it('rejects re-entering a different winner on a done match', () => {
+    const done = ko({ id: 'd1', teamAId: 'A1', teamBId: 'B2', status: 'done', winnerId: 'A1' });
+    expect(() => advance([done], 'd1', 'B2')).toThrow(
+      'match is already done; roll it back before re-entering a different winner',
+    );
+  });
+
+  it('allows re-entering the same winner on a done match', () => {
+    const done = ko({ id: 'd1', teamAId: 'A1', teamBId: 'B2', status: 'done', winnerId: 'A1' });
+    const changed = advance([done], 'd1', 'A1');
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatchObject({ id: 'd1', status: 'done', winnerId: 'A1' });
+  });
+
+  it('rejects a next match with no next match side', () => {
+    const dangling = ko({ id: 'd2', teamAId: 'A1', teamBId: 'B2', status: 'live', nextMatchId: 'f', nextMatchSide: null });
+    expect(() => advance([dangling, final], 'd2', 'A1')).toThrow('match has a next match but no next match side');
   });
 });
 
@@ -84,7 +103,7 @@ describe('rollback', () => {
     expect(rollback([doneFinal], 'f')).toEqual({ changed: [], resetMatchIds: [] });
   });
 
-  it('does not mutate the inputs', () => {
+  it('rollback does not mutate the inputs', () => {
     rollback(all, 'q1');
     expect(s1.teamAId).toBe('A1');
     expect(f.teamAId).toBe('A1');
