@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { GameRow, MatchRow, PlayerRow, PoolRow, SubmissionRow, TeamRow, TournamentRow } from './types';
+import type { AnnouncementRow, GameRow, MatchRow, PlayerRow, PoolRow, SubmissionRow, TeamRow, TournamentRow } from './types';
 import { TEAM_PUBLIC_COLUMNS } from './types';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -83,6 +83,14 @@ export function latestByMatch(rows: readonly SubmissionRow[]): LatestSubmissions
   return out;
 }
 
+export async function listAnnouncements(sb: SupabaseClient, tournamentId: string): Promise<AnnouncementRow[]> {
+  return must(
+    await sb.from('announcements').select('*').eq('tournament_id', tournamentId)
+      .order('pinned', { ascending: false }).order('created_at', { ascending: false }),
+    'announcements',
+  ) as AnnouncementRow[];
+}
+
 export interface TournamentBundle {
   tournament: TournamentRow;
   pools: PoolRow[];
@@ -90,14 +98,15 @@ export interface TournamentBundle {
   matches: MatchRow[];
   games: GameRow[];
   submissions: SubmissionRow[];
+  announcements: AnnouncementRow[];
 }
 
 export async function loadTournamentBundle(sb: SupabaseClient, slug: string): Promise<TournamentBundle | null> {
   const tournament = await getTournamentBySlug(sb, slug);
   if (!tournament) return null;
-  const [pools, teams, matches, games, submissions] = await Promise.all([
+  const [pools, teams, matches, games, submissions, announcements] = await Promise.all([
     listPools(sb, tournament.id), listTeams(sb, tournament.id), listMatches(sb, tournament.id), listGames(sb, tournament.id),
-    listSubmissions(sb, tournament.id),
+    listSubmissions(sb, tournament.id), listAnnouncements(sb, tournament.id),
   ]);
-  return { tournament, pools, teams, matches, games, submissions };
+  return { tournament, pools, teams, matches, games, submissions, announcements };
 }

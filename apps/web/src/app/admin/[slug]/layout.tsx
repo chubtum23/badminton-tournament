@@ -4,7 +4,7 @@ import { requireAdmin } from '@/actions/guard';
 import { signOut } from '@/app/login/actions';
 
 const tabs = [
-  ['', 'Setup'], ['/pools', 'Pools'], ['/matches', 'Matches'], ['/bracket', 'Bracket'],
+  ['', 'Setup'], ['/pools', 'Pools'], ['/matches', 'Matches'], ['/bracket', 'Bracket'], ['/announcements', 'Announcements'],
 ] as const;
 
 export default async function AdminLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {

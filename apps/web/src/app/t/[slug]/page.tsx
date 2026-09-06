@@ -35,6 +35,9 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
 
   return (
     <div className="space-y-6">
+      {bundle.announcements.filter((a) => a.pinned).map((a) => (
+        <div key={a.id} className="rounded border border-amber-400 bg-amber-50 p-3 text-sm whitespace-pre-wrap">{a.body}</div>
+      ))}
       {t.status === 'setup' && <p className="rounded border bg-white p-4 text-sm">Pools have not been drawn yet. Check back soon.</p>}
       <section>
         <h2 className="mb-2 font-semibold">Now playing</h2>
