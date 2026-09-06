@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { assignCourt, enterResult } from '@/actions/matches';
+import { assignCourt, enterResult, confirmSubmission } from '@/actions/matches';
 import { gamesFromForm } from '@/lib/results/form';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
-import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
+import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
-import { MatchCard } from '@/components/MatchCard';
+import { MatchCard, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
+import { SubmissionCompare } from '@/components/SubmissionCompare';
 
 export default async function MatchesAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string; filter?: string }> }) {
   const { slug } = await params;
@@ -14,13 +15,15 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
-  const [pools, teams, matchRows, gameRows] = await Promise.all([
-    listPools(ctx.sb, t.id), listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id),
+  const [pools, teams, matchRows, gameRows, subs] = await Promise.all([
+    listPools(ctx.sb, t.id), listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id), listSubmissions(ctx.sb, t.id),
   ]);
   const settings = settingsFromTournament(t);
   const matches = matchRows.map(rowToMatch);
   const games = gamesByMatch(gameRows);
+  const latest = latestByMatch(subs);
   const shown = matches.filter((m) => filter === 'all' ? true : filter === 'done' ? m.status === 'done' : m.status !== 'done' && m.status !== 'pending');
+  const attention = matches.filter((m) => m.status === 'submitted' || m.status === 'disputed');
   const label = (m: typeof matches[number]) => m.stage === 'pool' ? `${pools.find((p) => p.id === m.poolId)?.name ?? 'Pool'} · #${m.slot}` : `Round ${m.round} · #${m.slot}`;
   const here = `/admin/${slug}/matches?filter=${filter}`;
 
@@ -34,10 +37,28 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
     const gs = gamesFromForm(formData, settings.gamesPerMatch);
     redirectWithMsg(here, await enterResult(slug, String(formData.get('matchId')), gs), 'Result saved');
   }
+  async function confirm(formData: FormData) {
+    'use server';
+    redirectWithMsg(here, await confirmSubmission(slug, String(formData.get('matchId')), String(formData.get('submissionId'))), 'Result confirmed');
+  }
 
   return (
     <div className="space-y-4">
       {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      {attention.length > 0 && (
+        <section className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
+          <h2 className="font-semibold">Needs attention ({attention.length})</h2>
+          {attention.map((m) => (
+            <MatchCard key={m.id} match={m} teams={teams} games={[]} label={`${label(m)} · ${m.status}`}>
+              <SubmissionCompare a={latest[m.id]?.a} b={latest[m.id]?.b} teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)}
+                onConfirm={(id) => (
+                  <form action={confirm}><input type="hidden" name="matchId" value={m.id} /><input type="hidden" name="submissionId" value={id} /><button className="rounded bg-emerald-700 px-2 py-1 text-xs text-white">Confirm this</button></form>
+                )} />
+              <p className="mt-2 text-xs text-slate-600">Or enter the result yourself below in the list.</p>
+            </MatchCard>
+          ))}
+        </section>
+      )}
       <nav className="flex gap-2 text-sm">
         {['open', 'done', 'all'].map((f) => <a key={f} href={`/admin/${slug}/matches?filter=${f}`} className={`rounded px-2 py-1 ${f === filter ? 'bg-slate-900 text-white' : 'border'}`}>{f}</a>)}
       </nav>

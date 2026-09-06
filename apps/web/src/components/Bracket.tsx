@@ -50,6 +50,7 @@ export function Bracket({ matches, teams, games, hrefFor }: {
                     {row(m, m.teamAId, 'a')}
                     {row(m, m.teamBId, 'b')}
                     {m.status === 'live' && m.court && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {m.court} · live</div>}
+                    {(m.status === 'submitted' || m.status === 'disputed') && <div className="px-2 py-0.5 text-[10px] uppercase text-amber-700">{m.status === 'disputed' ? 'disputed' : 'unconfirmed'}</div>}
                   </div>
                 );
                 return (

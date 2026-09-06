@@ -1,11 +1,11 @@
-import { redirect } from 'next/navigation';
 import { currentParticipant } from '@/lib/participant/token';
-import { updateMyTeam } from '@/actions/participant';
+import { updateMyTeam, submitScores } from '@/actions/participant';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { listMatches, listPools, listTeams } from '@/lib/db/queries';
-import { rowToMatch } from '@/lib/db/mappers';
-import { MatchCard } from '@/components/MatchCard';
+import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
+import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
+import { MatchCard, teamName } from '@/components/MatchCard';
+import { ScoreForm } from '@/components/ScoreForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,14 +22,32 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
     );
   }
   const sb = await createServerSupabase();
-  const [teams, pools, matchRows] = await Promise.all([listTeams(sb, me.tournament.id), listPools(sb, me.tournament.id), listMatches(sb, me.tournament.id)]);
+  const [teams, pools, matchRows, gameRows, subs] = await Promise.all([
+    listTeams(sb, me.tournament.id), listPools(sb, me.tournament.id), listMatches(sb, me.tournament.id),
+    listGames(sb, me.tournament.id), listSubmissions(sb, me.tournament.id),
+  ]);
+  const games = gamesByMatch(gameRows);
+  const latest = latestByMatch(subs);
   const mine = matchRows.map(rowToMatch).filter((m) => m.teamAId === me.team.id || m.teamBId === me.team.id);
   const next = mine.find((m) => m.status === 'live') ?? mine.find((m) => m.status === 'ready' || m.status === 'submitted' || m.status === 'disputed');
   const label = (m: typeof mine[number]) => m.stage === 'pool' ? pools.find((p) => p.id === m.poolId)?.name ?? 'Pool' : `Round ${m.round}`;
+  const settings = settingsFromTournament(me.tournament);
+  const mySide = next && next.teamAId === me.team.id ? 'a' : 'b';
+  const pendingFor = (m: typeof mine[number]) => {
+    const l = latest[m.id]; const s = l?.a ?? l?.b; if (!s) return undefined;
+    const by = s.submitted_by === 'team_a' ? teamName(teams, m.teamAId) : teamName(teams, m.teamBId);
+    return { games: s.games, by };
+  };
 
   async function save(formData: FormData) {
     'use server';
     redirectWithMsg(`/t/${slug}/team`, await updateMyTeam(slug, formData), 'Team updated');
+  }
+
+  async function submit(formData: FormData) {
+    'use server';
+    const r = await submitScores(slug, String(formData.get('matchId')), formData);
+    redirectWithMsg(`/t/${slug}/team`, r, r.ok ? (r.data.outcome === 'confirmed' ? 'Result confirmed' : r.data.outcome === 'disputed' ? 'Scores differ from the other team; an organiser will resolve it' : 'Scores submitted, waiting for the other team') : '');
   }
 
   return (
@@ -46,11 +64,21 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
       </section>
       <section className="space-y-2">
         <h2 className="font-semibold">Your next match</h2>
-        {next ? <MatchCard match={next} teams={teams} games={[]} label={label(next)} /> : <p className="text-sm text-slate-500">No upcoming match right now.</p>}
+        {next ? (
+          <>
+            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pendingFor(next)} />
+            {(next.status === 'ready' || next.status === 'live' || next.status === 'submitted' || next.status === 'disputed') && (
+              <>
+                <ScoreForm matchId={next.id} settings={settings} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submit} submitLabel="Submit scores" />
+                <p className="text-xs text-slate-500">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
+              </>
+            )}
+          </>
+        ) : <p className="text-sm text-slate-500">No upcoming match right now.</p>}
       </section>
       <section className="space-y-2">
         <h2 className="font-semibold">Your matches</h2>
-        <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} />)}</div>
+        <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pendingFor(m)} />)}</div>
       </section>
     </div>
   );

@@ -67,3 +67,19 @@ export interface GameRow {
   score_a: number;
   score_b: number;
 }
+
+export interface SubmissionRow {
+  id: string;
+  match_id: string;
+  submitted_by: 'admin' | 'team_a' | 'team_b';
+  games: { gameNo: number; scoreA: number; scoreB: number }[];
+  created_at: string;
+}
+
+export interface AnnouncementRow {
+  id: string;
+  tournament_id: string;
+  body: string;
+  pinned: boolean;
+  created_at: string;
+}

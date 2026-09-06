@@ -3,7 +3,7 @@ import type { Game } from '@tournament/core';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
-import { listMatches } from '@/lib/db/queries';
+import { listMatches, listSubmissions } from '@/lib/db/queries';
 import { rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
 import { planCourt, planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
@@ -41,4 +41,19 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
   if (!persisted.ok) return fail(persisted.error, persisted.message);
   revalidateTournament(slug);
   return ok({ winnerId: plan.winnerId });
+}
+
+/** Accept one team's submitted games as the result. */
+export async function confirmSubmission(slug: string, matchId: string, submissionId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  const [rows, subs] = await Promise.all([listMatches(ctx.sb, ctx.tournament.id), listSubmissions(ctx.sb, ctx.tournament.id)]);
+  const sub = subs.find((s) => s.id === submissionId && s.match_id === matchId);
+  if (!sub) return fail('invalid_input', 'Submission not found');
+  const plan = planResult({ settings: settingsFromTournament(ctx.tournament), matches: rows.map(rowToMatch), matchId, games: sub.games });
+  if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
+  const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status });
+  if (!persisted.ok) return fail(persisted.error, persisted.message);
+  revalidateTournament(slug);
+  return ok(undefined);
 }

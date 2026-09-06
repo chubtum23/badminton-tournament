@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { GameRow, MatchRow, PlayerRow, PoolRow, TeamRow, TournamentRow } from './types';
+import type { GameRow, MatchRow, PlayerRow, PoolRow, SubmissionRow, TeamRow, TournamentRow } from './types';
 import { TEAM_PUBLIC_COLUMNS } from './types';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -60,19 +60,44 @@ export async function listTeamsWithPlayers(sb: SupabaseClient, tournamentId: str
   return teams.map((t) => ({ ...t, players: byTeam.get(t.id) ?? [] }));
 }
 
+export async function listSubmissions(sb: SupabaseClient, tournamentId: string): Promise<SubmissionRow[]> {
+  const res = await sb
+    .from('score_submissions')
+    .select('id, match_id, submitted_by, games, created_at, matches!inner(tournament_id)')
+    .eq('matches.tournament_id', tournamentId)
+    .order('created_at', { ascending: false });
+  const rows = must(res, 'submissions') as unknown as Array<SubmissionRow & { matches: unknown }>;
+  return rows.map(({ id, match_id, submitted_by, games, created_at }) => ({ id, match_id, submitted_by, games, created_at }));
+}
+
+export type LatestSubmissions = Record<string, { a?: SubmissionRow; b?: SubmissionRow }>;
+
+/** Latest submission per side per match. Input must be newest-first (as listSubmissions returns). */
+export function latestByMatch(rows: readonly SubmissionRow[]): LatestSubmissions {
+  const out: LatestSubmissions = {};
+  for (const r of rows) {
+    const slot = (out[r.match_id] ??= {});
+    if (r.submitted_by === 'team_a' && !slot.a) slot.a = r;
+    if (r.submitted_by === 'team_b' && !slot.b) slot.b = r;
+  }
+  return out;
+}
+
 export interface TournamentBundle {
   tournament: TournamentRow;
   pools: PoolRow[];
   teams: TeamRow[];
   matches: MatchRow[];
   games: GameRow[];
+  submissions: SubmissionRow[];
 }
 
 export async function loadTournamentBundle(sb: SupabaseClient, slug: string): Promise<TournamentBundle | null> {
   const tournament = await getTournamentBySlug(sb, slug);
   if (!tournament) return null;
-  const [pools, teams, matches, games] = await Promise.all([
+  const [pools, teams, matches, games, submissions] = await Promise.all([
     listPools(sb, tournament.id), listTeams(sb, tournament.id), listMatches(sb, tournament.id), listGames(sb, tournament.id),
+    listSubmissions(sb, tournament.id),
   ]);
-  return { tournament, pools, teams, matches, games };
+  return { tournament, pools, teams, matches, games, submissions };
 }
