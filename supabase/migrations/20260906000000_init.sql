@@ -4,7 +4,7 @@ create extension if not exists pgcrypto;
 -- ---------- helpers ----------
 create or replace function public.new_team_token() returns text
 language sql volatile as $$
-  select substr(replace(replace(encode(gen_random_bytes(24), 'base64'), '/', '_'), '+', '-'), 1, 24);
+  select substr(replace(replace(encode(extensions.gen_random_bytes(24), 'base64'), '/', '_'), '+', '-'), 1, 24);
 $$;
 
 -- ---------- tables ----------
