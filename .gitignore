@@ -4,3 +4,9 @@ dist/
 .env.*
 coverage/
 .superpowers/
+
+.next/
+apps/web/.env.local
+supabase/.temp/
+!apps/web/.env.example
+*.tsbuildinfo
