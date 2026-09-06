@@ -4,3 +4,17 @@
 
 :root { color-scheme: light; }
 body { @apply bg-slate-50 text-slate-900; }
+
+/* Bracket connectors: each .bk-round is a flex column; each .bk-slot is flex:1 so
+   centres of sibling slots are exactly one slot-height apart. */
+.bk-round { display: flex; flex-direction: column; min-width: 15rem; }
+.bk-slot { position: relative; flex: 1; display: flex; align-items: center; padding: 0.5rem 0; }
+.bk-round:not(:last-child) .bk-slot::after {
+  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+}
+.bk-round:not(:last-child) .bk-slot:nth-child(odd)::before {
+  content: ''; position: absolute; right: -1rem; top: 50%; height: 100%; border-right: 2px solid #1e3a8a;
+}
+.bk-round:not(:first-child) .bk-box::before {
+  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+}
