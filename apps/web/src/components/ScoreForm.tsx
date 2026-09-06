@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useState } from 'react';
-import { validateGame, type Settings, type Game } from '@tournament/core';
+import { gamesNeeded, validateGame, type Settings, type Game } from '@tournament/core';
 
 export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, submitLabel }: {
   matchId: string; settings: Settings; existing: Game[]; teamA: string; teamB: string;
@@ -21,7 +21,7 @@ export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, s
     if (v.winner === 'a') winsA++; else winsB++;
     return v.winner === 'a' ? `${teamA} won` : `${teamB} won`;
   });
-  const needed = Math.floor(settings.gamesPerMatch / 2) + 1;
+  const needed = gamesNeeded(settings);
   const status = winsA >= needed ? `${teamA} wins the match` : winsB >= needed ? `${teamB} wins the match` : `${winsA}-${winsB} in games`;
 
   return (

@@ -16,7 +16,7 @@ export async function assignCourt(slug: string, matchId: string, court: number |
   if ('error' in ctx) return fail('not_admin');
   const rows = await listMatches(ctx.sb, ctx.tournament.id);
   const planned = planCourt(rows.map(rowToMatch), matchId, court, ctx.tournament.court_count);
-  if ('error' in planned) return fail('match_not_editable', planned.error);
+  if ('error' in planned) return fail(planned.error.includes('court must be between') ? 'invalid_input' : 'match_not_editable', planned.error);
   const before = rows.find((r) => r.id === matchId)!;
   const upd = await ctx.sb.from('matches').update({ court: planned.court, status: planned.status })
     .eq('id', matchId).eq('status', before.status).select('id');
@@ -46,10 +46,17 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
   const plan = planResult({ settings: settingsFromTournament(ctx.tournament), matches: rows.map(rowToMatch), matchId, games });
   if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
 
-  // Optimistic check: the edited match must still be in the state we planned against.
+  // Claim the edited match: the update only matches if it is still in the state we planned against.
   const before = rows.find((r) => r.id === matchId)!;
-  const guard = await ctx.sb.from('matches').select('id').eq('id', matchId).eq('status', before.status).eq('winner_id', before.winner_id ?? '00000000-0000-0000-0000-000000000000').maybeSingle();
-  if (before.winner_id !== null && !guard.data) return fail('stale_state', 'Match changed underneath you; reload');
+  const primary = plan.updates.find((m) => m.id === matchId)!;
+  const primaryRow = matchToRow(primary, ctx.tournament.id);
+  let claimQuery = ctx.sb.from('matches')
+    .update({ team_a_id: primaryRow.team_a_id, team_b_id: primaryRow.team_b_id, court: primaryRow.court, status: primaryRow.status, winner_id: primaryRow.winner_id })
+    .eq('id', matchId).eq('status', before.status);
+  claimQuery = before.winner_id === null ? claimQuery.is('winner_id', null) : claimQuery.eq('winner_id', before.winner_id);
+  const claim = await claimQuery.select('id');
+  if (claim.error) return fail('invalid_input', claim.error.message);
+  if ((claim.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
 
   for (const id of plan.clearGamesFor) {
     const del = await ctx.sb.from('games').delete().eq('match_id', id);
@@ -57,11 +64,15 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
     const subs = await ctx.sb.from('score_submissions').delete().eq('match_id', id);
     if (subs.error) return fail('invalid_input', subs.error.message);
   }
+  // The primary match is claimed (and marked done) before its own games are written below; a
+  // crash in between leaves a done match briefly without games, which is acceptable and
+  // self-healing on the next edit (enterResult always deletes and re-inserts a match's games).
   const delOwn = await ctx.sb.from('games').delete().eq('match_id', matchId);
   if (delOwn.error) return fail('invalid_input', delOwn.error.message);
   const insGames = await ctx.sb.from('games').insert(plan.gamesToWrite.map((g) => ({ match_id: matchId, game_no: g.gameNo, score_a: g.scoreA, score_b: g.scoreB })));
   if (insGames.error) return fail('invalid_input', insGames.error.message);
   for (const m of plan.updates) {
+    if (m.id === matchId) continue; // already claimed above
     const row = matchToRow(m, ctx.tournament.id);
     const upd = await ctx.sb.from('matches').update({
       team_a_id: row.team_a_id, team_b_id: row.team_b_id, court: row.court, status: row.status, winner_id: row.winner_id,
@@ -69,7 +80,8 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
     if (upd.error) return fail('invalid_input', upd.error.message);
   }
   if (plan.tournamentFinished) {
-    await ctx.sb.from('tournaments').update({ status: 'finished' }).eq('id', ctx.tournament.id).eq('status', 'knockout');
+    const fin = await ctx.sb.from('tournaments').update({ status: 'finished' }).eq('id', ctx.tournament.id).eq('status', 'knockout');
+    if (fin.error) return fail('invalid_input', fin.error.message);
   }
   revalidate(slug);
   return ok({ winnerId: plan.winnerId });
