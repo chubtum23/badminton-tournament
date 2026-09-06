@@ -1,0 +1,75 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { GameRow, MatchRow, PlayerRow, PoolRow, TeamRow, TournamentRow } from './types';
+import { TEAM_PUBLIC_COLUMNS } from './types';
+
+function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
+  if (res.error) throw new Error(`${what}: ${res.error.message}`);
+  if (res.data === null) throw new Error(`${what}: no data`);
+  return res.data;
+}
+
+export async function getTournamentBySlug(sb: SupabaseClient, slug: string): Promise<TournamentRow | null> {
+  const res = await sb.from('tournaments').select('*').eq('slug', slug).maybeSingle();
+  if (res.error) throw new Error(`tournament: ${res.error.message}`);
+  return (res.data as TournamentRow | null) ?? null;
+}
+
+export async function listPools(sb: SupabaseClient, tournamentId: string): Promise<PoolRow[]> {
+  return must(await sb.from('pools').select('*').eq('tournament_id', tournamentId).order('position'), 'pools') as PoolRow[];
+}
+
+export async function listTeams(sb: SupabaseClient, tournamentId: string): Promise<TeamRow[]> {
+  return must(
+    await sb.from('teams').select(TEAM_PUBLIC_COLUMNS).eq('tournament_id', tournamentId).order('pool_order').order('name'),
+    'teams',
+  ) as TeamRow[];
+}
+
+export async function listMatches(sb: SupabaseClient, tournamentId: string): Promise<MatchRow[]> {
+  return must(
+    await sb.from('matches').select('*').eq('tournament_id', tournamentId).order('round').order('slot'),
+    'matches',
+  ) as MatchRow[];
+}
+
+export async function listGames(sb: SupabaseClient, tournamentId: string): Promise<GameRow[]> {
+  // games has no tournament_id; join through matches
+  const res = await sb
+    .from('games')
+    .select('match_id, game_no, score_a, score_b, matches!inner(tournament_id)')
+    .eq('matches.tournament_id', tournamentId);
+  const rows = must(res, 'games') as Array<GameRow & { matches: unknown }>;
+  return rows.map(({ match_id, game_no, score_a, score_b }) => ({ match_id, game_no, score_a, score_b }));
+}
+
+export interface TeamWithPlayers extends TeamRow {
+  players: PlayerRow[];
+}
+
+export async function listTeamsWithPlayers(sb: SupabaseClient, tournamentId: string): Promise<TeamWithPlayers[]> {
+  const teams = await listTeams(sb, tournamentId);
+  const links = must(
+    await sb.from('team_players').select('team_id, players(id, tournament_id, name)').in('team_id', teams.map((t) => t.id)),
+    'team_players',
+  ) as unknown as Array<{ team_id: string; players: PlayerRow | null }>;
+  const byTeam = new Map<string, PlayerRow[]>();
+  for (const l of links) if (l.players) (byTeam.get(l.team_id) ?? byTeam.set(l.team_id, []).get(l.team_id)!).push(l.players);
+  return teams.map((t) => ({ ...t, players: byTeam.get(t.id) ?? [] }));
+}
+
+export interface TournamentBundle {
+  tournament: TournamentRow;
+  pools: PoolRow[];
+  teams: TeamRow[];
+  matches: MatchRow[];
+  games: GameRow[];
+}
+
+export async function loadTournamentBundle(sb: SupabaseClient, slug: string): Promise<TournamentBundle | null> {
+  const tournament = await getTournamentBySlug(sb, slug);
+  if (!tournament) return null;
+  const [pools, teams, matches, games] = await Promise.all([
+    listPools(sb, tournament.id), listTeams(sb, tournament.id), listMatches(sb, tournament.id), listGames(sb, tournament.id),
+  ]);
+  return { tournament, pools, teams, matches, games };
+}
