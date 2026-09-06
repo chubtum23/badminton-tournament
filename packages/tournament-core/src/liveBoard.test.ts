@@ -22,6 +22,11 @@ describe('liveBoard', () => {
     expect(liveBoard(matches, 'pool', ['B', 'A', 'C']).upNext.map((m) => m.id)).toEqual(['b2', 'a3']);
   });
 
+  it('sorts a match from an unknown pool after all known pools', () => {
+    const unknown = makeMatch({ id: 'z1', poolId: 'Z', slot: 1, status: 'ready', teamAId: 't11', teamBId: 't12' });
+    expect(liveBoard([...matches, unknown], 'pool', ['A', 'B']).upNext.map((m) => m.id)).toEqual(['a3', 'b2', 'z1']);
+  });
+
   it('skips ready matches already sent to a court', () => {
     const withCourt = matches.map((m) => (m.id === 'a3' ? { ...m, court: 3 } : m));
     expect(liveBoard(withCourt, 'pool', ['A', 'B']).upNext.map((m) => m.id)).toEqual(['a4', 'b2']);

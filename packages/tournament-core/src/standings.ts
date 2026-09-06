@@ -16,6 +16,11 @@ export interface StandingRow {
 /**
  * Standings for one pool, computed from done matches only.
  * Order: wins desc, point difference desc, head-to-head (two-way ties only), name asc.
+ *
+ * The caller must pass only this pool's teams and matches: this function does not filter
+ * by pool, so a knockout meeting between two teams that are tied in the pool table would
+ * otherwise be picked up as their head-to-head result. Two tied teams that never played
+ * each other fall through to name order.
  */
 export function poolStandings(
   teams: readonly TeamRef[],

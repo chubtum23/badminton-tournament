@@ -18,10 +18,13 @@ export function liveBoard(matches: readonly Match[], stage: Stage, poolOrder: re
     if (!current || m.slot < current.slot) best.set(groupKey(m), m);
   }
 
+  const poolRank = (poolId: string | null) => {
+    const idx = poolOrder.indexOf(poolId ?? '');
+    return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+  };
+
   const upNext = [...best.values()].sort((x, y) =>
-    stage === 'pool'
-      ? poolOrder.indexOf(x.poolId ?? '') - poolOrder.indexOf(y.poolId ?? '')
-      : (x.round ?? 0) - (y.round ?? 0),
+    stage === 'pool' ? poolRank(x.poolId) - poolRank(y.poolId) : (x.round ?? 0) - (y.round ?? 0),
   );
 
   return { nowPlaying, upNext };
