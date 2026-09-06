@@ -1,4 +1,4 @@
-import type { Settings, Side } from './types';
+import type { Game, Settings, Side } from './types';
 
 export type GameValidation = { ok: true; winner: Side } | { ok: false; reason: string };
 
@@ -29,4 +29,36 @@ export function validateGame(s: Settings, scoreA: number, scoreB: number): GameV
   const atCap = s.maxPoints !== null && hi === s.maxPoints;
   if (lead === 2 || (atCap && lead === 1)) return { ok: true, winner };
   return fail(`a game past ${s.pointsPerGame} ends on a two-point lead`);
+}
+
+export type MatchResult =
+  | { ok: true; complete: boolean; winner: Side | null; gamesA: number; gamesB: number }
+  | { ok: false; reason: string };
+
+export function gamesNeeded(s: Settings): number {
+  return Math.floor(s.gamesPerMatch / 2) + 1;
+}
+
+export function matchResult(s: Settings, games: readonly Game[]): MatchResult {
+  const needed = gamesNeeded(s);
+  const ordered = [...games].sort((x, y) => x.gameNo - y.gameNo);
+  let gamesA = 0;
+  let gamesB = 0;
+
+  for (let i = 0; i < ordered.length; i++) {
+    const game = ordered[i]!;
+    if (game.gameNo !== i + 1) {
+      return { ok: false, reason: `expected game ${i + 1} but got game ${game.gameNo}` };
+    }
+    if (gamesA >= needed || gamesB >= needed) {
+      return { ok: false, reason: 'extra game after the match was decided' };
+    }
+    const v = validateGame(s, game.scoreA, game.scoreB);
+    if (!v.ok) return { ok: false, reason: `game ${game.gameNo}: ${v.reason}` };
+    if (v.winner === 'a') gamesA++;
+    else gamesB++;
+  }
+
+  const winner: Side | null = gamesA >= needed ? 'a' : gamesB >= needed ? 'b' : null;
+  return { ok: true, complete: winner !== null, winner, gamesA, gamesB };
 }
