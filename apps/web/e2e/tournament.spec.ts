@@ -5,12 +5,15 @@ const password = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-pass';
 const slug = `e2e-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal', 'Ivy & Jo', 'Kim & Lu', 'Mo & Ned', 'Oz & Pia'];
 
-/** Fill every open score form on the Matches screen with a 2-0 win for side A until none remain. */
-async function playAllOpen(page: Page, slugName: string, max: number) {
+/**
+ * Fill every open score form on the Matches screen with a 2-0 win for side A until none remain.
+ * Returns how many results were actually entered, so callers can assert the expected count.
+ */
+async function playAllOpen(page: Page, slugName: string, max: number): Promise<number> {
   for (let i = 0; i < max; i++) {
     await page.goto(`/admin/${slugName}/matches?filter=open`);
     const form = page.getByTestId('score-form').first();
-    if ((await form.count()) === 0) return;
+    if ((await form.count()) === 0) return i;
     await form.locator('input[name="game1a"]').fill('15');
     await form.locator('input[name="game1b"]').fill('7');
     await form.locator('input[name="game2a"]').fill('15');
@@ -18,6 +21,7 @@ async function playAllOpen(page: Page, slugName: string, max: number) {
     await form.getByRole('button', { name: /save result|edit result/i }).click();
     await expect(page.getByText('Result saved')).toBeVisible();
   }
+  return max;
 }
 
 test('an admin runs an 8-team tournament from setup to a champion', async ({ page }) => {
@@ -71,7 +75,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await expect(form.getByText('must win by two')).toBeVisible();
 
   // play all 12 pool matches
-  await playAllOpen(page, slug, 12);
+  expect(await playAllOpen(page, slug, 12)).toBe(12);
   await page.goto(`/admin/${slug}/matches?filter=open`);
   await expect(page.getByText('Nothing here.')).toBeVisible();
 
@@ -87,7 +91,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await expect(page.getByText('Final', { exact: true })).toBeVisible();
 
   // play semis and final
-  await playAllOpen(page, slug, 3);
+  expect(await playAllOpen(page, slug, 3)).toBe(3);
 
   // public bracket names a champion
   await page.goto(`/t/${slug}/bracket`);

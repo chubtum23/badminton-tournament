@@ -17,7 +17,7 @@ Next.js app for running and following a tournament. Rules come from `@tournament
 ## Routes
 
 Public: `/t/[slug]` (live board), `/t/[slug]/pools`, `/t/[slug]/bracket`.
-Admin: `/login`, `/admin`, `/admin/[slug]` (setup), `/pools`, `/matches`, `/bracket`.
+Admin: `/login`, `/admin`, `/admin/[slug]` (setup), `/admin/[slug]/pools`, `/admin/[slug]/matches`, `/admin/[slug]/bracket`.
 
 ## Deploying
 
