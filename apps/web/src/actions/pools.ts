@@ -55,15 +55,23 @@ export async function lockPools(slug: string): Promise<ActionResult> {
   const tooSmall = grouped.filter((g) => g.teamIds.length < 2);
   if (tooSmall.length) return fail('invalid_input', 'Every pool needs at least 2 teams');
   const fewerThanAdvance = grouped.filter((g) => g.teamIds.length < ctx.tournament.advance_per_pool);
-  if (fewerThanAdvance.length) return fail('invalid_input', `Every pool needs at least ${ctx.tournament.advance_per_pool} teams to advance ${ctx.tournament.advance_per_pool}`);
+  if (fewerThanAdvance.length) return fail('invalid_input', `Every pool needs at least ${ctx.tournament.advance_per_pool} teams because ${ctx.tournament.advance_per_pool} advance from each pool`);
+  if (pools.every((p) => p.locked === true)) return fail('stale_state', 'Pools were already locked');
+
+  // Claim the setup -> pools transition first (and verify a row was actually
+  // affected) so a racing or retried lock request can't pass the earlier
+  // `status === 'setup'` guard twice and insert a second set of matches:
+  // Supabase returns no error when an update's filter matches zero rows.
+  const claim = await ctx.sb.from('tournaments').update({ status: 'pools' })
+    .eq('id', ctx.tournament.id).eq('status', 'setup').select('id');
+  if (claim.error) return fail('invalid_input', claim.error.message);
+  if ((claim.data ?? []).length === 0) return fail('stale_state', 'Pools were already locked');
 
   const matches = planLock(grouped, randomUUID);
   const ins = await ctx.sb.from('matches').insert(matches.map((m) => matchToRow(m, ctx.tournament.id)));
   if (ins.error) return fail('invalid_input', ins.error.message);
   const lock = await ctx.sb.from('pools').update({ locked: true }).eq('tournament_id', ctx.tournament.id);
   if (lock.error) return fail('invalid_input', lock.error.message);
-  const st = await ctx.sb.from('tournaments').update({ status: 'pools' }).eq('id', ctx.tournament.id).eq('status', 'setup');
-  if (st.error) return fail('invalid_input', st.error.message);
   revalidatePath(`/admin/${slug}`);
   revalidatePath(`/t/${slug}`);
   return ok(undefined);
