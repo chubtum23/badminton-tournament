@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { advance } from './advance';
+import { advance, rollback } from './advance';
 import { makeMatch } from './testUtils';
 
 const ko = (over: Parameters<typeof makeMatch>[0]) => makeMatch({ stage: 'knockout', ...over });
@@ -41,5 +41,52 @@ describe('advance', () => {
 
   it('rejects an unknown match', () => {
     expect(() => advance([semi1], 'nope', 'A1')).toThrow('unknown match nope');
+  });
+});
+
+describe('rollback', () => {
+  // Round 1: q1, q2 feed semi s1; q3, q4 feed semi s2; semis feed final f.
+  const q1 = ko({ id: 'q1', round: 1, slot: 1, teamAId: 'A1', teamBId: 'D2', status: 'done', winnerId: 'A1', nextMatchId: 's1', nextMatchSide: 'a' });
+  const q2 = ko({ id: 'q2', round: 1, slot: 2, teamAId: 'D1', teamBId: 'A2', status: 'done', winnerId: 'D1', nextMatchId: 's1', nextMatchSide: 'b' });
+  const q3 = ko({ id: 'q3', round: 1, slot: 3, teamAId: 'B1', teamBId: 'C2', status: 'done', winnerId: 'B1', nextMatchId: 's2', nextMatchSide: 'a' });
+  const q4 = ko({ id: 'q4', round: 1, slot: 4, teamAId: 'C1', teamBId: 'B2', status: 'ready', nextMatchId: 's2', nextMatchSide: 'b' });
+  const s1 = ko({ id: 's1', round: 2, slot: 1, teamAId: 'A1', teamBId: 'D1', status: 'done', winnerId: 'A1', nextMatchId: 'f', nextMatchSide: 'a' });
+  const s2 = ko({ id: 's2', round: 2, slot: 2, teamAId: 'B1', teamBId: null, status: 'pending', nextMatchId: 'f', nextMatchSide: 'b' });
+  const f = ko({ id: 'f', round: 3, slot: 1, teamAId: 'A1', teamBId: null, status: 'pending' });
+  const all = [q1, q2, q3, q4, s1, s2, f];
+
+  it('clears the winner from a ready next match without flagging a reset', () => {
+    const { changed, resetMatchIds } = rollback(all, 'q3');
+    expect(resetMatchIds).toEqual([]);
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatchObject({ id: 's2', teamAId: null, teamBId: null, status: 'pending', winnerId: null });
+  });
+
+  it('cascades through a done semi into the final and flags the semi for reset', () => {
+    const { changed, resetMatchIds } = rollback(all, 'q1');
+    expect(resetMatchIds).toEqual(['s1']);
+    const byId = new Map(changed.map((m) => [m.id, m]));
+    expect(byId.get('s1')).toMatchObject({ teamAId: null, teamBId: 'D1', status: 'pending', winnerId: null });
+    expect(byId.get('f')).toMatchObject({ teamAId: null, teamBId: null, status: 'pending', winnerId: null });
+    expect(changed).toHaveLength(2);
+  });
+
+  it('flags a live downstream match for reset and clears its court', () => {
+    const liveFinal = { ...f, teamBId: 'B1', status: 'live' as const, court: 1 };
+    const { changed, resetMatchIds } = rollback([...all.filter((m) => m.id !== 'f'), liveFinal], 's1');
+    expect(resetMatchIds).toEqual(['f']);
+    expect(changed[0]).toMatchObject({ id: 'f', teamAId: null, teamBId: 'B1', court: null, status: 'pending' });
+  });
+
+  it('does nothing for a match without a winner or without a next match', () => {
+    expect(rollback(all, 'q4')).toEqual({ changed: [], resetMatchIds: [] });
+    const doneFinal = { ...f, teamBId: 'B1', status: 'done' as const, winnerId: 'A1' };
+    expect(rollback([doneFinal], 'f')).toEqual({ changed: [], resetMatchIds: [] });
+  });
+
+  it('does not mutate the inputs', () => {
+    rollback(all, 'q1');
+    expect(s1.teamAId).toBe('A1');
+    expect(f.teamAId).toBe('A1');
   });
 });

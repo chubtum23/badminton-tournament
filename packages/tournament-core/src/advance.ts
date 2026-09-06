@@ -24,3 +24,44 @@ export function advance(matches: readonly Match[], matchId: string, winnerId: st
   }
   return changed;
 }
+
+export interface RollbackResult {
+  /** Downstream matches that changed, as new objects. */
+  changed: Match[];
+  /** Downstream matches that were past 'ready' and lose their games and submissions. */
+  resetMatchIds: string[];
+}
+
+/**
+ * Undo the downstream effects of a match's current winner so its result can be re-entered.
+ * Recurses through every match the old winner had reached.
+ */
+export function rollback(matches: readonly Match[], matchId: string): RollbackResult {
+  const working = new Map(matches.map((m) => [m.id, { ...m }]));
+  const match = working.get(matchId);
+  if (!match) throw new Error(`unknown match ${matchId}`);
+
+  const changed = new Map<string, Match>();
+  const resetMatchIds: string[] = [];
+
+  const clearDownstream = (from: Match): void => {
+    const winner = from.winnerId;
+    if (!winner || !from.nextMatchId) return;
+    const next = working.get(from.nextMatchId);
+    if (!next) return;
+    if (next.teamAId !== winner && next.teamBId !== winner) return;
+
+    if (next.status === 'done') clearDownstream(next);
+    if (next.status !== 'pending' && next.status !== 'ready') resetMatchIds.push(next.id);
+
+    if (next.teamAId === winner) next.teamAId = null;
+    else next.teamBId = null;
+    next.winnerId = null;
+    next.court = null;
+    next.status = 'pending';
+    changed.set(next.id, next);
+  };
+
+  clearDownstream(match);
+  return { changed: [...changed.values()], resetMatchIds };
+}
