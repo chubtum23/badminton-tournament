@@ -1,8 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { VERSION } from './index';
+import * as core from './index';
 
-describe('package', () => {
-  it('exposes a version', () => {
-    expect(VERSION).toBe('0.1.0');
+describe('public API', () => {
+  it('exports every rule function', () => {
+    const expected = [
+      'BADMINTON_DEFAULTS', 'validateGame', 'matchResult', 'gamesNeeded',
+      'shuffle', 'assignPools', 'roundRobin', 'poolMatches',
+      'poolStandings', 'bracketSize', 'bracketOrder', 'seedQualifiers', 'buildBracket',
+      'advance', 'rollback', 'liveBoard',
+    ];
+    for (const name of expected) expect(core, name).toHaveProperty(name);
   });
 });
