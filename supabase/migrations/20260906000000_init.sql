@@ -78,6 +78,7 @@ create table public.matches (
   winner_id uuid references public.teams(id) on delete set null,
   next_match_id uuid references public.matches(id) on delete set null,
   next_match_side text check (next_match_side in ('a','b')),
+  finished_at timestamptz,
   check ((stage = 'pool' and pool_id is not null and round is null)
       or (stage = 'knockout' and pool_id is null and round is not null))
 );
@@ -131,17 +132,19 @@ alter table public.games enable row level security;
 alter table public.score_submissions enable row level security;
 alter table public.announcements enable row level security;
 
--- tournaments: anyone reads; any signed-in user may create; only admins change
+-- tournaments: anyone reads; only admins change. Creation goes through
+-- public.create_tournament() (below), which records the creator as an admin in the same
+-- transaction, so there is deliberately no insert policy here.
 create policy tournaments_read on public.tournaments for select using (true);
-create policy tournaments_insert on public.tournaments for insert to authenticated with check (true);
 create policy tournaments_update on public.tournaments for update to authenticated
   using (public.is_tournament_admin(id)) with check (public.is_tournament_admin(id));
 create policy tournaments_delete on public.tournaments for delete to authenticated
   using (public.is_tournament_admin(id));
 
--- tournament_admins: you see your own rows; you may add yourself
+-- tournament_admins: you see your own rows. There is deliberately no insert policy: a
+-- self-insert would let any signed-in user grant themselves admin over any tournament.
+-- Admin rows are written only by public.create_tournament() (security definer).
 create policy admins_read on public.tournament_admins for select to authenticated using (user_id = auth.uid());
-create policy admins_insert on public.tournament_admins for insert to authenticated with check (user_id = auth.uid());
 
 -- tables keyed by tournament_id: public read, admin write
 create policy players_read on public.players for select using (true);
@@ -214,3 +217,21 @@ revoke execute on function public.team_edit_tokens(uuid) from public, anon;
 revoke execute on function public.regenerate_team_token(uuid) from public, anon;
 grant execute on function public.team_edit_tokens(uuid) to authenticated, service_role;
 grant execute on function public.regenerate_team_token(uuid) to authenticated, service_role;
+
+-- ---------- tournament creation (atomic: tournament + its first admin) ----------
+create or replace function public.create_tournament(p_slug text, p_name text) returns uuid
+language plpgsql volatile security definer set search_path = public as $$
+declare new_id uuid;
+begin
+  if auth.uid() is null then raise exception 'not_admin' using errcode = '42501'; end if;
+  insert into public.tournaments (slug, name) values (p_slug, p_name) returning id into new_id;
+  insert into public.tournament_admins (tournament_id, user_id) values (new_id, auth.uid());
+  return new_id;
+end; $$;
+
+revoke execute on function public.create_tournament(text, text) from public, anon;
+grant execute on function public.create_tournament(text, text) to authenticated, service_role;
+
+-- ---------- realtime ----------
+-- Without this the client subscriptions in the app never receive anything.
+alter publication supabase_realtime add table public.tournaments, public.matches, public.games, public.score_submissions, public.announcements;

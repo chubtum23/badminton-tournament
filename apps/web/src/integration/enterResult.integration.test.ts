@@ -30,12 +30,9 @@ describe.skipIf(!enabled)('enterResult claim race', () => {
     service = createClient(url!, serviceKey!, { auth: { persistSession: false } });
     admin = await signedInClient(`admin-${slug}@example.com`);
 
-    const t = await admin.from('tournaments').insert({ slug, name: 'enterResult race test' }).select('id').single();
+    const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'enterResult race test' });
     if (t.error) throw t.error;
-    tournamentId = t.data.id;
-    const me = (await admin.auth.getUser()).data.user!.id;
-    const ta = await admin.from('tournament_admins').insert({ tournament_id: tournamentId, user_id: me });
-    if (ta.error) throw ta.error;
+    tournamentId = t.data as string;
 
     const teamA = await admin.from('teams').insert({ tournament_id: tournamentId, name: 'Alpha' }).select('id').single();
     if (teamA.error) throw teamA.error;

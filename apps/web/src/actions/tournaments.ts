@@ -13,10 +13,13 @@ export async function createTournament(formData: FormData): Promise<void> {
   const sb = await createServerSupabase();
   const { data: auth } = await sb.auth.getUser();
   if (!auth.user) redirect('/login');
-  const ins = await sb.from('tournaments').insert({ slug, name }).select('id').single();
-  if (ins.error) redirect('/admin?error=' + encodeURIComponent(ins.error.message));
-  const adm = await sb.from('tournament_admins').insert({ tournament_id: ins.data.id, user_id: auth.user.id });
-  if (adm.error) redirect('/admin?error=' + encodeURIComponent(adm.error.message));
+  // create_tournament() inserts the tournament and its first admin row in one transaction;
+  // direct inserts into either table are refused by RLS.
+  const res = await sb.rpc('create_tournament', { p_slug: slug, p_name: name });
+  if (res.error) {
+    const duplicate = res.error.code === '23505' || /duplicate key|already exists/i.test(res.error.message);
+    redirect('/admin?error=' + encodeURIComponent(duplicate ? 'That slug is already taken' : res.error.message));
+  }
   redirect(`/admin/${slug}`);
 }
 

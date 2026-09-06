@@ -32,12 +32,9 @@ describe.skipIf(!enabled)('row level security', () => {
     admin = await signedInClient(`admin-${slug}@example.com`);
     outsider = await signedInClient(`outsider-${slug}@example.com`);
 
-    const t = await admin.from('tournaments').insert({ slug, name: 'RLS test' }).select('id').single();
+    const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'RLS test' });
     if (t.error) throw t.error;
-    tournamentId = t.data.id;
-    const me = (await admin.auth.getUser()).data.user!.id;
-    const a = await admin.from('tournament_admins').insert({ tournament_id: tournamentId, user_id: me });
-    if (a.error) throw a.error;
+    tournamentId = t.data as string;
     const team = await admin.from('teams').insert({ tournament_id: tournamentId, name: 'Aces' }).select('id').single();
     if (team.error) throw team.error;
     teamId = team.data.id;
@@ -65,6 +62,30 @@ describe.skipIf(!enabled)('row level security', () => {
     expect(res.error !== null || (res.data ?? []).length === 0).toBe(true);
     const upd = await outsider.from('tournaments').update({ name: 'hacked' }).eq('id', tournamentId).select('id');
     expect(upd.error !== null || (upd.data ?? []).length === 0).toBe(true);
+  });
+
+  it('an outsider cannot make themselves an admin of another tournament', async () => {
+    const them = (await outsider.auth.getUser()).data.user!.id;
+    const res = await outsider.from('tournament_admins')
+      .insert({ tournament_id: tournamentId, user_id: them }).select('tournament_id');
+    expect(res.error !== null || (res.data ?? []).length === 0).toBe(true);
+    // The service client bypasses RLS, so this is the authoritative check that nothing landed.
+    const check = await service.from('tournament_admins')
+      .select('tournament_id').eq('tournament_id', tournamentId).eq('user_id', them);
+    expect(check.error).toBeNull();
+    expect(check.data ?? []).toHaveLength(0);
+  });
+
+  it('a signed-in outsider cannot insert a tournament directly', async () => {
+    const res = await outsider.from('tournaments').insert({ slug: `${slug}-direct`, name: 'nope' }).select('id');
+    expect(res.error !== null || (res.data ?? []).length === 0).toBe(true);
+    const check = await service.from('tournaments').select('id').eq('slug', `${slug}-direct`);
+    expect(check.data ?? []).toHaveLength(0);
+  });
+
+  it('anon cannot call create_tournament', async () => {
+    const res = await anon.rpc('create_tournament', { p_slug: `${slug}-anon`, p_name: 'nope' });
+    expect(res.error?.message ?? '').toMatch(/permission denied/i);
   });
 
   it('the admin can fetch edit tokens through the function; an outsider gets nothing', async () => {
