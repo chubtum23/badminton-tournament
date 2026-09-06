@@ -115,9 +115,14 @@ All functions are pure: settings and rows in, new rows or values out.
 ### 6.1 Score validation
 `validateGame(settings, scoreA, scoreB)` — a game is valid when one side reached
 `points_per_game`, and if `win_by_two` the lead is at least 2, unless a side reached
-`max_points` (then any lead). No ties.
+`max_points`, where a one-point lead also ends the game (e.g. 21-20 with a cap of 21).
+No ties.
 `matchResult(settings, games)` — returns the winner once one side has won a majority of
 `games_per_match`, or `null` if incomplete. Rejects extra games after the match is decided.
+`validateSettings(settings)` returns a list of problems; the admin settings form must
+reject settings with any problem (games per match must be odd, the cap must be at least
+the game target).
+`winnerTeamId(match, winner)` maps the winning side to the team id for `advance`.
 
 ### 6.2 Pool generation
 `assignPools(teams, poolCount, rng)` — shuffle all teams with the given random source,
@@ -128,16 +133,18 @@ returns ordered `{slot, teamA, teamB}` pairs spread so no team plays twice in a 
 avoidable.
 
 ### 6.3 Standings
-`poolStandings(settings, teams, matches, games)` returns rows ordered by:
+`poolStandings(teams, matches, gamesByMatch)` returns rows ordered by:
 1. match wins (desc)
 2. points scored minus points conceded across all games (desc)
 3. head-to-head result between the tied teams (only when exactly two are tied)
 4. team name (alphabetical) as a stable last resort
 
 Each row carries played, won, lost, games won/lost, points for/against, point diff.
+Per pool: the caller passes only that pool's teams and matches.
 
 ### 6.4 Knockout generation
-`buildBracket(settings, poolStandingsByPool)`:
+`buildBracket(poolResults, advancePerPool, newId)`, where `poolResults` is the ordered
+list of `{ poolId, ranked }` from `poolStandings`:
 - Take the top `advance_per_pool` from each pool.
 - Bracket size is the next power of two ≥ number of qualifiers. Extra slots become byes.
 - Placement: qualifiers get a global seed order (all pool winners first, then all
@@ -152,7 +159,8 @@ Pool finishing position is the only input. Seeds are not consulted.
 
 ### 6.5 Advancement and rollback
 `advance(matches, matchId, winnerId)` — writes the winner into the linked match; returns
-the list of matches changed.
+the list of matches changed. It refuses to re-enter a different winner on a match that
+is already done; the caller must `rollback` first.
 `rollback(matches, matchId)` — when an admin edits a `done` match, clears the old winner
 from downstream matches recursively, resets their status (and deletes their games and
 submissions) and returns the list of affected matches so the UI can ask for confirmation
@@ -220,7 +228,9 @@ or an admin to confirm.
 
 ## 10. Extensibility notes
 
-Sport-specific behaviour is confined to the `settings` object and the functions in
-6.1 and 6.3. Adding another sport means new default settings and, if needed, a different
-`validateGame` or tie-break order registered against the `sport` field. Views and the
-match lifecycle are sport-agnostic.
+Sport-specific behaviour is confined to the `settings` object and the functions in 6.1.
+The standings tie-break order in 6.3 is fixed for v1; supporting a sport with a different
+order means adding a tie-break field to `settings` and a `settings` parameter to
+`poolStandings`. Adding another sport means new default settings and, if needed, a
+different `validateGame` or tie-break order registered against the `sport` field. Views
+and the match lifecycle are sport-agnostic.
