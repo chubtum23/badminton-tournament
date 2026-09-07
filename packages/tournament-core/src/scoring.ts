@@ -4,7 +4,7 @@ export type GameValidation = { ok: true; winner: Side } | { ok: false; reason: s
 
 const fail = (reason: string): GameValidation => ({ ok: false, reason });
 
-export function validateGame(s: Settings, scoreA: number, scoreB: number): GameValidation {
+export function validateGame(s: Settings, scoreA: number, scoreB: number, timeExpired = false): GameValidation {
   if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
     return fail('scores must be non-negative whole numbers');
   }
@@ -14,6 +14,13 @@ export function validateGame(s: Settings, scoreA: number, scoreB: number): GameV
   const lo = Math.min(scoreA, scoreB);
   const lead = hi - lo;
   const winner: Side = scoreA > scoreB ? 'a' : 'b';
+  const ceiling = s.maxPoints ?? s.pointsPerGame;
+
+  if (timeExpired) {
+    if (s.timeCapMinutes === null) return fail('this stage has no time cap');
+    if (hi > ceiling) return fail(`scores cannot exceed ${ceiling}`);
+    return { ok: true, winner };
+  }
 
   if (hi < s.pointsPerGame) return fail(`winner must reach ${s.pointsPerGame}`);
   if (s.maxPoints !== null && hi > s.maxPoints) return fail(`scores cannot exceed ${s.maxPoints}`);
@@ -53,7 +60,7 @@ export function matchResult(s: Settings, games: readonly Game[]): MatchResult {
     if (gamesA >= needed || gamesB >= needed) {
       return { ok: false, reason: 'extra game after the match was decided' };
     }
-    const v = validateGame(s, game.scoreA, game.scoreB);
+    const v = validateGame(s, game.scoreA, game.scoreB, game.timeExpired ?? false);
     if (!v.ok) return { ok: false, reason: `game ${game.gameNo}: ${v.reason}` };
     if (v.winner === 'a') gamesA++;
     else gamesB++;
@@ -80,6 +87,9 @@ export function validateSettings(s: Settings): string[] {
   }
   if (s.maxPoints !== null && (!Number.isInteger(s.maxPoints) || s.maxPoints < s.pointsPerGame)) {
     problems.push('maxPoints must be null or at least pointsPerGame');
+  }
+  if (s.timeCapMinutes !== null && (!Number.isInteger(s.timeCapMinutes) || s.timeCapMinutes <= 0)) {
+    problems.push('timeCapMinutes must be null or a positive integer');
   }
   return problems;
 }

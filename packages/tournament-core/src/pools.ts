@@ -71,6 +71,7 @@ export function poolMatches(poolId: string, teamIds: readonly string[], newId: (
     court: null,
     status: 'ready',
     winnerId: null,
+    decidedBy: 'played',
     nextMatchId: null,
     nextMatchSide: null,
   }));

@@ -1,4 +1,4 @@
-/** Sport-specific scoring rules. Stored per tournament. */
+/** Sport-specific scoring rules. Stored per tournament (or per stage). */
 export interface Settings {
   /** Odd number of games; the match is won by a majority. */
   gamesPerMatch: number;
@@ -8,23 +8,39 @@ export interface Settings {
   winByTwo: boolean;
   /** Hard cap; the first side to reach it wins regardless of lead. null = no cap. */
   maxPoints: number | null;
+  /** Minutes per game before the clock ends it; null = no clock. */
+  timeCapMinutes: number | null;
 }
 
+/** Club night format: one game to 15, win by one, 13-minute clock. */
 export const BADMINTON_DEFAULTS: Settings = {
+  gamesPerMatch: 1,
+  pointsPerGame: 15,
+  winByTwo: false,
+  maxPoints: null,
+  timeCapMinutes: 13,
+};
+
+/** Traditional best-of-three used by the original tests. */
+export const CLASSIC_BEST_OF_THREE: Settings = {
   gamesPerMatch: 3,
   pointsPerGame: 15,
   winByTwo: true,
   maxPoints: 21,
+  timeCapMinutes: null,
 };
 
 export type Side = 'a' | 'b';
-export type Stage = 'pool' | 'knockout';
+export type Stage = 'pool' | 'knockout' | 'playoff';
 export type MatchStatus = 'pending' | 'ready' | 'live' | 'submitted' | 'disputed' | 'done';
+export type DecidedBy = 'played' | 'awarded' | 'forfeit';
 
 export interface Game {
   gameNo: number;
   scoreA: number;
   scoreB: number;
+  /** The clock ended this game; any non-level score is accepted. */
+  timeExpired?: boolean;
 }
 
 export interface Match {
@@ -40,6 +56,7 @@ export interface Match {
   court: number | null;
   status: MatchStatus;
   winnerId: string | null;
+  decidedBy: DecidedBy;
   nextMatchId: string | null;
   nextMatchSide: Side | null;
 }

@@ -83,7 +83,7 @@ export function buildBracket(pools: readonly PoolResult[], advancePerPool: numbe
       Array.from({ length: count }, (_, i): Match => ({
         id: newId(), stage: 'knockout', poolId: null, round: r, slot: i + 1,
         teamAId: null, teamBId: null, court: null, status: 'pending',
-        winnerId: null, nextMatchId: null, nextMatchSide: null,
+        winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null,
       })),
     );
   }

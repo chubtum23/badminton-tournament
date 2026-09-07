@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { validateGame, matchResult, winnerTeamId, validateSettings } from './scoring';
-import { BADMINTON_DEFAULTS, type Settings } from './types';
+import { BADMINTON_DEFAULTS, CLASSIC_BEST_OF_THREE, type Settings } from './types';
 
-const s = BADMINTON_DEFAULTS; // to 15, win by two, cap 21
+const s = CLASSIC_BEST_OF_THREE; // to 15, win by two, cap 21
 
 describe('validateGame', () => {
   it('accepts a normal win for either side', () => {
@@ -158,5 +158,36 @@ describe('validateSettings', () => {
 
   it('accepts maxPoints equal to pointsPerGame', () => {
     expect(validateSettings({ ...s, pointsPerGame: 15, maxPoints: 15 })).toEqual([]);
+  });
+});
+
+describe('time-expired games', () => {
+  const club: Settings = { gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13 };
+  it('accepts any non-level score when time expired under a clock', () => {
+    expect(validateGame(club, 11, 8, true)).toEqual({ ok: true, winner: 'a' });
+    expect(validateGame(club, 3, 4, true)).toEqual({ ok: true, winner: 'b' });
+  });
+  it('still rejects a level score at expiry (deciding point is played on court)', () => {
+    expect(validateGame(club, 9, 9, true)).toEqual({ ok: false, reason: 'a game cannot end in a tie' });
+  });
+  it('rejects scores above the target even when time expired', () => {
+    expect(validateGame(club, 16, 3, true)).toEqual({ ok: false, reason: 'scores cannot exceed 15' });
+  });
+  it('rejects the flag when the stage has no clock', () => {
+    const noClock: Settings = { ...club, timeCapMinutes: null };
+    expect(validateGame(noClock, 11, 8, true)).toEqual({ ok: false, reason: 'this stage has no time cap' });
+  });
+  it('without the flag a club game must reach 15 and may be won by one', () => {
+    expect(validateGame(club, 15, 14)).toEqual({ ok: true, winner: 'a' });
+    expect(validateGame(club, 14, 12)).toEqual({ ok: false, reason: 'winner must reach 15' });
+  });
+  it('matchResult honours the per-game flag and a single-game match', () => {
+    expect(matchResult(club, [{ gameNo: 1, scoreA: 10, scoreB: 7, timeExpired: true }])).toMatchObject({ ok: true, complete: true, winner: 'a' });
+    expect(matchResult(club, [{ gameNo: 1, scoreA: 10, scoreB: 7 }])).toMatchObject({ ok: false });
+  });
+  it('validateSettings checks the time cap', () => {
+    expect(validateSettings(club)).toEqual([]);
+    expect(validateSettings({ ...club, timeCapMinutes: 0 })).toEqual(['timeCapMinutes must be null or a positive integer']);
+    expect(validateSettings(BADMINTON_DEFAULTS)).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  BADMINTON_DEFAULTS, assignPools, poolMatches, poolStandings, buildBracket,
+  CLASSIC_BEST_OF_THREE, assignPools, poolMatches, poolStandings, buildBracket,
   advance, rollback, matchResult, winnerTeamId, liveBoard, type Match, type Game, type TeamRef, type PoolResult,
 } from './index';
 import { seededRng, idGen } from './testUtils';
@@ -17,7 +17,7 @@ function playAll(matches: Match[], games: Record<string, Game[]>): Match[] {
     const aStronger = strength(next.teamAId!) < strength(next.teamBId!);
     const g = playedGames();
     if (!aStronger) for (const x of g) [x.scoreA, x.scoreB] = [x.scoreB, x.scoreA];
-    const result = matchResult(BADMINTON_DEFAULTS, g);
+    const result = matchResult(CLASSIC_BEST_OF_THREE, g);
     if (!result.ok || !result.complete) throw new Error('bad simulated result');
     games[next.id] = g;
     const winner = winnerTeamId(next, result.winner);

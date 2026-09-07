@@ -13,7 +13,7 @@ export function liveBoard(matches: readonly Match[], stage: Stage, poolOrder: re
   const groupKey = (m: Match) => (stage === 'pool' ? `pool:${m.poolId}` : `round:${m.round}`);
   const best = new Map<string, Match>();
   for (const m of matches) {
-    if (m.stage !== stage || m.status !== 'ready' || m.court !== null) continue;
+    if (m.stage !== stage || m.stage === 'playoff' || m.status !== 'ready' || m.court !== null) continue;
     const current = best.get(groupKey(m));
     if (!current || m.slot < current.slot) best.set(groupKey(m), m);
   }

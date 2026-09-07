@@ -48,4 +48,15 @@ describe('liveBoard', () => {
     expect(liveBoard(mixed, 'knockout').upNext.map((m) => m.id)).toEqual(['k1']);
     expect(liveBoard(mixed, 'knockout').nowPlaying).toHaveLength(2);
   });
+
+  it('never queues playoff matches as up next but shows them when live', () => {
+    const ms = [
+      makeMatch({ id: 'p1', stage: 'playoff', poolId: 'A', slot: 99, status: 'ready', teamAId: 'x', teamBId: 'y' }),
+      makeMatch({ id: 'p2', stage: 'playoff', poolId: 'B', slot: 99, status: 'live', court: 2, teamAId: 'x', teamBId: 'y' }),
+      makeMatch({ id: 'a1', poolId: 'A', slot: 1, status: 'ready', teamAId: 't1', teamBId: 't2' }),
+    ];
+    const b = liveBoard(ms, 'pool', ['A', 'B']);
+    expect(b.upNext.map((m) => m.id)).toEqual(['a1']);
+    expect(b.nowPlaying.map((m) => m.id)).toEqual(['p2']);
+  });
 });
