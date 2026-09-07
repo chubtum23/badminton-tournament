@@ -29,7 +29,10 @@ score is still rejected — the deciding point is played out on court.
 **Entering results.** The score form validates as you type and says why a score is not
 legal ("winner must reach 15") next to the game, keeping Save disabled until the match is
 complete. It calls the server action itself, so a rejected save never loses typed scores
-and the outcome lands inline instead of as a redirect.
+and the outcome lands inline instead of as a redirect. The confirmation also appears as a
+banner at the top of the page, because saving a match usually drops its card out of the
+"open" list and takes the inline message with it. Dates and times are rendered in the
+server's timezone for now, not the viewer's.
 
 **Standings and ties.** Pool tables are ordered by team points (one per win), then by a
 recorded playoff between the tied teams, then head-to-head (two teams only), then score
@@ -85,7 +88,8 @@ a renamed team appears on other people's screens at their next refresh.
   profile edits, a player-submitted match, a disputed match resolved by an admin, and
   announcements; and a club-night format run covering the date and venue on the public
   header, the court clock, a time-expired result, an invalid score blocked with its
-  reason, a three-way tie on the qualification line resolved by a manual finishing order,
+  reason, a three-way tie on the qualification line narrowed by a recorded playoff and then
+  resolved by a manual finishing order,
   a team replaced in a bracket slot, a withdrawal forfeiting the final, and an awarded
   match changing the champion.
 

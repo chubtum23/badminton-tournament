@@ -92,6 +92,32 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await page.goto(`/admin/${slug}/bracket`);
   await expect(page.getByText(/unresolved tie/i)).toBeVisible();
 
+  // record a playoff between two of the tied teams. The form is prefilled with the first two names
+  // in the tie group (Bravo and Charlie), which is what we want here.
+  await page.goto(`/admin/${slug}/pools`);
+  await page.getByRole('button', { name: /Record men.s doubles playoff/ }).click();
+  await expect(page.getByText('Playoff created')).toBeVisible();
+  // The playoff is a real match: it appears on the open list labelled "<pool> · playoff".
+  await page.goto(`/admin/${slug}/matches?filter=open`);
+  const playoffCard = page.locator('div.rounded.border', { has: page.getByTestId('score-form') })
+    .filter({ hasText: /playoff/i }).first();
+  await expect(playoffCard).toBeVisible();
+  const playoffForm = playoffCard.getByTestId('score-form');
+  await playoffForm.locator('input[name="game1a"]').fill('15');
+  await playoffForm.locator('input[name="game1b"]').fill('9');
+  await playoffForm.getByRole('button', { name: /save result/i }).click();
+  await expect(page.getByText('Result saved').first()).toBeVisible();
+  // The public pools page lists it under its own "Playoff" heading (inside the collapsed
+  // "Matches (n/n played)" disclosure, which counts pool matches only).
+  await page.goto(`/t/${slug}/pools`);
+  await page.locator('summary').first().click();
+  await expect(page.getByRole('heading', { name: 'Playoff' })).toBeVisible();
+  // One playoff does not settle a three-way tie: poolStandings only uses a playoff to separate a
+  // group of exactly two, so Bravo/Charlie/Delta are still level and the warning stands. The
+  // manual order below is what actually resolves it.
+  await page.goto(`/admin/${slug}/pools`);
+  await expect(page.getByText(/tied for the last qualifying place|tie on the qualification line/i)).toBeVisible();
+
   // set the order manually: A, C, B, D
   await page.goto(`/admin/${slug}/pools`);
   const order = { 'Alpha & Ana': '1', 'Charlie & Cho': '2', 'Bravo & Bea': '3', 'Delta & Dee': '4' } as const;
