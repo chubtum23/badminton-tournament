@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { clearManualOrder, createPlayoff, generatePools, lockPools, moveTeam, setManualOrder } from '@/actions/pools';
+import { clearManualOrder, createPlayoff, generatePools, lockPools, moveTeam, setManualOrder, unlockPools } from '@/actions/pools';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { fail } from '@/actions/errors';
 import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
@@ -26,6 +26,8 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   const games = gamesByMatch(gameRows);
   const here = `/admin/${slug}/pools`;
   const nameOf = (id: string) => teams.find((x) => x.id === id)?.name ?? '?';
+  // Named in the unlock confirmation so the organiser sees what the draw is taking with it.
+  const resultCount = matches.filter((m) => m.status === 'done').length;
 
   async function generate(formData: FormData) {
     'use server';
@@ -38,6 +40,10 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   async function lock() {
     'use server';
     redirectWithMsg(here, await lockPools(slug), 'Pools locked and matches created');
+  }
+  async function unlock() {
+    'use server';
+    redirectWithMsg(here, await unlockPools(slug), 'Pools unlocked');
   }
   async function playoff(formData: FormData) {
     'use server';
@@ -78,8 +84,11 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
       <div className="grid gap-4 md:grid-cols-2">
         {pools.map((p) => {
           const poolTeams = teams.filter((x) => x.pool_id === p.id);
-          const { rows, ties, manual, playoffs } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
+          const { rows, ties, manual, playoffs, complete, fixtures } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
           const tiedPair = ties[0]?.teamIds ?? [];
+          // A half-played pool has no finishing order worth arguing about, so the organiser's
+          // tie-breaking tools stay out of the way until the pool is done (or already decided).
+          const showTieTools = inPlay && (complete || manual);
           // The rank selects live inside the standings rows, so they reach the form by id.
           const formId = `order-${p.id}`;
           return (
@@ -113,14 +122,31 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                     teams={teams}
                     advance={t.advance_per_pool}
                     manual={manual}
-                    actionHeader={inPlay ? 'Place' : undefined}
-                    rowAction={inPlay ? (r, i) => (
+                    actionHeader={showTieTools ? 'Place' : undefined}
+                    rowAction={showTieTools ? (r, i) => (
                       <select name={`rank_${r.teamId}`} form={formId} defaultValue={i + 1} className="rounded border p-1 text-xs">
                         {rows.map((_, n) => <option key={n} value={n + 1}>{n + 1}</option>)}
                       </select>
                     ) : undefined}
                   />
-                  {inPlay && (
+                  {fixtures.length > 0 && (
+                    <div className="mt-3 border-t pt-3">
+                      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fixtures</h3>
+                      <ul className="space-y-0.5 text-xs">
+                        {fixtures.map((m) => (
+                          <li key={m.id} className="flex items-baseline justify-between gap-2">
+                            <span>{m.teamAId ? nameOf(m.teamAId) : '?'} v {m.teamBId ? nameOf(m.teamBId) : '?'}</span>
+                            <span className="shrink-0 font-mono text-slate-500">
+                              {m.status === 'done'
+                                ? (games[m.id] ?? []).map((x) => `${x.scoreA}-${x.scoreB}`).join(', ')
+                                : m.status === 'live' && m.court !== null ? `court ${m.court}` : m.status}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {showTieTools && (
                     <div className="mt-3 space-y-3 border-t pt-3 text-sm">
                       <form id={formId} action={order} className="flex flex-wrap items-center gap-2">
                         <input type="hidden" name="poolId" value={p.id} />
@@ -160,7 +186,18 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
       {editable && pools.length > 0 && (
         <form action={lock}>
           <SubmitButton className="rounded bg-emerald-700 px-4 py-2 text-white">Lock pools and create matches</SubmitButton>
-          <p className="mt-1 text-xs text-slate-500">This cannot be undone. Settings and teams lock too.</p>
+          <p className="mt-1 text-xs text-slate-500">Settings and teams lock while the pools are in play. You can unlock again, which deletes the draw.</p>
+        </form>
+      )}
+      {inPlay && (
+        <form action={unlock}>
+          <SubmitButton
+            confirmMessage={`Unlock the pools? This deletes the draw${resultCount ? ` and ${resultCount} entered result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup.`}
+            className="rounded border border-red-300 px-4 py-2 text-red-700 hover:bg-red-50"
+          >
+            Unlock pools
+          </SubmitButton>
+          <p className="mt-1 text-xs text-slate-500">Deletes the generated matches so you can change teams, settings and pools again.</p>
         </form>
       )}
     </div>

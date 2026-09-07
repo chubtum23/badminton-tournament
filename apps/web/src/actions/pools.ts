@@ -86,6 +86,28 @@ export async function lockPools(slug: string): Promise<ActionResult> {
 }
 
 /**
+ * Reverses lockPools: throws the draw away and returns the tournament to setup so the organiser
+ * can change teams, settings and pools again. Every entered result goes with the matches.
+ */
+export async function unlockPools(slug: string): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'pools') return fail('stale_state', 'The pools are not locked');
+  // Deleting before the status change keeps a retry safe: a second attempt deletes nothing
+  // and still completes. games and score_submissions cascade from matches.
+  const del = await ctx.sb.from('matches').delete().eq('tournament_id', ctx.tournament.id);
+  if (del.error) return fail('invalid_input', del.error.message);
+  const cleared = await ctx.sb.from('teams').update({ pool_rank_override: null }).eq('tournament_id', ctx.tournament.id);
+  if (cleared.error) return fail('invalid_input', cleared.error.message);
+  const unlocked = await ctx.sb.from('pools').update({ locked: false }).eq('tournament_id', ctx.tournament.id);
+  if (unlocked.error) return fail('invalid_input', unlocked.error.message);
+  const back = await ctx.sb.from('tournaments').update({ status: 'setup' }).eq('id', ctx.tournament.id).eq('status', 'pools');
+  if (back.error) return fail('invalid_input', back.error.message);
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/**
  * Records a men's doubles playoff between two teams of one pool. The match is a real match with
  * its own result entry; poolStandings uses a done playoff to separate exactly those two teams,
  * and it never counts towards played, points or score difference.

@@ -9,6 +9,10 @@ export interface PoolComputation {
   manual: boolean;
   /** Playoff matches recorded inside this pool (any status). */
   playoffs: Match[];
+  /** This pool's ordinary fixtures all exist and have all been played. */
+  complete: boolean;
+  /** This pool's ordinary (non-playoff) fixtures, in playing order. */
+  fixtures: Match[];
 }
 
 /**
@@ -30,10 +34,23 @@ export function computePool(input: {
     .sort((a, b) => a.pool_rank_override! - b.pool_rank_override!);
   const manual = overridden.length > 0;
   const rows = poolStandings(teamRefs(teams), matches, input.games, manual ? { manualOrder: overridden.map((t) => t.id) } : {});
+
+  const fixtures = matches.filter((m) => m.stage === 'pool').sort((a, b) => a.slot - b.slot);
+  // A full round robin, so every pair meets once. Anything short of that (no draw yet, or a
+  // fixture missing) means the table below is not the finished one.
+  const expected = (teams.length * (teams.length - 1)) / 2;
+  const complete = expected > 0 && fixtures.length === expected && fixtures.every((m) => m.status === 'done');
+
+  // Before the pool is played a table of zeroes is not a ranking: every team is level on points
+  // and score difference, so unresolvedTies would flag a "tie" the moment the pools are locked.
+  // That is noise, not a decision the organiser has to make, so ties are withheld — and the row
+  // flag with them — until the last fixture is in.
   return {
-    rows,
-    ties: manual ? [] : unresolvedTies(rows, input.advancePerPool),
+    rows: complete || manual ? rows : rows.map((r) => ({ ...r, tieUnresolved: false })),
+    ties: manual || !complete ? [] : unresolvedTies(rows, input.advancePerPool),
     manual,
     playoffs: matches.filter((m) => m.stage === 'playoff'),
+    complete,
+    fixtures,
   };
 }
