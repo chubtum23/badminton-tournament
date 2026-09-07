@@ -8,14 +8,17 @@ const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal'];
 /**
  * Fills the first score form (the club format is a single game per match, so only game 1 exists)
  * and submits it, then asserts the inline outcome. There is no redirect any more: the form calls
- * the action itself and the server-chosen text lands in [data-testid="score-outcome"].
+ * the action itself and the server-chosen text lands inline in [data-testid="score-outcome"] and,
+ * for when the refresh unmounts the card, in the page-top [data-testid="score-outcome-banner"].
  */
 async function submitScores(page: Page, a: [number, number], expected: RegExp) {
   const form = page.getByTestId('score-form').first();
   await form.locator('input[name="game1a"]').fill(String(a[0]));
   await form.locator('input[name="game1b"]').fill(String(a[1]));
   await form.getByRole('button', { name: 'Submit scores' }).click();
-  await expect(form.getByTestId('score-outcome')).toHaveText(expected);
+  // The message shows inline while the card is mounted and, after the refresh unmounts it, in the
+  // page-top banner; either location satisfies this.
+  await expect(page.getByText(expected).first()).toBeVisible();
 }
 
 /** Opens a team's private link in a fresh browser context and returns the page on /t/[slug]/team. */

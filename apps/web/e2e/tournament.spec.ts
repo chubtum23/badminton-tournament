@@ -28,7 +28,8 @@ async function playAllOpen(page: Page, slugName: string, max: number): Promise<n
     await form.locator('input[name="game1b"]').fill(String(15 - slot));
     await form.getByRole('button', { name: /save result|edit result/i }).click();
     // The form posts the action itself now, so the outcome lands inline instead of as a redirect.
-    await expect(form.getByTestId('score-outcome')).toHaveText('Result saved');
+    // Inline while the card is mounted, in the page-top banner once the refresh unmounts it.
+    await expect(page.getByText('Result saved').first()).toBeVisible();
   }
   return max;
 }

@@ -7,6 +7,7 @@ import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { FlashMessage } from '@/components/FlashMessage';
+import { RecentOutcome } from '@/components/RecentOutcome';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,10 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   const latest = latestByMatch(subs);
   const mine = matchRows.map(rowToMatch).filter((m) => m.teamAId === me.team.id || m.teamBId === me.team.id);
   const next = mine.find((m) => m.status === 'live') ?? mine.find((m) => m.status === 'ready' || m.status === 'submitted' || m.status === 'disputed');
-  const label = (m: typeof mine[number]) => m.stage === 'pool' ? pools.find((p) => p.id === m.poolId)?.name ?? 'Pool' : `Round ${m.round}`;
+  const poolName = (m: typeof mine[number]) => pools.find((p) => p.id === m.poolId)?.name ?? 'Pool';
+  const label = (m: typeof mine[number]) => m.stage === 'pool' ? poolName(m)
+    : m.stage === 'playoff' ? `${poolName(m)} · playoff`
+    : `Round ${m.round}`;
   // Rules are per stage, so each match card is rendered against its own settings.
   const settingsOf = (m: typeof mine[number]) => settingsFor(me!.tournament, m.stage);
   const myTeamId = me.team.id;
@@ -52,6 +56,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   return (
     <div className="space-y-4">
       <FlashMessage />
+      <RecentOutcome />
       {me.team.withdrawn && (
         <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">Your team has been withdrawn by the organiser</p>
       )}

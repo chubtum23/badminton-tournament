@@ -17,7 +17,10 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const games = gamesByMatch(bundle.games);
   const stage = t.status === 'knockout' || t.status === 'finished' ? 'knockout' : 'pool';
   const board = liveBoard(matches, stage, pools.map((p) => p.id));
-  const label = (m: typeof matches[number]) => m.stage === 'pool' ? pools.find((p) => p.id === m.poolId)?.name ?? 'Pool' : `Round ${m.round}`;
+  const poolName = (m: typeof matches[number]) => pools.find((p) => p.id === m.poolId)?.name ?? 'Pool';
+  const label = (m: typeof matches[number]) => m.stage === 'pool' ? poolName(m)
+    : m.stage === 'playoff' ? `${poolName(m)} · playoff`
+    : `Round ${m.round}`;
   // Match carries no timestamps, so the live clock reads started_at off the raw rows.
   const startedAtById: Record<string, string | null> = Object.fromEntries(bundle.matches.map((r) => [r.id, r.started_at]));
   const capOf = (m: typeof matches[number]) => settingsFor(t, m.stage).timeCapMinutes;

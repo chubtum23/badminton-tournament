@@ -26,7 +26,8 @@ async function enterResult(page: Page, a: string, b: string, sa: number, sb: num
   await form.locator('input[name="game1b"]').fill(String(aIsFirst ? sb : sa));
   if (timeUp) await form.locator('input[name="game1x"]').check();
   await form.getByRole('button', { name: /save result/i }).click();
-  await expect(form.getByTestId('score-outcome')).toHaveText('Result saved');
+  // Inline while the card is mounted, in the page-top banner once the refresh unmounts it.
+  await expect(page.getByText('Result saved').first()).toBeVisible();
 }
 
 test('club format: clock, time-expired results, awards, withdrawal, playoff, bracket replacement', async ({ page }) => {

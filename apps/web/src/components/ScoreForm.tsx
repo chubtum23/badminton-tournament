@@ -3,6 +3,7 @@ import { Fragment, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { gamesNeeded, matchResult, validateGame, type Settings, type Game } from '@tournament/core';
 import type { ActionResult } from '@/actions/errors';
+import { OUTCOME_EVENT, OUTCOME_PREFIX } from './RecentOutcome';
 
 /** Text an action can hand back for the inline outcome line (submitted / confirmed / disputed). */
 const outcomeText = (data: unknown): string | null =>
@@ -64,8 +65,14 @@ export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, s
         if (confirmMessage && !window.confirm(confirmMessage)) return;
         start(async () => {
           const r = await action(fd);
-          setOutcome(r.ok ? { ok: true, text: outcomeText(r.data) ?? successText } : { ok: false, text: r.message ?? r.error });
-          if (r.ok) router.refresh();
+          if (!r.ok) { setOutcome({ ok: false, text: r.message ?? r.error }); return; }
+          const text = outcomeText(r.data) ?? successText;
+          setOutcome({ ok: true, text });
+          // The refresh below often unmounts this card (a saved match leaves the "open" filter),
+          // so hand the message to <RecentOutcome /> at the top of the page as well.
+          try { sessionStorage.setItem(`${OUTCOME_PREFIX}${matchId}`, JSON.stringify({ text, at: Date.now() })); } catch { /* storage blocked */ }
+          window.dispatchEvent(new Event(OUTCOME_EVENT));
+          router.refresh();
         });
       }}
       data-testid="score-form"

@@ -9,6 +9,7 @@ import { ScoreForm } from '@/components/ScoreForm';
 import { SubmissionCompare } from '@/components/SubmissionCompare';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { FlashMessage } from '@/components/FlashMessage';
+import { RecentOutcome } from '@/components/RecentOutcome';
 
 export default async function MatchesAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ filter?: string }> }) {
   const { slug } = await params;
@@ -42,8 +43,12 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
     const raw = String(formData.get('court') ?? '');
     const op = String(formData.get('op') ?? 'start');
     const picked = raw === '' ? null : Number(raw);
-    if (op === 'off') redirectWithMsg(here, await assignCourt(slug, matchId, null), 'Taken off court');
-    redirectWithMsg(here, await startNow(slug, matchId, picked), 'On court');
+    // redirectWithMsg never returns, but the explicit if/else keeps that from being load-bearing.
+    if (op === 'off') {
+      return redirectWithMsg(here, await assignCourt(slug, matchId, null), 'Taken off court');
+    } else {
+      return redirectWithMsg(here, await startNow(slug, matchId, picked), 'On court');
+    }
   }
   async function confirm(formData: FormData) {
     'use server';
@@ -58,6 +63,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   return (
     <div className="space-y-4">
       <FlashMessage />
+      <RecentOutcome />
       {attention.length > 0 && (
         <section className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
           <h2 className="font-semibold">Needs attention ({attention.length})</h2>
