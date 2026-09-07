@@ -290,3 +290,25 @@ end; $$;
 
 revoke execute on function public.delete_team(uuid) from public, anon;
 grant execute on function public.delete_team(uuid) to authenticated, service_role;
+
+-- ---------- organiser's pool finishing order (atomic) ----------
+-- Writing pool_rank_override one team at a time leaves a pool half-ordered when a later row fails,
+-- and two organisers racing can interleave their positions. This does the whole pool in one
+-- transaction, re-checking admin rights, the pool stage and that the list is exactly the pool.
+create or replace function public.set_pool_order(p_pool uuid, p_team_ids uuid[]) returns void
+language plpgsql volatile security definer set search_path = public as $$
+declare t uuid; x uuid; n int; i int := 0;
+begin
+  select tournament_id into t from public.pools where id = p_pool;
+  if t is null or not public.is_tournament_admin(t) then raise exception 'not_admin' using errcode = '42501'; end if;
+  if (select status from public.tournaments where id = t) <> 'pools' then raise exception 'stale_state'; end if;
+  select count(*) into n from public.teams where pool_id = p_pool;
+  if n <> coalesce(array_length(p_team_ids, 1), 0) or n <> (select count(distinct y) from unnest(p_team_ids) y where y in (select id from public.teams where pool_id = p_pool)) then
+    raise exception 'invalid_input' using message = 'order must list every team in the pool exactly once';
+  end if;
+  update public.teams set pool_rank_override = null where pool_id = p_pool;
+  foreach x in array p_team_ids loop i := i + 1; update public.teams set pool_rank_override = i where id = x and pool_id = p_pool; end loop;
+end; $$;
+
+revoke execute on function public.set_pool_order(uuid, uuid[]) from public, anon;
+grant execute on function public.set_pool_order(uuid, uuid[]) to authenticated, service_role;

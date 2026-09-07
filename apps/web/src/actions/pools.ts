@@ -132,10 +132,13 @@ export async function setManualOrder(slug: string, poolId: string, orderedTeamId
   if (orderedTeamIds.length !== poolTeamIds.length || unique.size !== orderedTeamIds.length || !orderedTeamIds.every((id) => poolTeamIds.includes(id))) {
     return fail('invalid_input', 'Give every team in the pool a different position');
   }
-  for (const [i, teamId] of orderedTeamIds.entries()) {
-    const upd = await ctx.sb.from('teams').update({ pool_rank_override: i + 1 })
-      .eq('id', teamId).eq('tournament_id', ctx.tournament.id).eq('pool_id', poolId);
-    if (upd.error) return fail('invalid_input', upd.error.message);
+  // One statement per team would leave the pool half-ordered if a later one failed, so the whole
+  // order is written by a single security-definer function that re-checks all of the above.
+  const rpc = await ctx.sb.rpc('set_pool_order', { p_pool: poolId, p_team_ids: orderedTeamIds });
+  if (rpc.error) {
+    return rpc.error.code === '42501'
+      ? fail('not_admin')
+      : fail('invalid_input', rpc.error.message);
   }
   revalidateTournament(slug);
   return ok(undefined);

@@ -75,6 +75,15 @@ export async function replaceTeamInMatch(slug: string, matchId: string, side: 'a
   const upd = await q.select('id');
   if (upd.error) return fail('invalid_input', upd.error.message);
   if ((upd.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
+
+  // The update above already puts a two-sided match back to 'ready', so a submitted/disputed match
+  // is no longer flagged. Its stored submissions (and any games, defensively — a match that is not
+  // done should have none) still name the team that just left the slot, so they go too; otherwise
+  // the card would show the old team's unconfirmed score against the new one.
+  const delSubs = await ctx.sb.from('score_submissions').delete().eq('match_id', matchId);
+  if (delSubs.error) return fail('invalid_input', delSubs.error.message);
+  const delGames = await ctx.sb.from('games').delete().eq('match_id', matchId);
+  if (delGames.error) return fail('invalid_input', delGames.error.message);
   revalidateTournament(slug);
   return ok(undefined);
 }
