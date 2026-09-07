@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Game, Match } from '@tournament/core';
 import type { TeamRow } from '@/lib/db/types';
+import type { Pending } from './MatchCard';
 
 function roundTitle(round: number, totalRounds: number): string {
   const fromEnd = totalRounds - round;
@@ -10,8 +11,10 @@ function roundTitle(round: number, totalRounds: number): string {
   return `Round ${round}`;
 }
 
-export function Bracket({ matches, teams, games, hrefFor }: {
+export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
   matches: Match[]; teams: readonly TeamRow[]; games: Record<string, Game[]>; hrefFor?: (m: Match) => string;
+  /** Supplies the unconfirmed submission to label a submitted/disputed box with, if any. */
+  pendingFor?: (m: Match) => Pending | undefined;
 }) {
   const ko = matches.filter((m) => m.stage === 'knockout');
   if (ko.length === 0) return <p className="text-sm text-slate-500">The knockout has not started.</p>;
@@ -45,12 +48,17 @@ export function Bracket({ matches, teams, games, hrefFor }: {
             </div>
             <div className="bk-slots">
               {list.map((m) => {
+                const pending = pendingFor?.(m);
                 const box = (
                   <div className={`bk-box relative w-full divide-y rounded border-2 bg-white text-sm ${m.status === 'live' ? 'border-emerald-500 shadow-md' : 'border-blue-900'}`}>
                     {row(m, m.teamAId, 'a')}
                     {row(m, m.teamBId, 'b')}
                     {m.status === 'live' && m.court && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {m.court} · live</div>}
-                    {(m.status === 'submitted' || m.status === 'disputed') && <div className="px-2 py-0.5 text-[10px] uppercase text-amber-700">{m.status === 'disputed' ? 'disputed' : 'unconfirmed'}</div>}
+                    {(m.status === 'submitted' || m.status === 'disputed') && (
+                      <div className="px-2 py-0.5 text-[10px] uppercase text-amber-700">
+                        {m.status === 'disputed' ? 'disputed' : 'unconfirmed'}{pending ? ` · ${pending.by}` : ''}
+                      </div>
+                    )}
                   </div>
                 );
                 return (
