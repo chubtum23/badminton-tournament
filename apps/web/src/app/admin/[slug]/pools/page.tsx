@@ -112,7 +112,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                     rows={rows}
                     teams={teams}
                     advance={t.advance_per_pool}
-                    caption={manual ? 'Order set by organiser' : undefined}
+                    manual={manual}
                     actionHeader={inPlay ? 'Place' : undefined}
                     rowAction={inPlay ? (r, i) => (
                       <select name={`rank_${r.teamId}`} form={formId} defaultValue={i + 1} className="rounded border p-1 text-xs">

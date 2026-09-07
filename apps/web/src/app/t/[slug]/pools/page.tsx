@@ -22,16 +22,24 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {pools.map((p) => {
-        const poolMatches = matches.filter((m) => m.poolId === p.id);
+        const poolMatches = matches.filter((m) => m.poolId === p.id && m.stage === 'pool');
         // Same computation the organiser sees: their manual order and any playoff already applied.
-        const { rows, manual } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
+        const { rows, ties, manual, playoffs } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
         return (
           <section key={p.id} className="rounded border bg-white p-4">
             <h2 className="mb-2 font-semibold">{p.name}</h2>
-            <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} caption={manual ? 'Order set by organiser' : undefined} />
+            <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} manual={manual} ties={ties} />
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-slate-600">Matches ({poolMatches.filter((m) => m.status === 'done').length}/{poolMatches.length} played)</summary>
-              <div className="mt-2 grid gap-2">{poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} pending={pending(m)} />)}</div>
+              <div className="mt-2 grid gap-2">
+                {poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} pending={pending(m)} />)}
+                {playoffs.length > 0 && (
+                  <>
+                    <h3 className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Playoff</h3>
+                    {playoffs.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label="Playoff" pending={pending(m)} />)}
+                  </>
+                )}
+              </div>
             </details>
           </section>
         );

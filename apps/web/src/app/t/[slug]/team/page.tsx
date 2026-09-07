@@ -42,7 +42,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   // Match carries no timestamps, so the live clock reads started_at off the raw rows.
   const startedAtById: Record<string, string | null> = Object.fromEntries(matchRows.map((r) => [r.id, r.started_at]));
   const canSubmit = (m: typeof mine[number]) =>
-    m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed';
+    !me.team.withdrawn && (m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed');
 
   async function save(formData: FormData) {
     'use server';
@@ -52,6 +52,9 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   return (
     <div className="space-y-4">
       <FlashMessage />
+      {me.team.withdrawn && (
+        <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">Your team has been withdrawn by the organiser</p>
+      )}
       <section className="rounded border bg-white p-4">
         <h2 className="mb-3 flex items-center gap-2 font-semibold"><span className="inline-block h-3 w-3 rounded-full" style={{ background: me.team.colour }} />{me.team.name}</h2>
         <form action={save} className="grid gap-3 text-sm md:grid-cols-3">

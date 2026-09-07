@@ -26,14 +26,20 @@ export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
     const t = team(id);
     const won = m.winnerId !== null && m.winnerId === id;
     const scores = (games[m.id] ?? []).map((g) => (side === 'a' ? g.scoreA : g.scoreB));
+    const awarded = m.status === 'done' && m.decidedBy !== 'played';
     return (
       <div className={`flex items-center justify-between gap-2 px-2 py-1 ${won ? 'font-semibold' : ''}`}>
-        <span className="flex items-center gap-1 truncate">
-          {t && <span className="inline-block h-2 w-2 rounded-full" style={{ background: t.colour }} />}
-          {t?.seed && <span className="rounded bg-amber-100 px-1 text-[10px]">#{t.seed}</span>}
-          <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1 truncate">
+            {t && <span className="inline-block h-2 w-2 rounded-full" style={{ background: t.colour }} />}
+            {t?.seed && <span className="rounded bg-amber-100 px-1 text-[10px]">#{t.seed}</span>}
+            <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
+          </span>
+          {t?.tagline && <span className="block truncate text-[10px] text-slate-500">{t.tagline}</span>}
         </span>
-        <span className="shrink-0 font-mono text-xs text-slate-700">{scores.join(' ')}</span>
+        <span className="shrink-0 font-mono text-xs text-slate-700">
+          {awarded ? <span className="uppercase tracking-wide">{m.decidedBy}</span> : scores.join(' ')}
+        </span>
       </div>
     );
   };
