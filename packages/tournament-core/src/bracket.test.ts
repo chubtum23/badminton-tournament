@@ -82,6 +82,10 @@ describe('buildBracket', () => {
     const byes = r1.filter((m) => m.status === 'done');
     expect(byes.map((m) => m.winnerId).sort()).toEqual(['A1', 'B1']);
     for (const m of byes) expect(m.teamAId === null || m.teamBId === null).toBe(true);
+    // A walkover is not a played result: the rows are stamped so the UI can say "bye" rather than
+    // fall through to the awarded/forfeit wording.
+    for (const m of byes) expect(m.decidedBy).toBe('bye');
+    expect(r1.filter((m) => m.status !== 'done').every((m) => m.decidedBy === 'played')).toBe(true);
     const played = r1.filter((m) => m.status === 'ready');
     expect(played).toHaveLength(2);
     for (const m of played) expect(poolOf(m.teamAId!)).not.toBe(poolOf(m.teamBId!));

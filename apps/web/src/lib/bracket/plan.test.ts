@@ -31,11 +31,13 @@ describe('planKnockout', () => {
     expect(r).toMatchObject({ error: expect.stringMatching(/Pool A/) });
   });
 
-  it('refuses while a pool has an unresolved tie on the qualification line', () => {
+  // knockoutInput sets `unresolved` from every tie computePool reports, whether it decides who
+  // qualifies or only who is seeded first, and reports none at all once the order is manual.
+  it('refuses while a pool has any unresolved tie', () => {
     const withTie = pools.map((p) => (p.poolId === 'pA' ? { ...p, unresolved: true } : p));
     const r = planKnockout({ pools: withTie, advancePerPool: 2, newId });
     expect(r).toMatchObject({
-      error: 'Pool A has an unresolved tie on the qualification line; record a playoff or set the order manually',
+      error: 'Pool A has an unresolved tie; record a playoff or set the order manually',
     });
   });
 

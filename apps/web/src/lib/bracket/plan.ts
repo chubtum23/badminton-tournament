@@ -6,7 +6,11 @@ export interface PoolResultInput {
   name: string;
   /** Team ids in finishing order, best first. */
   ranked: string[];
-  /** An unresolved tie sits on this pool's qualification line. */
+  /**
+   * This pool still has an unresolved tie — one that changes who qualifies OR who is seeded
+   * first. computePool reports none once the organiser has set the order by hand, so a manual
+   * order is what clears this.
+   */
   unresolved: boolean;
 }
 
@@ -30,7 +34,7 @@ export function planKnockout(input: KnockoutInput): { matches: Match[]; qualifie
 
   const qualifiers: PoolResult[] = [];
   for (const pool of input.pools) {
-    if (pool.unresolved) return { error: `${pool.name} has an unresolved tie on the qualification line; record a playoff or set the order manually` };
+    if (pool.unresolved) return { error: `${pool.name} has an unresolved tie; record a playoff or set the order manually` };
     if (pool.ranked.length < input.advancePerPool) return { error: `${pool.name} has ${pool.ranked.length} teams but ${input.advancePerPool} must advance` };
     qualifiers.push({ poolId: pool.poolId, ranked: pool.ranked.slice(0, input.advancePerPool) });
   }

@@ -108,6 +108,9 @@ export function buildBracket(pools: readonly PoolResult[], advancePerPool: numbe
     const only = m.teamAId ?? m.teamBId;
     if (!only || !m.nextMatchId) continue;
     m.status = 'done';
+    // Nobody played: the lone entrant walks through. 'bye' keeps it out of the awarded/forfeit
+    // wording on the cards and in the bracket.
+    m.decidedBy = 'bye';
     m.winnerId = only;
     const next = byId.get(m.nextMatchId)!;
     if (m.nextMatchSide === 'a') next.teamAId = only;

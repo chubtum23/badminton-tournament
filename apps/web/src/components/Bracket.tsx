@@ -26,7 +26,8 @@ export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
     const t = team(id);
     const won = m.winnerId !== null && m.winnerId === id;
     const scores = (games[m.id] ?? []).map((g) => (side === 'a' ? g.scoreA : g.scoreB));
-    const awarded = m.status === 'done' && m.decidedBy !== 'played';
+    // 'awarded', 'forfeit' or 'bye' — no scores were played, so the word replaces them.
+    const decided = m.status === 'done' && m.decidedBy !== 'played';
     return (
       <div className={`flex items-center justify-between gap-2 px-2 py-1 ${won ? 'font-semibold' : ''}`}>
         <span className="min-w-0 flex-1">
@@ -38,7 +39,7 @@ export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
           {t?.tagline && <span className="block truncate text-[10px] text-slate-500">{t.tagline}</span>}
         </span>
         <span className="shrink-0 font-mono text-xs text-slate-700">
-          {awarded ? <span className="uppercase tracking-wide">{m.decidedBy}</span> : scores.join(' ')}
+          {decided ? <span className="uppercase tracking-wide">{m.decidedBy}</span> : scores.join(' ')}
         </span>
       </div>
     );

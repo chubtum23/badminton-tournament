@@ -21,7 +21,10 @@ export function knockoutInput(input: {
       const { rows, ties } = computePool({ pool: p, teams: input.teams, matches, games, advancePerPool });
       return {
         poolId: p.id, name: p.name, ranked: rows.map((r) => r.teamId),
-        unresolved: ties.some((x) => x.affects === 'qualification'),
+        // Any unresolved tie blocks the bracket, seeding ones included: they decide which
+        // qualifier is seeded first and so who meets whom. computePool returns no ties at all
+        // once the organiser has set the pool's order by hand.
+        unresolved: ties.length > 0,
       };
     }),
   };

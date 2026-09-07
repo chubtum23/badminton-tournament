@@ -90,7 +90,7 @@ create table public.matches (
   status text not null default 'pending'
     check (status in ('pending','ready','live','submitted','disputed','done')),
   winner_id uuid references public.teams(id) on delete set null,
-  decided_by text not null default 'played' check (decided_by in ('played','awarded','forfeit')),
+  decided_by text not null default 'played' check (decided_by in ('played','awarded','forfeit','bye')),
   next_match_id uuid references public.matches(id) on delete set null,
   next_match_side text check (next_match_side in ('a','b')),
   started_at timestamptz,

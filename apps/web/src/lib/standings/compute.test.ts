@@ -21,19 +21,15 @@ const match = (id: string, over: Partial<Match>): Match => ({
   status: 'done', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null, ...over,
 });
 
-/**
- * Alpha beats both; Birdies and Clears each win once, with an equal point difference
- * and no head-to-head decider available, so 2nd/3rd is genuinely unresolved.
- * (Birdies beat Clears would resolve it, so the two wins are against Alpha... instead
- * we give each of them one win over the other's victim by using three teams plus a
- * fourth "in pool" opponent is not available, so we equalise on point difference.)
- */
 const g = (a: number, b: number): Game[] => [{ gameNo: 1, scoreA: a, scoreB: b }];
 
-// Round robin: Alpha beats Birdies and Clears; Birdies beats Clears -> no tie.
-// For the tie scenario: Alpha beats Birdies, Clears beats Alpha, Birdies beats Clears
-// (a three-way cycle) gives all on 1 win. Two-way tie instead: give Alpha 2 wins and
-// have Birdies/Clears not meet (their match is unplayed) with equal diff elsewhere.
+/**
+ * Pool A's three matches. Alpha beats Birdies 15-10 and Clears 15-10; the Birdies v Clears match
+ * is still 'ready', so it contributes nothing. That leaves Alpha on 2 points and Birdies and
+ * Clears both on 0 with an identical -5 point difference and no head-to-head between them, so
+ * 2nd and 3rd are separated only by name order — a genuine unresolved tie, and with
+ * advancePerPool 2 it sits exactly on the qualification line.
+ */
 const tieMatches: Match[] = [
   match('m1', { teamAId: 'A1', teamBId: 'A2', winnerId: 'A1', slot: 1 }),
   match('m2', { teamAId: 'A1', teamBId: 'A3', winnerId: 'A1', slot: 2 }),

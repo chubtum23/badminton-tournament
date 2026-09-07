@@ -69,7 +69,7 @@ export interface MatchRow {
   court: number | null;
   status: 'pending' | 'ready' | 'live' | 'submitted' | 'disputed' | 'done';
   winner_id: string | null;
-  decided_by: 'played' | 'awarded' | 'forfeit';
+  decided_by: 'played' | 'awarded' | 'forfeit' | 'bye';
   next_match_id: string | null;
   next_match_side: 'a' | 'b' | null;
   /** Set when the match went to court; null otherwise. */
@@ -91,7 +91,8 @@ export interface SubmissionRow {
   id: string;
   match_id: string;
   submitted_by: 'admin' | 'team_a' | 'team_b';
-  games: { gameNo: number; scoreA: number; scoreB: number }[];
+  /** Stored as JSON exactly as the core `Game` shape, `timeExpired` included. */
+  games: { gameNo: number; scoreA: number; scoreB: number; timeExpired?: boolean }[];
   created_at: string;
 }
 

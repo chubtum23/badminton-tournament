@@ -33,7 +33,7 @@ export const CLASSIC_BEST_OF_THREE: Settings = {
 export type Side = 'a' | 'b';
 export type Stage = 'pool' | 'knockout' | 'playoff';
 export type MatchStatus = 'pending' | 'ready' | 'live' | 'submitted' | 'disputed' | 'done';
-export type DecidedBy = 'played' | 'awarded' | 'forfeit';
+export type DecidedBy = 'played' | 'awarded' | 'forfeit' | 'bye';
 
 export interface Game {
   gameNo: number;

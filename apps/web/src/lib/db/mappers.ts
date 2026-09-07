@@ -37,6 +37,10 @@ export function gamesByMatch(rows: readonly GameRow[]): Record<string, Game[]> {
  * knockout matches use the `ko_*` overrides column by column, falling back to the pool value where
  * an override is null. `ko_time_cap_minutes` needs a third state, so 0 is the stored sentinel for
  * "the knockout has no clock" (null there still means "same as the pool stage").
+ *
+ * `ko_max_points` has no such sentinel: null means "same as the pool stage", and there is no value
+ * that means "the knockout has no cap". A knockout that must drop a cap the pool stage sets would
+ * need a future column (say `ko_max_points_none boolean`) or the same 0-sentinel treatment.
  */
 export function settingsFor(t: TournamentRow, stage: Stage): Settings {
   const pool: Settings = {
