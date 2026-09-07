@@ -1,29 +1,32 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { BADMINTON_DEFAULTS } from '@tournament/core';
-import { decideSubmission } from '@/lib/submissions/decide';
+import type { Game } from '@tournament/core';
+import { applySubmission } from '@/lib/submissions/applySubmission';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
-import { rowToMatch } from '@/lib/db/mappers';
-import type { MatchRow, SubmissionRow } from '@/lib/db/types';
+import { rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
+import type { MatchRow, SubmissionRow, TournamentRow } from '@/lib/db/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const enabled = Boolean(url && anonKey && serviceKey);
 
-// End-to-end path: team_a submits, decideSubmission says 'submitted' and the match status moves;
-// team_b then submits the same games, decideSubmission says 'confirmed', and applying the plan
-// through applyResultPlan brings the match to 'done'. Exercises the real tables the participant
-// and admin actions read and write, without going through the server actions themselves (those
-// need a request-scoped cookie jar).
-describe.skipIf(!enabled)('submission decide + persist path', () => {
+const WIN: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }];
+const OTHER: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 10 }];
+
+/**
+ * Drives the real participant submission path (`applySubmission`) against the real tables, plus
+ * the admin "confirm one side's submission" path (`planResult` + `applyResultPlan`) that
+ * confirmSubmission uses. The server actions themselves need a request-scoped cookie jar, so this
+ * starts one layer below them, at the first function that talks to the database.
+ */
+describe.skipIf(!enabled)('applySubmission against the database', () => {
   let service: SupabaseClient;
   let admin: SupabaseClient;
-  let tournamentId: string;
-  let matchId: string;
-  let teamAId: string;
-  let teamBId: string;
+  let tournament: TournamentRow;
+  const team: Record<string, string> = {};
+  const match: Record<string, string> = {};
   const slug = `submissions-${Date.now().toString(36)}`;
 
   async function signedInClient(email: string): Promise<SupabaseClient> {
@@ -36,84 +39,118 @@ describe.skipIf(!enabled)('submission decide + persist path', () => {
     return c;
   }
 
+  const matchRow = async (id: string): Promise<MatchRow> => {
+    const res = await service.from('matches').select('*').eq('id', id).single();
+    if (res.error) throw res.error;
+    return res.data as MatchRow;
+  };
+  const submissionsOf = async (id: string): Promise<SubmissionRow[]> => {
+    const res = await service.from('score_submissions').select('id, match_id, submitted_by, games, created_at').eq('match_id', id);
+    if (res.error) throw res.error;
+    return res.data as SubmissionRow[];
+  };
+
   beforeAll(async () => {
     service = createClient(url!, serviceKey!, { auth: { persistSession: false } });
     admin = await signedInClient(`admin-${slug}@example.com`);
 
     const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'submissions test' });
     if (t.error) throw t.error;
-    tournamentId = t.data as string;
+    const loaded = await service.from('tournaments').select('*').eq('id', t.data as string).single();
+    if (loaded.error) throw loaded.error;
+    tournament = loaded.data as TournamentRow;
 
-    const teamA = await admin.from('teams').insert({ tournament_id: tournamentId, name: 'Alpha' }).select('id').single();
-    if (teamA.error) throw teamA.error;
-    teamAId = teamA.data.id;
-    const teamB = await admin.from('teams').insert({ tournament_id: tournamentId, name: 'Bravo' }).select('id').single();
-    if (teamB.error) throw teamB.error;
-    teamBId = teamB.data.id;
-
-    const pool = await admin.from('pools').insert({ tournament_id: tournamentId, name: 'Pool A', position: 0 }).select('id').single();
+    for (const name of ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot']) {
+      const res = await admin.from('teams').insert({ tournament_id: tournament.id, name }).select('id').single();
+      if (res.error) throw res.error;
+      team[name] = res.data.id as string;
+    }
+    const pool = await admin.from('pools').insert({ tournament_id: tournament.id, name: 'Pool A', position: 0 }).select('id').single();
     if (pool.error) throw pool.error;
 
-    const match = await admin.from('matches').insert({
-      tournament_id: tournamentId, stage: 'pool', pool_id: pool.data.id, slot: 0,
-      team_a_id: teamAId, team_b_id: teamBId, status: 'ready',
-    }).select('id').single();
-    if (match.error) throw match.error;
-    matchId = match.data.id;
+    // Three independent pool matches, one per scenario below.
+    const pairs: Array<[string, string, string]> = [
+      ['agree', 'Alpha', 'Bravo'], ['resolved', 'Charlie', 'Delta'], ['admin', 'Echo', 'Foxtrot'],
+    ];
+    for (const [i, [key, a, b]] of pairs.entries()) {
+      const res = await admin.from('matches').insert({
+        tournament_id: tournament.id, stage: 'pool', pool_id: pool.data.id, slot: i,
+        team_a_id: team[a], team_b_id: team[b], status: 'ready',
+      }).select('id').single();
+      if (res.error) throw res.error;
+      match[key] = res.data.id as string;
+    }
   });
 
-  it('team_a submitting moves the match to submitted', async () => {
-    const games = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }];
-    const before = await service.from('matches').select('*').eq('id', matchId).single();
-    if (before.error) throw before.error;
-    const match = rowToMatch(before.data as MatchRow);
-
-    const decision = decideSubmission({ settings: BADMINTON_DEFAULTS, match, side: 'a', games, latest: {} });
-    expect(decision).toEqual({ outcome: 'submitted' });
-
-    const ins = await service.from('score_submissions').insert({ match_id: matchId, submitted_by: 'team_a', games });
-    if (ins.error) throw ins.error;
-    const upd = await service.from('matches').update({ status: 'submitted' }).eq('id', matchId).eq('status', 'ready').select('id');
-    if (upd.error) throw upd.error;
-    expect(upd.data).toHaveLength(1);
+  it('records the first submission and moves the match to submitted', async () => {
+    const r = await applySubmission(service, { tournament, teamId: team.Alpha!, matchId: match.agree!, games: WIN });
+    expect(r).toEqual({ ok: true, outcome: 'submitted' });
+    expect((await matchRow(match.agree!)).status).toBe('submitted');
+    const subs = await submissionsOf(match.agree!);
+    expect(subs).toHaveLength(1);
+    expect(subs[0]!.submitted_by).toBe('team_a');
   });
 
-  it('a matching team_b submission confirms and applying the plan finishes the match', async () => {
-    const games = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }];
+  it('confirms when the opponent submits the same games, writing games and clearing submissions', async () => {
+    const r = await applySubmission(service, { tournament, teamId: team.Bravo!, matchId: match.agree!, games: WIN });
+    expect(r).toEqual({ ok: true, outcome: 'confirmed' });
 
-    const matchRow = await service.from('matches').select('*').eq('id', matchId).single();
-    if (matchRow.error) throw matchRow.error;
-    const match = rowToMatch(matchRow.data as MatchRow);
-    expect(match.status).toBe('submitted');
+    const row = await matchRow(match.agree!);
+    expect(row.status).toBe('done');
+    expect(row.winner_id).toBe(team.Alpha);
+    expect(row.finished_at).not.toBeNull();
 
-    const subRows = await service.from('score_submissions').select('id, match_id, submitted_by, games, created_at').eq('match_id', matchId);
-    if (subRows.error) throw subRows.error;
-    const teamASub = (subRows.data as SubmissionRow[]).find((s) => s.submitted_by === 'team_a');
-    expect(teamASub).toBeDefined();
+    const games = await service.from('games').select('game_no, score_a, score_b').eq('match_id', match.agree!).order('game_no');
+    if (games.error) throw games.error;
+    expect(games.data).toEqual([{ game_no: 1, score_a: 15, score_b: 7 }, { game_no: 2, score_a: 15, score_b: 9 }]);
 
-    const decision = decideSubmission({ settings: BADMINTON_DEFAULTS, match, side: 'b', games, latest: { a: teamASub } });
-    expect(decision).toEqual({ outcome: 'confirmed' });
+    expect(await submissionsOf(match.agree!)).toHaveLength(0);
+  });
 
-    const ins = await service.from('score_submissions').insert({ match_id: matchId, submitted_by: 'team_b', games });
-    if (ins.error) throw ins.error;
+  it('disputes when the opponent submits different games', async () => {
+    const first = await applySubmission(service, { tournament, teamId: team.Charlie!, matchId: match.resolved!, games: WIN });
+    expect(first).toEqual({ ok: true, outcome: 'submitted' });
 
-    const rowsRes = await service.from('matches').select('*').eq('tournament_id', tournamentId);
+    const second = await applySubmission(service, { tournament, teamId: team.Delta!, matchId: match.resolved!, games: OTHER });
+    expect(second).toEqual({ ok: true, outcome: 'disputed' });
+
+    expect((await matchRow(match.resolved!)).status).toBe('disputed');
+    expect(await submissionsOf(match.resolved!)).toHaveLength(2);
+  });
+
+  it('confirms a disputed match when the disputing side resubmits matching games', async () => {
+    const r = await applySubmission(service, { tournament, teamId: team.Delta!, matchId: match.resolved!, games: WIN });
+    expect(r).toEqual({ ok: true, outcome: 'confirmed' });
+
+    const row = await matchRow(match.resolved!);
+    expect(row.status).toBe('done');
+    expect(row.winner_id).toBe(team.Charlie);
+    expect(await submissionsOf(match.resolved!)).toHaveLength(0);
+  });
+
+  it('lets an admin resolve a dispute from one stored submission', async () => {
+    expect((await applySubmission(service, { tournament, teamId: team.Echo!, matchId: match.admin!, games: WIN })).ok).toBe(true);
+    expect(await applySubmission(service, { tournament, teamId: team.Foxtrot!, matchId: match.admin!, games: OTHER }))
+      .toEqual({ ok: true, outcome: 'disputed' });
+
+    // What confirmSubmission does: take the chosen submission's games and persist them as the result.
+    const chosen = (await submissionsOf(match.admin!)).find((s) => s.submitted_by === 'team_a');
+    expect(chosen).toBeDefined();
+    const rowsRes = await service.from('matches').select('*').eq('tournament_id', tournament.id);
     if (rowsRes.error) throw rowsRes.error;
     const rows = rowsRes.data as MatchRow[];
-
-    const plan = planResult({ settings: BADMINTON_DEFAULTS, matches: rows.map(rowToMatch), matchId, games });
+    const plan = planResult({
+      settings: settingsFromTournament(tournament), matches: rows.map(rowToMatch), matchId: match.admin!, games: chosen!.games,
+    });
     if ('error' in plan) throw new Error(plan.message);
-
-    const persisted = await applyResultPlan(service, { tournamentId, matchId, rows, plan, tournamentStatus: 'pools' });
+    const persisted = await applyResultPlan(service, {
+      tournamentId: tournament.id, matchId: match.admin!, rows, plan, tournamentStatus: tournament.status,
+    });
     expect(persisted.ok).toBe(true);
 
-    const after = await service.from('matches').select('status, winner_id').eq('id', matchId).single();
-    if (after.error) throw after.error;
-    expect(after.data.status).toBe('done');
-    expect(after.data.winner_id).toBe(teamAId);
-
-    const remainingSubs = await service.from('score_submissions').select('id').eq('match_id', matchId);
-    if (remainingSubs.error) throw remainingSubs.error;
-    expect(remainingSubs.data).toHaveLength(0);
+    const row = await matchRow(match.admin!);
+    expect(row.status).toBe('done');
+    expect(row.winner_id).toBe(team.Echo);
+    expect(await submissionsOf(match.admin!)).toHaveLength(0);
   });
 });
