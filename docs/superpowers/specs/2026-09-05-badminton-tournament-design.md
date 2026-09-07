@@ -240,3 +240,47 @@ order means adding a tie-break field to `settings` and a `settings` parameter to
 `poolStandings`. Adding another sport means new default settings and, if needed, a
 different `validateGame` or tie-break order registered against the `sport` field. Views
 and the match lifecycle are sport-agnostic.
+
+## 11. v1.1 addendum (agreed 2026-09-07): club format, overrides, scheduling
+
+Driven by the first real event: 4 pools, round robin, one game to 15 per match with a
+13-minute clock, top two per pool to a top-8 knockout, men's doubles playoff for a 2nd/3rd tie.
+
+### 11.1 Scoring
+- Settings are per stage. Pool and knockout each have `games_per_match`, `points_per_game`,
+  `win_by_two`, `max_points`, `time_cap_minutes` (null = no clock). Knockout defaults to the
+  pool values; the organiser changes them later without code changes.
+- A game may be marked **time expired**. A normal game must reach `points_per_game` (and
+  respect `win_by_two`/`max_points`). A time-expired game accepts any two different
+  non-negative scores not exceeding the cap (a tie at expiry is settled on court by one
+  deciding point, so the recorded score is never level).
+- A match win is worth **1 team point**. Standings show Played, Won, Points, Score ± (points
+  for minus against).
+
+### 11.2 Standings order and ties
+Within a pool: team points desc; then, for teams still tied: a recorded **playoff** between
+exactly two tied teams (winner ranks higher); then head-to-head (two-way ties); then score
+difference; then the order is **unresolved**. Unresolved ties that touch the qualification line
+or the 1st/2nd order are flagged to the admin, who either records a playoff (an extra match
+of stage `playoff` inside the pool; its result does not add team points) or sets the pool's
+finishing order by hand (`manual order`, shown publicly as "order set by organiser").
+
+### 11.3 Overrides (admin)
+- **Award match**: decide any match for either team without scores (`decided_by = awarded`);
+  on a done match this behaves like editing the result (downstream rollback).
+- **Withdraw team**: marks the team withdrawn; every unplayed match with a known opponent is
+  awarded to the opponent (`decided_by = forfeit`). Reinstating clears the flag; already
+  awarded matches stay until the admin changes them.
+- **Replace team in bracket slot**: swap the team in any knockout match that is not done.
+
+### 11.4 Match flow and clock
+- "Start now" starts a match on the first free court (dropdown to override) and stamps
+  `started_at`. A live match shows a countdown from `time_cap_minutes` on the live board and
+  the admin Matches screen, turning red when expired.
+- Result entry stays on the page: errors appear next to the form, typed scores are kept, and
+  the Save button is enabled only when the games form a complete, valid result.
+
+### 11.5 Tournament details
+- `starts_at` (date and time) and `venue` are set at creation and editable in Settings; shown
+  in the public header.
+- Team taglines appear under team names on cards, bracket boxes and standings.
