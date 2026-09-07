@@ -1,28 +1,66 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { generatePools, lockPools, moveTeam } from '@/actions/pools';
+import { clearManualOrder, createPlayoff, generatePools, lockPools, moveTeam, setManualOrder } from '@/actions/pools';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
-import { listPools, listTeams } from '@/lib/db/queries';
+import { fail } from '@/actions/errors';
+import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
+import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
+import { computePool } from '@/lib/standings/compute';
+import { StandingsTable } from '@/components/StandingsTable';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { FlashMessage } from '@/components/FlashMessage';
 
 export default async function PoolsAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
-  const [pools, teams] = await Promise.all([listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id)]);
-  const editable = ctx.tournament.status === 'setup';
+  const t = ctx.tournament;
+  const [pools, teams, matchRows, gameRows] = await Promise.all([
+    listPools(ctx.sb, t.id), listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id),
+  ]);
+  const editable = t.status === 'setup';
+  // Playoffs and the organiser's order are pool-stage tools; once the knockout starts the tables
+  // are history and the bracket is edited with "replace team" instead.
+  const inPlay = t.status === 'pools';
+  const matches = matchRows.map(rowToMatch);
+  const games = gamesByMatch(gameRows);
+  const here = `/admin/${slug}/pools`;
+  const nameOf = (id: string) => teams.find((x) => x.id === id)?.name ?? '?';
 
   async function generate(formData: FormData) {
     'use server';
-    redirectWithMsg(`/admin/${slug}/pools`, await generatePools(slug, Number(formData.get('poolCount'))), 'Pools generated');
+    redirectWithMsg(here, await generatePools(slug, Number(formData.get('poolCount'))), 'Pools generated');
   }
   async function move(formData: FormData) {
     'use server';
-    redirectWithMsg(`/admin/${slug}/pools`, await moveTeam(slug, String(formData.get('teamId')), String(formData.get('poolId'))), 'Team moved');
+    redirectWithMsg(here, await moveTeam(slug, String(formData.get('teamId')), String(formData.get('poolId'))), 'Team moved');
   }
   async function lock() {
     'use server';
-    redirectWithMsg(`/admin/${slug}/pools`, await lockPools(slug), 'Pools locked and matches created');
+    redirectWithMsg(here, await lockPools(slug), 'Pools locked and matches created');
+  }
+  async function playoff(formData: FormData) {
+    'use server';
+    redirectWithMsg(here, await createPlayoff(slug, String(formData.get('poolId')), String(formData.get('teamX')), String(formData.get('teamY'))), 'Playoff created');
+  }
+  async function order(formData: FormData) {
+    'use server';
+    const poolId = String(formData.get('poolId'));
+    const entries: { teamId: string; rank: number }[] = [];
+    for (const [key, value] of formData.entries()) {
+      if (!key.startsWith('rank_')) continue;
+      entries.push({ teamId: key.slice('rank_'.length), rank: Number(value) });
+    }
+    // The action checks that every team appears; only the positions can collide here.
+    if (new Set(entries.map((e) => e.rank)).size !== entries.length) {
+      redirectWithMsg(here, fail('invalid_input', 'Give every team a different position'), 'Order set');
+    }
+    const ordered = entries.sort((a, b) => a.rank - b.rank).map((e) => e.teamId);
+    redirectWithMsg(here, await setManualOrder(slug, poolId, ordered), 'Order set');
+  }
+  async function clearOrder(formData: FormData) {
+    'use server';
+    redirectWithMsg(here, await clearManualOrder(slug, String(formData.get('poolId'))), 'Order cleared');
   }
 
   return (
@@ -38,27 +76,86 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
         </form>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        {pools.map((p) => (
-          <section key={p.id} className="rounded border bg-white p-4">
-            <h2 className="mb-2 font-semibold">{p.name}</h2>
-            <ul className="space-y-1 text-sm">
-              {teams.filter((t) => t.pool_id === p.id).map((t) => (
-                <li key={t.id} className="flex items-center justify-between gap-2">
-                  <span>{t.seed && <span className="mr-1 rounded bg-amber-100 px-1 text-xs">#{t.seed}</span>}{t.name}</span>
-                  {editable && (
-                    <form action={move} className="flex gap-1">
-                      <input type="hidden" name="teamId" value={t.id} />
-                      <select name="poolId" defaultValue={p.id} className="rounded border p-1 text-xs">
-                        {pools.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        {pools.map((p) => {
+          const poolTeams = teams.filter((x) => x.pool_id === p.id);
+          const { rows, ties, manual, playoffs } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
+          const tiedPair = ties[0]?.teamIds ?? [];
+          // The rank selects live inside the standings rows, so they reach the form by id.
+          const formId = `order-${p.id}`;
+          return (
+            <section key={p.id} className="rounded border bg-white p-4">
+              <h2 className="mb-2 font-semibold">{p.name}</h2>
+              {editable ? (
+                <ul className="space-y-1 text-sm">
+                  {poolTeams.map((x) => (
+                    <li key={x.id} className="flex items-center justify-between gap-2">
+                      <span>{x.seed && <span className="mr-1 rounded bg-amber-100 px-1 text-xs">#{x.seed}</span>}{x.name}</span>
+                      <form action={move} className="flex gap-1">
+                        <input type="hidden" name="teamId" value={x.id} />
+                        <select name="poolId" defaultValue={p.id} className="rounded border p-1 text-xs">
+                          {pools.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </select>
+                        <button className="rounded border px-2 text-xs">Move</button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <>
+                  {ties.map((tie) => (
+                    <p key={tie.teamIds.join('-')} className="mb-2 rounded border border-red-300 bg-red-50 p-2 text-sm text-red-800">
+                      {tie.teamIds.map(nameOf).join(' and ')} are {tie.affects === 'qualification' ? 'tied for the last qualifying place' : 'tied at the top of the pool'}.
+                      {' '}Record a playoff or set the finishing order below.
+                    </p>
+                  ))}
+                  <StandingsTable
+                    rows={rows}
+                    teams={teams}
+                    advance={t.advance_per_pool}
+                    caption={manual ? 'Order set by organiser' : undefined}
+                    actionHeader={inPlay ? 'Place' : undefined}
+                    rowAction={inPlay ? (r, i) => (
+                      <select name={`rank_${r.teamId}`} form={formId} defaultValue={i + 1} className="rounded border p-1 text-xs">
+                        {rows.map((_, n) => <option key={n} value={n + 1}>{n + 1}</option>)}
                       </select>
-                      <button className="rounded border px-2 text-xs">Move</button>
-                    </form>
+                    ) : undefined}
+                  />
+                  {inPlay && (
+                    <div className="mt-3 space-y-3 border-t pt-3 text-sm">
+                      <form id={formId} action={order} className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="poolId" value={p.id} />
+                        <button className="rounded border px-2 py-1 text-xs">Set finishing order</button>
+                        <span className="text-xs text-slate-500">Pick a place for every team above.</span>
+                      </form>
+                      {manual && (
+                        <form action={clearOrder}>
+                          <input type="hidden" name="poolId" value={p.id} />
+                          <button className="rounded border px-2 py-1 text-xs">Clear manual order</button>
+                        </form>
+                      )}
+                      <form action={playoff} className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="poolId" value={p.id} />
+                        <select name="teamX" defaultValue={tiedPair[0] ?? poolTeams[0]?.id} className="rounded border p-1 text-xs">
+                          {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                        </select>
+                        <span className="text-xs text-slate-500">v</span>
+                        <select name="teamY" defaultValue={tiedPair[1] ?? poolTeams[1]?.id} className="rounded border p-1 text-xs">
+                          {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                        </select>
+                        <ConfirmButton message="Create a playoff match between these two teams?" className="rounded border px-2 py-1 text-xs">Record men&apos;s doubles playoff</ConfirmButton>
+                      </form>
+                      {playoffs.length > 0 && (
+                        <p className="text-xs text-slate-500">
+                          {playoffs.length} playoff{playoffs.length === 1 ? '' : 's'} in this pool; enter the result on the Matches page.
+                        </p>
+                      )}
+                    </div>
                   )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+                </>
+              )}
+            </section>
+          );
+        })}
       </div>
       {editable && pools.length > 0 && (
         <form action={lock}>

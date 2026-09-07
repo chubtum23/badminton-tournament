@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { addTeams, deleteTeam, regenerateToken, setSeed } from '@/actions/teams';
+import { addTeams, deleteTeam, regenerateToken, reinstateTeam, setSeed, withdrawTeam } from '@/actions/teams';
 import type { TeamWithPlayers } from '@/lib/db/queries';
 import { ConfirmButton } from './ConfirmButton';
 
@@ -22,6 +22,16 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
     const r = await deleteTeam(slug, String(formData.get('teamId')));
     redirect(`/admin/${slug}?msg=${encodeURIComponent(r.ok ? 'Team removed' : r.message ?? r.error)}`);
   }
+  async function withdraw(formData: FormData) {
+    'use server';
+    const r = await withdrawTeam(slug, String(formData.get('teamId')));
+    redirect(`/admin/${slug}?msg=${encodeURIComponent(r.ok ? 'Team withdrawn' : r.message ?? r.error)}`);
+  }
+  async function reinstate(formData: FormData) {
+    'use server';
+    const r = await reinstateTeam(slug, String(formData.get('teamId')));
+    redirect(`/admin/${slug}?msg=${encodeURIComponent(r.ok ? 'Team reinstated' : r.message ?? r.error)}`);
+  }
   async function regen(formData: FormData) {
     'use server';
     const r = await regenerateToken(slug, String(formData.get('teamId')));
@@ -36,7 +46,12 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
         <tbody>
           {teams.map((t) => (
             <tr key={t.id} className="border-t align-top">
-              <td className="py-2 font-medium"><span className="mr-1 inline-block h-3 w-3 rounded-full" style={{ background: t.colour }} />{t.name}</td>
+              <td className="py-2 font-medium">
+                <span className={t.withdrawn ? 'text-slate-400 line-through' : undefined}>
+                  <span className="mr-1 inline-block h-3 w-3 rounded-full" style={{ background: t.colour }} />{t.name}
+                </span>
+                {t.withdrawn && <span className="ml-1 rounded bg-slate-200 px-1 text-[10px] uppercase text-slate-600">withdrawn</span>}
+              </td>
               <td className="py-2">{t.players.map((p) => p.name).join(' & ')}</td>
               <td className="py-2">
                 <form action={seed} className="flex gap-1">
@@ -53,7 +68,18 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
                   </div>
                 ) : <span className="text-xs text-slate-400">n/a</span>}
               </td>
-              <td className="py-2">
+              <td className="py-2 space-y-1">
+                {t.withdrawn ? (
+                  <form action={reinstate}>
+                    <input type="hidden" name="teamId" value={t.id} />
+                    <button className="text-xs underline">Reinstate</button>
+                  </form>
+                ) : (
+                  <form action={withdraw}>
+                    <input type="hidden" name="teamId" value={t.id} />
+                    <ConfirmButton message={`Withdraw ${t.name}? Their open matches are forfeited to the opponent.`} className="text-xs text-red-700 underline">Withdraw</ConfirmButton>
+                  </form>
+                )}
                 {!locked && (
                   <form action={remove}>
                     <input type="hidden" name="teamId" value={t.id} />

@@ -1,10 +1,13 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { startKnockout } from '@/actions/bracket';
+import { replaceTeamInMatch, startKnockout } from '@/actions/bracket';
+import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch, teamRefs } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
+import { knockoutInput } from '@/lib/bracket/input';
 import { Bracket } from '@/components/Bracket';
+import { teamName } from '@/components/MatchCard';
 import { FlashMessage } from '@/components/FlashMessage';
 
 export default async function BracketAdminPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -17,20 +20,24 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
   ]);
   const matches = matchRows.map(rowToMatch);
   const games = gamesByMatch(gameRows);
+  const here = `/admin/${slug}/bracket`;
 
   async function start() {
     'use server';
     const r = await startKnockout(slug);
-    redirect(`/admin/${slug}/bracket?msg=${encodeURIComponent(r.ok ? 'Knockout started' : r.message ?? r.error)}`);
+    redirect(`${here}?msg=${encodeURIComponent(r.ok ? 'Knockout started' : r.message ?? r.error)}`);
+  }
+  async function replace(formData: FormData) {
+    'use server';
+    const side = String(formData.get('side')) === 'b' ? 'b' : 'a';
+    redirectWithMsg(here, await replaceTeamInMatch(slug, String(formData.get('matchId')), side, String(formData.get('teamId'))), 'Team replaced');
   }
 
   if (t.status === 'pools') {
     let n = 0;
-    const preview = planKnockout({
-      pools: pools.map((p) => ({ id: p.id, name: p.name })), teams: teamRefs(teams),
-      teamPoolIds: Object.fromEntries(teams.map((x) => [x.id, x.pool_id ?? ''])),
-      matches, games, advancePerPool: t.advance_per_pool, newId: () => `preview-${++n}`,
-    });
+    // Same input the real start uses, so the preview refuses for exactly the same reasons
+    // (unfinished matches, an unresolved tie on a qualification line, a pool too small).
+    const preview = planKnockout({ ...knockoutInput({ tournament: t, pools, teams, matchRows, gameRows }), newId: () => `preview-${++n}` });
     return (
       <div className="space-y-4">
         <FlashMessage />
@@ -54,12 +61,41 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     );
   }
 
+  // A withdrawal (or a corrected pool table) can leave the wrong team in an unplayed knockout
+  // match; these forms swap one side without touching anything that has already been played.
+  const replaceable = matches.filter((m) => m.stage === 'knockout' && m.status !== 'done');
+  const selectable = teams.filter((x) => !x.withdrawn);
+
   return (
     <div className="space-y-4">
       <FlashMessage />
       {t.status === 'setup' && <p className="text-sm text-slate-500">Lock the pools first.</p>}
       <Bracket matches={matches} teams={teams} games={games} hrefFor={() => `/admin/${slug}/matches?filter=all`} />
       {t.status === 'finished' && <p className="rounded bg-amber-50 p-3 text-sm">Tournament finished. Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}</p>}
+      {replaceable.length > 0 && (
+        <section className="rounded border bg-white p-4 text-sm">
+          <h2 className="mb-2 font-semibold">Replace a team</h2>
+          <ul className="space-y-2">
+            {replaceable.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center gap-2 border-t pt-2 first:border-t-0 first:pt-0">
+                <span className="text-slate-500">Round {m.round} · #{m.slot}</span>
+                <span>{teamName(teams, m.teamAId)} v {teamName(teams, m.teamBId)}</span>
+                <form action={replace} className="flex flex-wrap items-center gap-1">
+                  <input type="hidden" name="matchId" value={m.id} />
+                  <select name="side" defaultValue="a" className="rounded border p-1 text-xs">
+                    <option value="a">a</option>
+                    <option value="b">b</option>
+                  </select>
+                  <select name="teamId" defaultValue={m.teamAId ?? selectable[0]?.id} className="rounded border p-1 text-xs">
+                    {selectable.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                  <button className="rounded border px-2 py-1 text-xs">Replace</button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

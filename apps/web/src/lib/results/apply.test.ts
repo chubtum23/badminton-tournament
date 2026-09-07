@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BADMINTON_DEFAULTS, CLASSIC_BEST_OF_THREE, type Match } from '@tournament/core';
-import { planResult, planCourt } from './apply';
+import { planAward, planResult, planCourt } from './apply';
 
 const base = (over: Partial<Match> & { id: string }): Match => ({
   stage: 'knockout', poolId: null, round: 1, slot: 1, teamAId: null, teamBId: null, court: null,
@@ -99,6 +99,62 @@ describe('planResult', () => {
   it('pool matches complete without a next match', () => {
     const pm = base({ id: 'p1', stage: 'pool', poolId: 'P', round: null, teamAId: 'A', teamBId: 'B', status: 'ready' });
     const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [pm], matchId: 'p1', games: g(15, 3, 15, 3) });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.updates).toHaveLength(1);
+    expect(r.tournamentFinished).toBe(false);
+  });
+});
+
+describe('planAward', () => {
+  it('awards a ready match to one side and fills the next match', () => {
+    const r = planAward({ matches: [s1, s2, f], matchId: 's2', winnerId: 'D' });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.winnerId).toBe('D');
+    expect(r.gamesToWrite).toEqual([]);
+    expect(r.clearGamesFor).toEqual([]);
+    expect(r.updates.find((m) => m.id === 's2')).toMatchObject({ status: 'done', winnerId: 'D', court: null });
+    expect(r.updates.find((m) => m.id === 'f')).toMatchObject({ teamBId: 'D' });
+  });
+
+  it('awarding a done match to the other team rolls back downstream and writes no games', () => {
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
+    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A' };
+    const r = planAward({ matches: [doneS1, doneS2, doneFinal], matchId: 's1', winnerId: 'B' });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.clearGamesFor).toEqual(['f']);
+    expect(r.gamesToWrite).toEqual([]);
+    expect(r.updates.find((m) => m.id === 's1')).toMatchObject({ status: 'done', winnerId: 'B' });
+    expect(r.updates.find((m) => m.id === 'f')).toMatchObject({ teamAId: 'B', status: 'ready', winnerId: null });
+    expect(r.terminalStillDone).toBe(false);
+  });
+
+  it('re-awarding a done match to the same team leaves the downstream alone', () => {
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
+    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A' };
+    const r = planAward({ matches: [doneS1, doneS2, doneFinal], matchId: 's1', winnerId: 'A' });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.clearGamesFor).toEqual([]);
+    expect(r.terminalStillDone).toBe(true);
+  });
+
+  it('marks the tournament finished when the final is awarded', () => {
+    const readyFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'ready' as const };
+    const r = planAward({ matches: [readyFinal], matchId: 'f', winnerId: 'C' });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.tournamentFinished).toBe(true);
+  });
+
+  it('refuses a team that is not in the match, a pending match and an unknown match', () => {
+    expect(planAward({ matches: [s1, s2, f], matchId: 's1', winnerId: 'C' })).toMatchObject({ error: 'match_not_editable' });
+    expect(planAward({ matches: [s1, s2, f], matchId: 'f', winnerId: 'A' })).toMatchObject({ error: 'match_not_editable' });
+    expect(planAward({ matches: [s1, s2, f], matchId: 'nope', winnerId: 'A' })).toMatchObject({ error: 'match_not_editable' });
+  });
+
+  it('awards a pool match with no next match', () => {
+    const pm = base({ id: 'p1', stage: 'pool', poolId: 'P', round: null, teamAId: 'A', teamBId: 'B', status: 'ready' });
+    const r = planAward({ matches: [pm], matchId: 'p1', winnerId: 'B' });
     if ('error' in r) throw new Error(r.message);
     expect(r.updates).toHaveLength(1);
     expect(r.tournamentFinished).toBe(false);

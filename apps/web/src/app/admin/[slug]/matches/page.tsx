@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { assignCourt, startNow, enterResultForm, confirmSubmission } from '@/actions/matches';
+import { assignCourt, awardMatch, startNow, enterResultForm, confirmSubmission } from '@/actions/matches';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { SubmissionCompare } from '@/components/SubmissionCompare';
+import { ConfirmButton } from '@/components/ConfirmButton';
 import { FlashMessage } from '@/components/FlashMessage';
 
 export default async function MatchesAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ filter?: string }> }) {
@@ -28,7 +29,10 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   const latest = latestByMatch(subs);
   const shown = matches.filter((m) => filter === 'all' ? true : filter === 'done' ? m.status === 'done' : m.status !== 'done' && m.status !== 'pending');
   const attention = matches.filter((m) => m.status === 'submitted' || m.status === 'disputed');
-  const label = (m: typeof matches[number]) => m.stage === 'pool' ? `${pools.find((p) => p.id === m.poolId)?.name ?? 'Pool'} · #${m.slot}` : `Round ${m.round} · #${m.slot}`;
+  const poolName = (m: typeof matches[number]) => pools.find((p) => p.id === m.poolId)?.name ?? 'Pool';
+  const label = (m: typeof matches[number]) => m.stage === 'pool' ? `${poolName(m)} · #${m.slot}`
+    : m.stage === 'playoff' ? `${poolName(m)} · playoff`
+    : `Round ${m.round} · #${m.slot}`;
   const here = `/admin/${slug}/matches?filter=${filter}`;
 
   /** One handler for the three court buttons; `op` says which button was pressed. */
@@ -44,6 +48,11 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   async function confirm(formData: FormData) {
     'use server';
     redirectWithMsg(here, await confirmSubmission(slug, String(formData.get('matchId')), String(formData.get('submissionId'))), 'Result confirmed');
+  }
+  /** Hands the match to one side without a score (walkover, no-show, organiser's call). */
+  async function award(formData: FormData) {
+    'use server';
+    redirectWithMsg(here, await awardMatch(slug, String(formData.get('matchId')), String(formData.get('winnerId'))), 'Match awarded');
   }
 
   return (
@@ -87,6 +96,20 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
                     </>
                   )}
               </form>
+            )}
+            {m.teamAId && m.teamBId && m.status !== 'pending' && (
+              <div className="mb-2 flex flex-wrap gap-2 text-xs">
+                {([['a', m.teamAId], ['b', m.teamBId]] as const).map(([side, id]) => (
+                  <form key={side} action={award}>
+                    <input type="hidden" name="matchId" value={m.id} />
+                    <input type="hidden" name="winnerId" value={id!} />
+                    <ConfirmButton
+                      message={`Award this match to ${teamName(teams, id)} without a score? Any later match that depended on it is reset.`}
+                      className="rounded border px-2 py-1"
+                    >Award to {teamName(teams, id)}</ConfirmButton>
+                  </form>
+                ))}
+              </div>
             )}
             {m.teamAId && m.teamBId && m.status !== 'pending' && (
               <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={enterResultForm.bind(null, slug)} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} successText="Result saved" confirmMessage={m.status === 'done' ? 'This match already has a result. Re-entering it will reset every later match that depended on it. Continue?' : undefined} />

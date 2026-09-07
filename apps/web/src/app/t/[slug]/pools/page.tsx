@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
-import { poolStandings } from '@tournament/core';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch, teamRefs } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
+import { computePool } from '@/lib/standings/compute';
 import { StandingsTable } from '@/components/StandingsTable';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
 
@@ -22,13 +22,13 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {pools.map((p) => {
-        const poolTeams = teams.filter((x) => x.pool_id === p.id);
         const poolMatches = matches.filter((m) => m.poolId === p.id);
-        const rows = poolStandings(teamRefs(poolTeams), poolMatches, games);
+        // Same computation the organiser sees: their manual order and any playoff already applied.
+        const { rows, manual } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
         return (
           <section key={p.id} className="rounded border bg-white p-4">
             <h2 className="mb-2 font-semibold">{p.name}</h2>
-            <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} />
+            <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} caption={manual ? 'Order set by organiser' : undefined} />
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-slate-600">Matches ({poolMatches.filter((m) => m.status === 'done').length}/{poolMatches.length} played)</summary>
               <div className="mt-2 grid gap-2">{poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} pending={pending(m)} />)}</div>

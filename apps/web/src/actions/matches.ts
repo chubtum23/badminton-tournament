@@ -5,7 +5,7 @@ import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 import { listMatches, listSubmissions } from '@/lib/db/queries';
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
-import { planCourt, planResult } from '@/lib/results/apply';
+import { planAward, planCourt, planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
 import { gamesFromForm } from '@/lib/results/form';
 
@@ -98,6 +98,26 @@ export async function confirmSubmission(slug: string, matchId: string, submissio
   const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games: sub.games });
   if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
   const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status, decidedBy: 'played' });
+  if (!persisted.ok) return fail(persisted.error, persisted.message);
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/**
+ * Hands a match to one team without a score: a walkover, a no-show or an organiser's decision.
+ * `kind` is stored on the match so the card can show why it was not played.
+ */
+export async function awardMatch(slug: string, matchId: string, winnerId: string, kind: 'awarded' | 'forfeit' = 'awarded'): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  // Same window as enterResult: 'finished' stays editable so a wrong result can be corrected.
+  if (!['pools', 'knockout', 'finished'].includes(ctx.tournament.status)) return fail('stale_state', 'Tournament is not in play');
+  const rows = await listMatches(ctx.sb, ctx.tournament.id);
+  const plan = planAward({ matches: rows.map(rowToMatch), matchId, winnerId });
+  if ('error' in plan) return fail(plan.error, plan.message);
+  const persisted = await applyResultPlan(ctx.sb, {
+    tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status, decidedBy: kind,
+  });
   if (!persisted.ok) return fail(persisted.error, persisted.message);
   revalidateTournament(slug);
   return ok(undefined);

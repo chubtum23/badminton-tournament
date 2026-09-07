@@ -28,7 +28,17 @@ export function planResult(input: { settings: Settings; matches: Match[]; matchI
   if (!result.complete) return { error: 'incomplete', message: 'Enter games until one side has won the match' };
   const winnerId = winnerTeamId(match, result.winner)!;
 
-  let working = input.matches;
+  const outcome = applyWinner(input.matches, match, winnerId);
+  return { ...outcome, gamesToWrite: [...games].sort((x, y) => x.gameNo - y.gameNo), winnerId };
+}
+
+/**
+ * Roll a changed winner back through the bracket, then advance the new one. Shared by
+ * `planResult` (a score was entered) and `planAward` (the organiser handed the match over),
+ * which differ only in how the winner is decided and whether games are written.
+ */
+function applyWinner(matches: readonly Match[], match: Match, winnerId: string): Omit<ResultPlan, 'gamesToWrite' | 'winnerId'> {
+  let working: Match[] = [...matches];
   let clearGamesFor: string[] = [];
   const touched = new Map<string, Match>();
   const applyChanges = (changed: Match[]) => {
@@ -38,22 +48,35 @@ export function planResult(input: { settings: Settings; matches: Match[]; matchI
   };
 
   if (match.status === 'done' && match.winnerId !== null && match.winnerId !== winnerId) {
-    const rb = rollback(working, matchId);
+    const rb = rollback(working, match.id);
     applyChanges(rb.changed);
     clearGamesFor = rb.resetMatchIds;
   }
-  applyChanges(advance(working, matchId, winnerId));
+  applyChanges(advance(working, match.id, winnerId));
 
-  const completed = touched.get(matchId)!;
+  const completed = touched.get(match.id)!;
   const terminal = working.find((m) => m.stage === 'knockout' && m.nextMatchId === null);
   return {
     updates: [...touched.values()],
-    gamesToWrite: [...games].sort((x, y) => x.gameNo - y.gameNo),
     clearGamesFor,
-    winnerId,
     tournamentFinished: completed.stage === 'knockout' && completed.nextMatchId === null,
     terminalStillDone: terminal !== undefined && terminal.status === 'done',
   };
+}
+
+/**
+ * Hand a match to one side without a score: a walkover, a forfeit or an organiser's decision.
+ * The downstream bookkeeping is the same as a scored result, but the match keeps no games.
+ */
+export function planAward(input: { matches: Match[]; matchId: string; winnerId: string }): ResultPlan | { error: 'match_not_editable'; message: string } {
+  const match = input.matches.find((m) => m.id === input.matchId);
+  if (!match || !match.teamAId || !match.teamBId || !EDITABLE.has(match.status)) {
+    return { error: 'match_not_editable', message: 'This match cannot be awarded yet' };
+  }
+  if (input.winnerId !== match.teamAId && input.winnerId !== match.teamBId) {
+    return { error: 'match_not_editable', message: 'That team is not in this match' };
+  }
+  return { ...applyWinner(input.matches, match, input.winnerId), gamesToWrite: [], winnerId: input.winnerId };
 }
 
 export function planCourt(matches: Match[], matchId: string, court: number | null, courtCount: number): Match | { error: string } {

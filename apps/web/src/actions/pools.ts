@@ -4,8 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { planLock, planPools } from '@/lib/pools/plan';
-import { listPools, listTeams } from '@/lib/db/queries';
+import { listMatches, listPools, listTeams } from '@/lib/db/queries';
+import type { MatchRow } from '@/lib/db/types';
 import { matchToRow } from '@/lib/db/mappers';
+import { revalidateTournament } from './revalidate';
 
 export async function generatePools(slug: string, poolCount: number): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
@@ -80,5 +82,73 @@ export async function lockPools(slug: string): Promise<ActionResult> {
   if (lock.error) return fail('invalid_input', lock.error.message);
   revalidatePath(`/admin/${slug}`);
   revalidatePath(`/t/${slug}`);
+  return ok(undefined);
+}
+
+/**
+ * Records a men's doubles playoff between two teams of one pool. The match is a real match with
+ * its own result entry; poolStandings uses a done playoff to separate exactly those two teams,
+ * and it never counts towards played, points or score difference.
+ */
+export async function createPlayoff(slug: string, poolId: string, teamXId: string, teamYId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'pools') return fail('stale_state', 'Playoffs can only be recorded during the pool stage');
+  if (teamXId === teamYId) return fail('invalid_input', 'Pick two different teams');
+  const [pools, teams, matchRows] = await Promise.all([
+    listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id), listMatches(ctx.sb, ctx.tournament.id),
+  ]);
+  if (!pools.some((p) => p.id === poolId)) return fail('invalid_input', 'Unknown pool');
+  const inPool = (id: string) => teams.some((t) => t.id === id && t.pool_id === poolId);
+  if (!inPool(teamXId) || !inPool(teamYId)) return fail('invalid_input', 'Both teams must be in this pool');
+  const playoffs = matchRows.filter((m) => m.stage === 'playoff' && m.pool_id === poolId);
+  const between = (m: MatchRow) => (m.team_a_id === teamXId && m.team_b_id === teamYId) || (m.team_a_id === teamYId && m.team_b_id === teamXId);
+  if (playoffs.some((m) => between(m) && m.status !== 'done')) return fail('stale_state', 'A playoff between these teams is already waiting to be played');
+
+  const ins = await ctx.sb.from('matches').insert({
+    tournament_id: ctx.tournament.id, stage: 'playoff', pool_id: poolId, round: null,
+    // Playoff slots start at 101 so they sort after the pool's scheduled matches.
+    slot: 100 + playoffs.length + 1,
+    team_a_id: teamXId, team_b_id: teamYId, court: null, status: 'ready',
+    winner_id: null, decided_by: 'played', next_match_id: null, next_match_side: null,
+  });
+  if (ins.error) return fail('invalid_input', ins.error.message);
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/**
+ * Freezes a pool's finishing order to the organiser's decision. `orderedTeamIds` must be exactly
+ * the pool's teams; positions are stored 1-based on the teams themselves.
+ */
+export async function setManualOrder(slug: string, poolId: string, orderedTeamIds: string[]): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'pools') return fail('stale_state', 'The finishing order can only be set during the pool stage');
+  const [pools, teams] = await Promise.all([listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id)]);
+  if (!pools.some((p) => p.id === poolId)) return fail('invalid_input', 'Unknown pool');
+  const poolTeamIds = teams.filter((t) => t.pool_id === poolId).map((t) => t.id);
+  const unique = new Set(orderedTeamIds);
+  if (orderedTeamIds.length !== poolTeamIds.length || unique.size !== orderedTeamIds.length || !orderedTeamIds.every((id) => poolTeamIds.includes(id))) {
+    return fail('invalid_input', 'Give every team in the pool a different position');
+  }
+  for (const [i, teamId] of orderedTeamIds.entries()) {
+    const upd = await ctx.sb.from('teams').update({ pool_rank_override: i + 1 })
+      .eq('id', teamId).eq('tournament_id', ctx.tournament.id).eq('pool_id', poolId);
+    if (upd.error) return fail('invalid_input', upd.error.message);
+  }
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/** Drops the organiser's order so the pool is ranked by results again. */
+export async function clearManualOrder(slug: string, poolId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'pools') return fail('stale_state', 'The finishing order can only be changed during the pool stage');
+  const upd = await ctx.sb.from('teams').update({ pool_rank_override: null })
+    .eq('tournament_id', ctx.tournament.id).eq('pool_id', poolId);
+  if (upd.error) return fail('invalid_input', upd.error.message);
+  revalidateTournament(slug);
   return ok(undefined);
 }
