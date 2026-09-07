@@ -43,3 +43,20 @@ export async function submitScores(slug: string, matchId: string, formData: Form
   revalidateTournament(slug);
   return ok({ outcome: applied.outcome });
 }
+
+/** What the player is told after a submission, per outcome. */
+const OUTCOME_TEXT: Record<SubmissionOutcome, string> = {
+  submitted: 'Scores submitted, waiting for the other team',
+  confirmed: 'Result confirmed',
+  disputed: 'Scores differ from the other team; an organiser will resolve it',
+};
+
+/**
+ * Form-friendly wrapper for the team page. The outcome text is built here because only the server
+ * knows which of the three outcomes happened; ScoreForm renders whatever `text` comes back.
+ */
+export async function submitScoresForm(slug: string, formData: FormData): Promise<ActionResult<{ outcome: SubmissionOutcome; text: string }>> {
+  const r = await submitScores(slug, String(formData.get('matchId') ?? ''), formData);
+  if (!r.ok) return r;
+  return ok({ outcome: r.data.outcome, text: OUTCOME_TEXT[r.data.outcome] });
+}

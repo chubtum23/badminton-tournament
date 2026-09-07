@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { assignCourt, enterResult, confirmSubmission } from '@/actions/matches';
-import { gamesFromForm } from '@/lib/results/form';
+import { assignCourt, startNow, enterResultForm, confirmSubmission } from '@/actions/matches';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
@@ -23,7 +22,8 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   // Rules are per stage, so each card gets its own settings; the score action needs the same
   // per-match game count, which it looks up in this (serialisable) map.
   const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
-  const gamesPerMatchById: Record<string, number> = Object.fromEntries(matches.map((m) => [m.id, settingsOf(m).gamesPerMatch]));
+  // `Match` carries no timestamps, so the court clock reads started_at straight off the raw rows.
+  const startedAtById: Record<string, string | null> = Object.fromEntries(matchRows.map((r) => [r.id, r.started_at]));
   const games = gamesByMatch(gameRows);
   const latest = latestByMatch(subs);
   const shown = matches.filter((m) => filter === 'all' ? true : filter === 'done' ? m.status === 'done' : m.status !== 'done' && m.status !== 'pending');
@@ -31,16 +31,15 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   const label = (m: typeof matches[number]) => m.stage === 'pool' ? `${pools.find((p) => p.id === m.poolId)?.name ?? 'Pool'} · #${m.slot}` : `Round ${m.round} · #${m.slot}`;
   const here = `/admin/${slug}/matches?filter=${filter}`;
 
+  /** One handler for the three court buttons; `op` says which button was pressed. */
   async function court(formData: FormData) {
     'use server';
-    const raw = String(formData.get('court') ?? '');
-    redirectWithMsg(here, await assignCourt(slug, String(formData.get('matchId')), raw === '' ? null : Number(raw)), 'Court updated');
-  }
-  async function score(formData: FormData) {
-    'use server';
     const matchId = String(formData.get('matchId'));
-    const gs = gamesFromForm(formData, gamesPerMatchById[matchId] ?? 1);
-    redirectWithMsg(here, await enterResult(slug, matchId, gs), 'Result saved');
+    const raw = String(formData.get('court') ?? '');
+    const op = String(formData.get('op') ?? 'start');
+    const picked = raw === '' ? null : Number(raw);
+    if (op === 'off') redirectWithMsg(here, await assignCourt(slug, matchId, null), 'Taken off court');
+    redirectWithMsg(here, await startNow(slug, matchId, picked), 'On court');
   }
   async function confirm(formData: FormData) {
     'use server';
@@ -69,21 +68,28 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
       </nav>
       <div className="grid gap-3 md:grid-cols-2">
         {shown.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)}>
+          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes}>
             {(m.status === 'ready' || m.status === 'live') && (
-              <form action={court} className="mb-2 flex items-center gap-2 text-xs">
+              <form action={court} className="mb-2 flex flex-wrap items-center gap-2 text-xs">
                 <input type="hidden" name="matchId" value={m.id} />
                 <label>Court
-                  <select name="court" defaultValue={m.court ?? ''} className="ml-1 rounded border p-1">
-                    <option value="">none</option>
+                  <select name="court" defaultValue="" className="ml-1 rounded border p-1">
+                    <option value="">auto</option>
                     {Array.from({ length: t.court_count }, (_, i) => i + 1).map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </label>
-                <button className="rounded border px-2 py-1">Send to court</button>
+                {m.status === 'ready'
+                  ? <button name="op" value="start" className="rounded border px-2 py-1">Start now</button>
+                  : (
+                    <>
+                      <button name="op" value="move" className="rounded border px-2 py-1">Move</button>
+                      <button name="op" value="off" className="rounded border px-2 py-1">Take off court</button>
+                    </>
+                  )}
               </form>
             )}
             {m.teamAId && m.teamBId && m.status !== 'pending' && (
-              <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={score} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} confirmMessage={m.status === 'done' ? 'This match already has a result. Re-entering it will reset every later match that depended on it. Continue?' : undefined} />
+              <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={enterResultForm.bind(null, slug)} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} successText="Result saved" confirmMessage={m.status === 'done' ? 'This match already has a result. Re-entering it will reset every later match that depended on it. Continue?' : undefined} />
             )}
           </MatchCard>
         ))}

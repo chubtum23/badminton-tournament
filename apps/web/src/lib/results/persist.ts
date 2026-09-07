@@ -12,7 +12,12 @@ export type PersistResult = { ok: true } | { ok: false; error: ActionError; mess
  */
 export async function applyResultPlan(
   sb: SupabaseClient,
-  input: { tournamentId: string; matchId: string; rows: MatchRow[]; plan: ResultPlan; tournamentStatus: TournamentStatus; now?: string },
+  input: {
+    tournamentId: string; matchId: string; rows: MatchRow[]; plan: ResultPlan;
+    tournamentStatus: TournamentStatus; now?: string;
+    /** How the edited match was decided; anything but 'played' comes from award/forfeit callers. */
+    decidedBy?: MatchRow['decided_by'];
+  },
 ): Promise<PersistResult> {
   const { tournamentId, matchId, rows, plan } = input;
   const now = input.now ?? new Date().toISOString();
@@ -25,7 +30,9 @@ export async function applyResultPlan(
   const primaryRow = matchToRow(primary, tournamentId);
   const primaryUpdate: Record<string, unknown> = {
     team_a_id: primaryRow.team_a_id, team_b_id: primaryRow.team_b_id, court: primaryRow.court,
-    status: primaryRow.status, winner_id: primaryRow.winner_id, decided_by: primaryRow.decided_by,
+    status: primaryRow.status, winner_id: primaryRow.winner_id, decided_by: input.decidedBy ?? 'played',
+    // The match is leaving court, so its clock stops with it.
+    started_at: null,
   };
   if (primaryRow.status === 'done') {
     // Editing an already-done match keeps its original completion time, so "latest results" does
@@ -68,6 +75,8 @@ export async function applyResultPlan(
       team_a_id: row.team_a_id, team_b_id: row.team_b_id, court: row.court, status: row.status,
       winner_id: row.winner_id, decided_by: row.decided_by,
     };
+    // A downstream match rolled off court (or reset to pending) has no running clock.
+    if (row.status !== 'live') update.started_at = null;
     if (row.status === 'done') {
       if (!wasAlreadyDone) update.finished_at = now;
     } else {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CLASSIC_BEST_OF_THREE, type Match } from '@tournament/core';
+import { BADMINTON_DEFAULTS, CLASSIC_BEST_OF_THREE, type Match } from '@tournament/core';
 import { planResult, planCourt } from './apply';
 
 const base = (over: Partial<Match> & { id: string }): Match => ({
@@ -85,6 +85,15 @@ describe('planResult', () => {
     if ('error' in r) throw new Error(r.message);
     expect(r.tournamentFinished).toBe(true);
     expect(r.terminalStillDone).toBe(true);
+  });
+
+  it('completes a club-format match on a single time-expired game', () => {
+    const pm = base({ id: 'p1', stage: 'pool', poolId: 'P', round: null, teamAId: 'A', teamBId: 'B', status: 'live' });
+    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [pm], matchId: 'p1', games: [{ gameNo: 1, scoreA: 10, scoreB: 7, timeExpired: true }] });
+    if ('error' in r) throw new Error(r.message);
+    expect(r.winnerId).toBe('A');
+    expect(r.gamesToWrite).toEqual([{ gameNo: 1, scoreA: 10, scoreB: 7, timeExpired: true }]);
+    expect(r.updates.find((m) => m.id === 'p1')).toMatchObject({ status: 'done', winnerId: 'A' });
   });
 
   it('pool matches complete without a next match', () => {

@@ -1,5 +1,5 @@
 import { currentParticipant } from '@/lib/participant/token';
-import { updateMyTeam, submitScores } from '@/actions/participant';
+import { updateMyTeam, submitScoresForm } from '@/actions/participant';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
@@ -39,18 +39,14 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   // Prefer the opponent's submission: a player wants to see what the other team claimed, not their
   // own numbers read back to them.
   const pending = (m: typeof mine[number]) => pendingFor(latest, teams, m, sideOf(m) === 'a' ? 'b' : 'a');
+  // Match carries no timestamps, so the live clock reads started_at off the raw rows.
+  const startedAtById: Record<string, string | null> = Object.fromEntries(matchRows.map((r) => [r.id, r.started_at]));
   const canSubmit = (m: typeof mine[number]) =>
     m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed';
 
   async function save(formData: FormData) {
     'use server';
     redirectWithMsg(`/t/${slug}/team`, await updateMyTeam(slug, formData), 'Team updated');
-  }
-
-  async function submit(formData: FormData) {
-    'use server';
-    const r = await submitScores(slug, String(formData.get('matchId')), formData);
-    redirectWithMsg(`/t/${slug}/team`, r, r.ok ? (r.data.outcome === 'confirmed' ? 'Result confirmed' : r.data.outcome === 'disputed' ? 'Scores differ from the other team; an organiser will resolve it' : 'Scores submitted, waiting for the other team') : '');
   }
 
   return (
@@ -69,10 +65,10 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
         <h2 className="font-semibold">Your next match</h2>
         {next ? (
           <>
-            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} />
+            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} startedAt={startedAtById[next.id]} capMinutes={settingsOf(next).timeCapMinutes} />
             {canSubmit(next) && (
               <>
-                <ScoreForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submit} submitLabel="Submit scores" />
+                <ScoreForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
                 <p className="text-xs text-slate-500">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
               </>
             )}
@@ -82,10 +78,10 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
       <section className="space-y-2">
         <h2 className="font-semibold">Your matches</h2>
         <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)}>
+          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes}>
             {canSubmit(m) && (
               <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
-                teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submit} submitLabel="Submit scores" />
+                teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
             )}
           </MatchCard>
         ))}</div>

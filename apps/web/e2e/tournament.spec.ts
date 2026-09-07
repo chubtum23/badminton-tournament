@@ -18,7 +18,8 @@ async function playAllOpen(page: Page, slugName: string, max: number): Promise<n
     await form.locator('input[name="game1a"]').fill('15');
     await form.locator('input[name="game1b"]').fill('7');
     await form.getByRole('button', { name: /save result|edit result/i }).click();
-    await expect(page.getByText('Result saved')).toBeVisible();
+    // The form posts the action itself now, so the outcome lands inline instead of as a redirect.
+    await expect(form.getByTestId('score-outcome')).toHaveText('Result saved');
   }
   return max;
 }
@@ -57,14 +58,14 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.getByRole('button', { name: 'Lock pools and create matches' }).click();
   await expect(page.getByText('Pools locked and matches created')).toBeVisible();
 
-  // court assignment on the first ready match
+  // put the first ready match on court: "Start now" with the court left on auto takes court 1
   await page.goto(`/admin/${slug}/matches?filter=open`);
-  const firstCourtForm = page.locator('form', { has: page.locator('select[name="court"]') }).first();
-  await firstCourtForm.locator('select[name="court"]').selectOption('1');
-  await firstCourtForm.getByRole('button', { name: 'Send to court' }).click();
-  await expect(page.getByText('Court updated')).toBeVisible();
+  await page.getByRole('button', { name: 'Start now' }).first().click();
+  await expect(page.getByText('On court')).toBeVisible();
   await page.goto(`/t/${slug}`);
   await expect(page.getByText('Court 1 · live')).toBeVisible();
+  // the club format has a 13-minute clock, so a live match counts down on the public board
+  await expect(page.getByTestId('court-clock').first()).toHaveText(/^\d\d:\d\d$/);
 
   // invalid score is rejected: the club format wins by one, so an unfinished 14-12 is the
   // rejection to look for rather than a two-point-lead complaint.
@@ -72,7 +73,11 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   const form = page.getByTestId('score-form').first();
   await form.locator('input[name="game1a"]').fill('14');
   await form.locator('input[name="game1b"]').fill('12');
-  await expect(form.getByText('winner must reach 15')).toBeVisible();
+  // Exact match: the per-game hint says "winner must reach 15" and the match status line now
+  // repeats it as "game 1: winner must reach 15", so a substring match hits both.
+  await expect(form.getByText('winner must reach 15', { exact: true })).toBeVisible();
+  // an unfinished score cannot be saved
+  await expect(form.getByRole('button', { name: /save result/i })).toBeDisabled();
 
   // play all 12 pool matches
   expect(await playAllOpen(page, slug, 12)).toBe(12);

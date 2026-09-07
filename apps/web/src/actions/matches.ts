@@ -7,6 +7,7 @@ import { listMatches, listSubmissions } from '@/lib/db/queries';
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planCourt, planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
+import { gamesFromForm } from '@/lib/results/form';
 
 export async function assignCourt(slug: string, matchId: string, court: number | null): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
@@ -15,12 +16,35 @@ export async function assignCourt(slug: string, matchId: string, court: number |
   const planned = planCourt(rows.map(rowToMatch), matchId, court, ctx.tournament.court_count);
   if ('error' in planned) return fail(planned.error.includes('court must be between') ? 'invalid_input' : 'match_not_editable', planned.error);
   const before = rows.find((r) => r.id === matchId)!;
-  const upd = await ctx.sb.from('matches').update({ court: planned.court, status: planned.status })
+  const update: Record<string, unknown> = { court: planned.court, status: planned.status };
+  // The clock starts when the match first reaches a court; moving an already-live match to a
+  // different court must not restart it, and taking it off court clears the stamp.
+  if (planned.status === 'live') {
+    if (before.status !== 'live') update.started_at = new Date().toISOString();
+  } else {
+    update.started_at = null;
+  }
+  const upd = await ctx.sb.from('matches').update(update)
     .eq('id', matchId).eq('status', before.status).select('id');
   if (upd.error) return fail('invalid_input', upd.error.message);
   if ((upd.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
   revalidateTournament(slug);
   return ok(undefined);
+}
+
+/**
+ * Puts a match on court right now. With no court given it takes the lowest-numbered court that no
+ * live match is holding, which is what an organiser calling the next match actually wants.
+ */
+export async function startNow(slug: string, matchId: string, court?: number | null): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (court !== undefined && court !== null) return assignCourt(slug, matchId, court);
+  const rows = await listMatches(ctx.sb, ctx.tournament.id);
+  const busy = new Set(rows.filter((r) => r.status === 'live' && r.id !== matchId && r.court !== null).map((r) => r.court));
+  const chosen = Array.from({ length: ctx.tournament.court_count }, (_, i) => i + 1).find((c) => !busy.has(c));
+  if (chosen === undefined) return fail('invalid_input', 'All courts are busy');
+  return assignCourt(slug, matchId, chosen);
 }
 
 export async function enterResult(slug: string, matchId: string, games: Game[]): Promise<ActionResult<{ winnerId: string }>> {
@@ -38,11 +62,25 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
   if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
 
   const persisted = await applyResultPlan(ctx.sb, {
-    tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status,
+    tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status, decidedBy: 'played',
   });
   if (!persisted.ok) return fail(persisted.error, persisted.message);
   revalidateTournament(slug);
   return ok({ winnerId: plan.winnerId });
+}
+
+/**
+ * Form-friendly wrapper for the Matches screen: the games are parsed here, against the settings of
+ * the match's own stage, so the client form only has to post its fields.
+ */
+export async function enterResultForm(slug: string, formData: FormData): Promise<ActionResult<{ winnerId: string }>> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  const matchId = String(formData.get('matchId') ?? '');
+  const rows = await listMatches(ctx.sb, ctx.tournament.id);
+  const row = rows.find((r) => r.id === matchId);
+  if (!row) return fail('invalid_input', 'Unknown match');
+  return enterResult(slug, matchId, gamesFromForm(formData, settingsFor(ctx.tournament, row.stage).gamesPerMatch));
 }
 
 /** Accept one team's submitted games as the result. */
@@ -59,7 +97,7 @@ export async function confirmSubmission(slug: string, matchId: string, submissio
   const settings = settingsFor(ctx.tournament, rows.find((r) => r.id === matchId)?.stage ?? 'pool');
   const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games: sub.games });
   if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
-  const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status });
+  const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status, decidedBy: 'played' });
   if (!persisted.ok) return fail(persisted.error, persisted.message);
   revalidateTournament(slug);
   return ok(undefined);

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { liveBoard } from '@tournament/core';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +18,9 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const stage = t.status === 'knockout' || t.status === 'finished' ? 'knockout' : 'pool';
   const board = liveBoard(matches, stage, pools.map((p) => p.id));
   const label = (m: typeof matches[number]) => m.stage === 'pool' ? pools.find((p) => p.id === m.poolId)?.name ?? 'Pool' : `Round ${m.round}`;
+  // Match carries no timestamps, so the live clock reads started_at off the raw rows.
+  const startedAtById: Record<string, string | null> = Object.fromEntries(bundle.matches.map((r) => [r.id, r.started_at]));
+  const capOf = (m: typeof matches[number]) => settingsFor(t, m.stage).timeCapMinutes;
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
   // Submitted/disputed matches are neither "now playing" nor "up next", so without this section a
@@ -41,7 +44,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       <section>
         <h2 className="mb-2 font-semibold">Now playing</h2>
         {board.nowPlaying.length === 0 ? <p className="text-sm text-slate-500">No match on court right now.</p> : (
-          <div className="grid gap-3 md:grid-cols-2">{board.nowPlaying.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} />)}</div>
+          <div className="grid gap-3 md:grid-cols-2">{board.nowPlaying.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={capOf(m)} />)}</div>
         )}
       </section>
       {awaiting.length > 0 && (

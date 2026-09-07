@@ -2,6 +2,7 @@ import type { Game, Match } from '@tournament/core';
 import type { TeamRow } from '@/lib/db/types';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
+import { CourtClock } from './CourtClock';
 
 export function teamName(teams: readonly TeamRow[], id: string | null, fallback = 'TBD'): string {
   return id ? teams.find((t) => t.id === id)?.name ?? '?' : fallback;
@@ -42,25 +43,42 @@ export function pendingFor(
 
 const compact = (games: Game[]) => games.map((g) => `${g.scoreA}-${g.scoreB}`).join(', ');
 
-export function MatchCard({ match, teams, games, label, pending, children }: {
+export function MatchCard({ match, teams, games, label, pending, startedAt, capMinutes, taglines = true, children }: {
   match: Match; teams: readonly TeamRow[]; games: Game[]; label?: string;
   pending?: Pending;
+  /** When the match went to court; with `capMinutes` it drives the countdown on a live card. */
+  startedAt?: string | null;
+  /** The stage's time cap in minutes; null when this stage has no clock. */
+  capMinutes?: number | null;
+  /** Render each team's tagline under its name. */
+  taglines?: boolean;
   children?: React.ReactNode;
 }) {
   const a = teamName(teams, match.teamAId), b = teamName(teams, match.teamBId);
   const shown = games.length ? games : pending?.games ?? [];
   const showPending = pending !== undefined && match.status !== 'done';
+  const showClock = match.status === 'live' && !!startedAt && !!capMinutes;
+  const tagline = (id: string | null) => (id ? teams.find((t) => t.id === id)?.tagline ?? '' : '');
   const line = (id: string | null, name: string, side: 'a' | 'b') => (
     <div className={`flex items-center justify-between gap-2 ${match.winnerId && match.winnerId === id ? 'font-semibold' : ''}`}>
-      <span className="truncate">{name}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{name}</span>
+        {taglines && tagline(id) && <span className="block truncate text-[11px] font-normal text-slate-500">{tagline(id)}</span>}
+      </span>
       <span className="font-mono text-xs">{shown.map((g) => (side === 'a' ? g.scoreA : g.scoreB)).join(' ')}</span>
     </div>
   );
   return (
     <div className={`rounded border bg-white p-3 text-sm ${match.status === 'live' ? 'border-emerald-500 shadow' : ''}`}>
-      <div className="mb-1 flex justify-between text-xs text-slate-500">
+      <div className="mb-1 flex justify-between gap-2 text-xs text-slate-500">
         <span>{label}</span>
-        <span>{match.status === 'live' && match.court ? `Court ${match.court} · live` : match.status}</span>
+        <span className="flex items-center gap-1">
+          {match.decidedBy !== 'played' && (
+            <span className="rounded bg-slate-200 px-1 text-[10px] uppercase tracking-wide text-slate-700">{match.decidedBy}</span>
+          )}
+          {showClock && <CourtClock startedAt={startedAt!} capMinutes={capMinutes!} />}
+          <span>{match.status === 'live' && match.court ? `Court ${match.court} · live` : match.status}</span>
+        </span>
       </div>
       {showPending && (
         <div className="mb-1">
