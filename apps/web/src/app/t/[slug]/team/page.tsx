@@ -6,12 +6,12 @@ import { listGames, listMatches, listPools, listSubmissions, listTeams, latestBy
 import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
 import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
+import { FlashMessage } from '@/components/FlashMessage';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MyTeamPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string }> }) {
+export default async function MyTeamPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { msg } = await searchParams;
   const me = await currentParticipant(slug);
   if (!me) {
     return (
@@ -54,7 +54,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
 
   return (
     <div className="space-y-4">
-      {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      <FlashMessage />
       <section className="rounded border bg-white p-4">
         <h2 className="mb-3 flex items-center gap-2 font-semibold"><span className="inline-block h-3 w-3 rounded-full" style={{ background: me.team.colour }} />{me.team.name}</h2>
         <form action={save} className="grid gap-3 text-sm md:grid-cols-3">

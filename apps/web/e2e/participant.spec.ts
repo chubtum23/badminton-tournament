@@ -13,14 +13,11 @@ async function fillScores(page: Page, a: [number, number], b: [number, number]) 
   await form.locator('input[name="game2b"]').fill(String(b[1]));
   const before = page.url();
   await form.getByRole('button', { name: 'Submit scores' }).click();
-  // Several browser contexts submit scores against the same Next dev server in quick succession;
-  // its client-side RSC application can occasionally race with a realtime-triggered refresh and
-  // never paint the redirect's message even though the server already returned it (confirmed via
-  // trace: the msg query param lands, but the DOM doesn't update within the 15s expect timeout).
-  // Wait for the URL to actually change (the current one may already contain a stale msg= from an
-  // earlier action) then reload to force a clean server render, sidestepping the race.
+  // Wait for the redirect itself to land before asserting on its message; the URL we started from
+  // may already carry a stale msg= from an earlier action, so compare against it rather than just
+  // matching /msg=/. The banner is rendered client-side from the query string (FlashMessage), so
+  // a realtime refresh arriving alongside the redirect can no longer wipe it.
   await page.waitForURL((url) => url.toString() !== before, { timeout: 15000 });
-  await page.reload();
 }
 
 /** Opens a team's private link in a fresh browser context and returns the page on /t/[slug]/team. */

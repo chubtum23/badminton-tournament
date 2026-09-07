@@ -5,10 +5,10 @@ import { headers } from 'next/headers';
 import { TeamsAdmin } from '@/components/TeamsAdmin';
 import { listTeamsWithPlayers } from '@/lib/db/queries';
 import { getEditTokens } from '@/actions/teams';
+import { FlashMessage } from '@/components/FlashMessage';
 
-export default async function SetupPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string }> }) {
+export default async function SetupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { msg } = await searchParams;
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
@@ -25,7 +25,7 @@ export default async function SetupPage({ params, searchParams }: { params: Prom
 
   return (
     <div className="space-y-6">
-      {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      <FlashMessage />
       <section className="rounded border bg-white p-4">
         <h2 className="mb-3 font-semibold">Settings {locked && <span className="text-xs font-normal text-slate-500">(locked after setup)</span>}</h2>
         <form action={save} className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">

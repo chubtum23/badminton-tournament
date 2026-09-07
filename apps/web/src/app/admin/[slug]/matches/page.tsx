@@ -8,10 +8,11 @@ import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappe
 import { MatchCard, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { SubmissionCompare } from '@/components/SubmissionCompare';
+import { FlashMessage } from '@/components/FlashMessage';
 
-export default async function MatchesAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string; filter?: string }> }) {
+export default async function MatchesAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ filter?: string }> }) {
   const { slug } = await params;
-  const { msg, filter = 'open' } = await searchParams;
+  const { filter = 'open' } = await searchParams;
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
@@ -44,7 +45,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
 
   return (
     <div className="space-y-4">
-      {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      <FlashMessage />
       {attention.length > 0 && (
         <section className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
           <h2 className="font-semibold">Needs attention ({attention.length})</h2>

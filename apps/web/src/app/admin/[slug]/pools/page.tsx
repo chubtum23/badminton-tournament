@@ -3,10 +3,10 @@ import { requireAdmin } from '@/actions/guard';
 import { generatePools, lockPools, moveTeam } from '@/actions/pools';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listPools, listTeams } from '@/lib/db/queries';
+import { FlashMessage } from '@/components/FlashMessage';
 
-export default async function PoolsAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string }> }) {
+export default async function PoolsAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { msg } = await searchParams;
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const [pools, teams] = await Promise.all([listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id)]);
@@ -27,7 +27,7 @@ export default async function PoolsAdminPage({ params, searchParams }: { params:
 
   return (
     <div className="space-y-4">
-      {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      <FlashMessage />
       {editable && (
         <form action={generate} className="flex items-end gap-2 rounded border bg-white p-4 text-sm">
           <label>Number of pools

@@ -5,10 +5,10 @@ import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, teamRefs } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
 import { Bracket } from '@/components/Bracket';
+import { FlashMessage } from '@/components/FlashMessage';
 
-export default async function BracketAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string }> }) {
+export default async function BracketAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { msg } = await searchParams;
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
@@ -33,7 +33,7 @@ export default async function BracketAdminPage({ params, searchParams }: { param
     });
     return (
       <div className="space-y-4">
-        {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+        <FlashMessage />
         {'error' in preview ? (
           <p className="rounded border bg-white p-4 text-sm">Not ready: {preview.error}</p>
         ) : (
@@ -56,7 +56,7 @@ export default async function BracketAdminPage({ params, searchParams }: { param
 
   return (
     <div className="space-y-4">
-      {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      <FlashMessage />
       {t.status === 'setup' && <p className="text-sm text-slate-500">Lock the pools first.</p>}
       <Bracket matches={matches} teams={teams} games={games} hrefFor={() => `/admin/${slug}/matches?filter=all`} />
       {t.status === 'finished' && <p className="rounded bg-amber-50 p-3 text-sm">Tournament finished. Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}</p>}

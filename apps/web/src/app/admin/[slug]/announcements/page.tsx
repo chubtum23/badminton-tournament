@@ -5,10 +5,10 @@ import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listAnnouncements } from '@/lib/db/queries';
 import { AnnouncementList } from '@/components/AnnouncementList';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { FlashMessage } from '@/components/FlashMessage';
 
-export default async function AnnouncementsAdminPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ msg?: string }> }) {
+export default async function AnnouncementsAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { msg } = await searchParams;
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const items = await listAnnouncements(ctx.sb, ctx.tournament.id);
@@ -20,7 +20,7 @@ export default async function AnnouncementsAdminPage({ params, searchParams }: {
 
   return (
     <div className="space-y-4">
-      {msg && <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>}
+      <FlashMessage />
       <form action={post} className="space-y-2 rounded border bg-white p-4 text-sm">
         <label className="block">New announcement
           <textarea name="body" rows={3} maxLength={1000} required className="mt-1 w-full rounded border p-2" />
