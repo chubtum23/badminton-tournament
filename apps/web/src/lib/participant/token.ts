@@ -3,7 +3,7 @@ import { cookies, headers } from 'next/headers';
 import { createServiceSupabase } from '@/lib/supabase/service';
 import { getTournamentBySlug } from '@/lib/db/queries';
 import { TEAM_PUBLIC_COLUMNS, type TeamRow, type TournamentRow } from '@/lib/db/types';
-import { allow } from './rateLimit';
+import { atLimit, record } from './rateLimit';
 import { clientKeyFrom } from './clientKey';
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{24}$/;
@@ -32,11 +32,21 @@ async function lookupTeamByToken(slug: string, token: string): Promise<Participa
 
 /**
  * Every path that turns a token into a team goes through here, so the limiter cannot be sidestepped
- * by replaying the cookie against a page instead of the one-time link route.
+ * by replaying the cookie against a page instead of the one-time link route: an over-budget client
+ * is refused whatever it presents.
+ *
+ * Only *failed* resolutions consume budget. Guessing a token is by definition a stream of misses,
+ * so the brute-force ceiling is unchanged, while a team holding a valid link keeps working: its
+ * cookie is re-resolved on every page render, and realtime pushes several renders a minute, so
+ * charging hits too would lock legitimate players out of their own page (and lock out every player
+ * behind one address at once, since they share a key).
  */
 export async function resolveTeamByToken(slug: string, token: string, clientKey: string): Promise<TokenResolution> {
-  if (!allow(`token:${clientKey}`, TOKEN_LOOKUP_LIMIT, TOKEN_LOOKUP_WINDOW_MS)) return RATE_LIMITED;
-  return lookupTeamByToken(slug, token);
+  const key = `token:${clientKey}`;
+  if (atLimit(key, TOKEN_LOOKUP_LIMIT, TOKEN_LOOKUP_WINDOW_MS)) return RATE_LIMITED;
+  const found = await lookupTeamByToken(slug, token);
+  if (!found) record(key, TOKEN_LOOKUP_WINDOW_MS);
+  return found;
 }
 
 /** The participant identified by this request's cookie, or null (including when rate limited). */

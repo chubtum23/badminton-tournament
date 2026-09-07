@@ -19,7 +19,10 @@ a tagline and colour, and submit game scores for their own current match; a matc
 opponent submission confirms the result automatically, a mismatch is flagged
 "unconfirmed" until an admin resolves it. Every resolution of a team token — the one-time
 link and each later request that presents the cookie — is rate limited to 30 per minute
-per client (in-memory, so this only holds on a single server instance). The client is
+per client (in-memory, so this only holds on a single server instance). Only *failed*
+lookups spend that budget: guessing a token is a stream of misses, while a team holding a
+valid link re-resolves its cookie on every render and realtime pushes several a minute.
+The client is
 identified from `x-real-ip` when a trusted proxy sets it (Vercel does), otherwise from
 the LAST entry of `x-forwarded-for`, which is the only entry a client cannot forge.
 Public pages, including the participant's, refresh via a Supabase realtime channel per
