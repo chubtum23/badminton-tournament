@@ -12,3 +12,5 @@ supabase/.temp/
 *.tsbuildinfo
 apps/web/test-results/
 apps/web/playwright-report/
+.vercel
+.env*.local
