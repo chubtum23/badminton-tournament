@@ -8,7 +8,7 @@ const teamPoolIds = Object.fromEntries(teams.map((t) => [t.id, t.id.startsWith('
 
 function poolMatch(id: string, poolId: string, a: string, b: string, winner: string | null): Match {
   return { id, stage: 'pool', poolId, round: null, slot: 1, teamAId: a, teamBId: b, court: null,
-    status: winner ? 'done' : 'ready', winnerId: winner, nextMatchId: null, nextMatchSide: null };
+    status: winner ? 'done' : 'ready', winnerId: winner, decidedBy: 'played', nextMatchId: null, nextMatchSide: null };
 }
 // Strength order A1 > A2 > A3 and B1 > B2 > B3
 const done: Match[] = [

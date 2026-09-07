@@ -4,7 +4,7 @@ import type { Game } from '@tournament/core';
 import { applySubmission } from '@/lib/submissions/applySubmission';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
-import { rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
+import { rowToMatch, settingsFor } from '@/lib/db/mappers';
 import type { MatchRow, SubmissionRow, TournamentRow } from '@/lib/db/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,8 +12,9 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const enabled = Boolean(url && anonKey && serviceKey);
 
-const WIN: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }];
-const OTHER: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 10 }];
+// The tournament is created with the DB defaults, which are the club format: one game to 15.
+const WIN: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 7 }];
+const OTHER: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 10 }];
 
 /**
  * Drives the real participant submission path (`applySubmission`) against the real tables, plus
@@ -102,7 +103,7 @@ describe.skipIf(!enabled)('applySubmission against the database', () => {
 
     const games = await service.from('games').select('game_no, score_a, score_b').eq('match_id', match.agree!).order('game_no');
     if (games.error) throw games.error;
-    expect(games.data).toEqual([{ game_no: 1, score_a: 15, score_b: 7 }, { game_no: 2, score_a: 15, score_b: 9 }]);
+    expect(games.data).toEqual([{ game_no: 1, score_a: 15, score_b: 7 }]);
 
     expect(await submissionsOf(match.agree!)).toHaveLength(0);
   });
@@ -140,7 +141,7 @@ describe.skipIf(!enabled)('applySubmission against the database', () => {
     if (rowsRes.error) throw rowsRes.error;
     const rows = rowsRes.data as MatchRow[];
     const plan = planResult({
-      settings: settingsFromTournament(tournament), matches: rows.map(rowToMatch), matchId: match.admin!, games: chosen!.games,
+      settings: settingsFor(tournament, 'pool'), matches: rows.map(rowToMatch), matchId: match.admin!, games: chosen!.games,
     });
     if ('error' in plan) throw new Error(plan.message);
     const persisted = await applyResultPlan(service, {

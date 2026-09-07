@@ -19,6 +19,13 @@ export default async function PublicLayout({ children, params }: { children: Rea
     <div className="mx-auto max-w-4xl p-4 space-y-4">
       <header>
         <h1 className="text-2xl font-bold">{t.name}</h1>
+        {(t.starts_at || t.venue) && (
+          <p className="text-sm text-slate-600">
+            {t.starts_at && new Date(t.starts_at).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}
+            {t.starts_at && t.venue ? ' · ' : ''}
+            {t.venue}
+          </p>
+        )}
         <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
           <span>{t.status === 'setup' ? 'Starting soon' : t.status === 'pools' ? 'Pool stage' : t.status === 'knockout' ? 'Knockout' : 'Finished'}</span>
           <RealtimeRefresh tournamentId={t.id} />

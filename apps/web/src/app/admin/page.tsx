@@ -46,6 +46,12 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
         <label className="block text-sm">URL slug (optional)
           <input name="slug" className="mt-1 w-full rounded border p-2" placeholder="spring-club-night" />
         </label>
+        <label className="block text-sm">Date and time (optional)
+          <input name="startsAt" type="datetime-local" className="mt-1 w-full rounded border p-2" />
+        </label>
+        <label className="block text-sm">Venue (optional)
+          <input name="venue" maxLength={120} className="mt-1 w-full rounded border p-2" placeholder="Northcote Leisure Centre" />
+        </label>
         <button className="rounded bg-slate-900 px-4 py-2 text-white">Create</button>
       </form>
     </main>

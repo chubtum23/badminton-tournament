@@ -25,7 +25,7 @@ export async function applyResultPlan(
   const primaryRow = matchToRow(primary, tournamentId);
   const primaryUpdate: Record<string, unknown> = {
     team_a_id: primaryRow.team_a_id, team_b_id: primaryRow.team_b_id, court: primaryRow.court,
-    status: primaryRow.status, winner_id: primaryRow.winner_id,
+    status: primaryRow.status, winner_id: primaryRow.winner_id, decided_by: primaryRow.decided_by,
   };
   if (primaryRow.status === 'done') {
     // Editing an already-done match keeps its original completion time, so "latest results" does
@@ -56,7 +56,7 @@ export async function applyResultPlan(
   // ADDITION 1: a confirmed result supersedes any pending submissions for this match.
   const delOwnSubs = await sb.from('score_submissions').delete().eq('match_id', matchId);
   if (delOwnSubs.error) return fail('invalid_input', delOwnSubs.error.message);
-  const insGames = await sb.from('games').insert(plan.gamesToWrite.map((g) => ({ match_id: matchId, game_no: g.gameNo, score_a: g.scoreA, score_b: g.scoreB })));
+  const insGames = await sb.from('games').insert(plan.gamesToWrite.map((g) => ({ match_id: matchId, game_no: g.gameNo, score_a: g.scoreA, score_b: g.scoreB, time_expired: g.timeExpired ?? false })));
   if (insGames.error) return fail('invalid_input', insGames.error.message);
 
   for (const m of plan.updates) {
@@ -65,7 +65,8 @@ export async function applyResultPlan(
     const prev = rows.find((r) => r.id === m.id);
     const wasAlreadyDone = prev?.status === 'done';
     const update: Record<string, unknown> = {
-      team_a_id: row.team_a_id, team_b_id: row.team_b_id, court: row.court, status: row.status, winner_id: row.winner_id,
+      team_a_id: row.team_a_id, team_b_id: row.team_b_id, court: row.court, status: row.status,
+      winner_id: row.winner_id, decided_by: row.decided_by,
     };
     if (row.status === 'done') {
       if (!wasAlreadyDone) update.finished_at = now;

@@ -4,7 +4,7 @@ import { assignCourt, enterResult, confirmSubmission } from '@/actions/matches';
 import { gamesFromForm } from '@/lib/results/form';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { SubmissionCompare } from '@/components/SubmissionCompare';
@@ -19,8 +19,11 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   const [pools, teams, matchRows, gameRows, subs] = await Promise.all([
     listPools(ctx.sb, t.id), listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id), listSubmissions(ctx.sb, t.id),
   ]);
-  const settings = settingsFromTournament(t);
   const matches = matchRows.map(rowToMatch);
+  // Rules are per stage, so each card gets its own settings; the score action needs the same
+  // per-match game count, which it looks up in this (serialisable) map.
+  const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
+  const gamesPerMatchById: Record<string, number> = Object.fromEntries(matches.map((m) => [m.id, settingsOf(m).gamesPerMatch]));
   const games = gamesByMatch(gameRows);
   const latest = latestByMatch(subs);
   const shown = matches.filter((m) => filter === 'all' ? true : filter === 'done' ? m.status === 'done' : m.status !== 'done' && m.status !== 'pending');
@@ -35,8 +38,9 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   }
   async function score(formData: FormData) {
     'use server';
-    const gs = gamesFromForm(formData, settings.gamesPerMatch);
-    redirectWithMsg(here, await enterResult(slug, String(formData.get('matchId')), gs), 'Result saved');
+    const matchId = String(formData.get('matchId'));
+    const gs = gamesFromForm(formData, gamesPerMatchById[matchId] ?? 1);
+    redirectWithMsg(here, await enterResult(slug, matchId, gs), 'Result saved');
   }
   async function confirm(formData: FormData) {
     'use server';
@@ -79,7 +83,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
               </form>
             )}
             {m.teamAId && m.teamBId && m.status !== 'pending' && (
-              <ScoreForm matchId={m.id} settings={settings} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={score} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} confirmMessage={m.status === 'done' ? 'This match already has a result. Re-entering it will reset every later match that depended on it. Continue?' : undefined} />
+              <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={games[m.id] ?? []} teamA={teams.find((x) => x.id === m.teamAId)?.name ?? '?'} teamB={teams.find((x) => x.id === m.teamBId)?.name ?? '?'} action={score} submitLabel={m.status === 'done' ? 'Edit result' : 'Save result'} confirmMessage={m.status === 'done' ? 'This match already has a result. Re-entering it will reset every later match that depended on it. Continue?' : undefined} />
             )}
           </MatchCard>
         ))}

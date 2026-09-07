@@ -39,10 +39,10 @@ export async function listGames(sb: SupabaseClient, tournamentId: string): Promi
   // games has no tournament_id; join through matches
   const res = await sb
     .from('games')
-    .select('match_id, game_no, score_a, score_b, matches!inner(tournament_id)')
+    .select('match_id, game_no, score_a, score_b, time_expired, matches!inner(tournament_id)')
     .eq('matches.tournament_id', tournamentId);
   const rows = must(res, 'games') as Array<GameRow & { matches: unknown }>;
-  return rows.map(({ match_id, game_no, score_a, score_b }) => ({ match_id, game_no, score_a, score_b }));
+  return rows.map(({ match_id, game_no, score_a, score_b, time_expired }) => ({ match_id, game_no, score_a, score_b, time_expired }));
 }
 
 export interface TeamWithPlayers extends TeamRow {

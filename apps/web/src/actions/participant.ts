@@ -4,7 +4,7 @@ import { parseProfileForm } from '@/lib/participant/profile';
 import { createServiceSupabase } from '@/lib/supabase/service';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
-import { settingsFromTournament } from '@/lib/db/mappers';
+import { settingsFor } from '@/lib/db/mappers';
 import { gamesFromForm } from '@/lib/results/form';
 import { applySubmission, type SubmissionOutcome } from '@/lib/submissions/applySubmission';
 
@@ -33,11 +33,11 @@ export async function submitScores(slug: string, matchId: string, formData: Form
   const sb = createServiceSupabase();
   // Cheap authorisation read before doing any work: the match must belong to this tournament and
   // to this team. applySubmission re-derives the side from its own read of the match rows.
-  const row = await sb.from('matches').select('team_a_id, team_b_id').eq('id', matchId).eq('tournament_id', me.tournament.id).maybeSingle();
+  const row = await sb.from('matches').select('stage, team_a_id, team_b_id').eq('id', matchId).eq('tournament_id', me.tournament.id).maybeSingle();
   if (row.error || !row.data) return fail('invalid_input', 'Unknown match');
   if (row.data.team_a_id !== me.team.id && row.data.team_b_id !== me.team.id) return fail('not_your_match', 'Your team is not in this match');
 
-  const games = gamesFromForm(formData, settingsFromTournament(me.tournament).gamesPerMatch);
+  const games = gamesFromForm(formData, settingsFor(me.tournament, row.data.stage).gamesPerMatch);
   const applied = await applySubmission(sb, { tournament: me.tournament, teamId: me.team.id, matchId, games });
   if (!applied.ok) return fail(applied.error, applied.message);
   revalidateTournament(slug);

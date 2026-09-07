@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { BADMINTON_DEFAULTS } from '@tournament/core';
+import { CLASSIC_BEST_OF_THREE } from '@tournament/core';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
 import { rowToMatch } from '@/lib/db/mappers';
@@ -137,7 +137,8 @@ describe.skipIf(!enabled)('applyResultPlan clears pending submissions', () => {
       { gameNo: 1, scoreA: 15, scoreB: 7 },
       { gameNo: 2, scoreA: 15, scoreB: 9 },
     ];
-    const plan = planResult({ settings: BADMINTON_DEFAULTS, matches: rows.map(rowToMatch), matchId, games });
+    // Explicit best-of-three settings: this test asserts two written game rows.
+    const plan = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: rows.map(rowToMatch), matchId, games });
     if ('error' in plan) throw new Error(plan.message);
 
     const result = await applyResultPlan(service, {

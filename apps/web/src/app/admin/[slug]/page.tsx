@@ -6,6 +6,16 @@ import { TeamsAdmin } from '@/components/TeamsAdmin';
 import { listTeamsWithPlayers } from '@/lib/db/queries';
 import { getEditTokens } from '@/actions/teams';
 import { FlashMessage } from '@/components/FlashMessage';
+import { settingsFor } from '@/lib/db/mappers';
+
+/** An ISO timestamp as the `YYYY-MM-DDTHH:mm` that <input type="datetime-local"> expects. */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default async function SetupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -17,25 +27,90 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
   const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
   const baseUrl = `${host.startsWith('localhost') ? 'http' : 'https'}://${host}`;
 
+  const pool = settingsFor(t, 'pool');
+  const knockout = settingsFor(t, 'knockout');
+  // "Same as the pool stage" is the stored state when no ko_* override is set at all.
+  const koSame = t.ko_games_per_match === null && t.ko_points_per_game === null && t.ko_win_by_two === null
+    && t.ko_max_points === null && t.ko_time_cap_minutes === null;
+
   async function save(formData: FormData) {
     'use server';
     const r = await updateSettings(slug, formData);
     redirect(`/admin/${slug}?msg=${encodeURIComponent(r.ok ? 'Settings saved' : r.message ?? r.error)}`);
   }
 
+  const field = 'mt-1 w-full rounded border p-2';
+
   return (
     <div className="space-y-6">
       <FlashMessage />
       <section className="rounded border bg-white p-4">
-        <h2 className="mb-3 font-semibold">Settings {locked && <span className="text-xs font-normal text-slate-500">(locked after setup)</span>}</h2>
-        <form action={save} className="grid grid-cols-2 gap-3 text-sm md:grid-cols-3">
-          <label>Games per match<input name="gamesPerMatch" type="number" defaultValue={t.games_per_match} disabled={locked} className="mt-1 w-full rounded border p-2" /></label>
-          <label>Points per game<input name="pointsPerGame" type="number" defaultValue={t.points_per_game} disabled={locked} className="mt-1 w-full rounded border p-2" /></label>
-          <label>Points cap (blank = none)<input name="maxPoints" type="number" defaultValue={t.max_points ?? ''} disabled={locked} className="mt-1 w-full rounded border p-2" /></label>
-          <label>Courts<input name="courtCount" type="number" defaultValue={t.court_count} disabled={locked} className="mt-1 w-full rounded border p-2" /></label>
-          <label>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={locked} className="mt-1 w-full rounded border p-2" /></label>
-          <label className="flex items-end gap-2 pb-2"><input name="winByTwo" type="checkbox" defaultChecked={t.win_by_two} disabled={locked} /> Win by two</label>
-          {!locked && <div className="col-span-full"><button className="rounded bg-slate-900 px-4 py-2 text-white">Save settings</button></div>}
+        <h2 className="mb-3 font-semibold">Settings {locked && <span className="text-xs font-normal text-slate-500">(rules are locked after setup; date and venue stay editable)</span>}</h2>
+        <form action={save} className="space-y-4 text-sm">
+          <fieldset className="rounded border p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Event</legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label>Date and time<input name="startsAt" type="datetime-local" defaultValue={toLocalInput(t.starts_at)} className={field} /></label>
+              <label>Venue<input name="venue" maxLength={120} defaultValue={t.venue ?? ''} className={field} /></label>
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded border p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Pool stage</legend>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <label>Games per match<input name="pool_gamesPerMatch" type="number" defaultValue={pool.gamesPerMatch} disabled={locked} className={field} /></label>
+              <label>Points per game<input name="pool_pointsPerGame" type="number" defaultValue={pool.pointsPerGame} disabled={locked} className={field} /></label>
+              <label>Points cap (blank = none)<input name="pool_maxPoints" type="number" defaultValue={pool.maxPoints ?? ''} disabled={locked} className={field} /></label>
+              <label>Clock minutes per game (blank = no clock)<input name="pool_timeCap" type="number" defaultValue={pool.timeCapMinutes ?? ''} disabled={locked} className={field} /></label>
+              <label className="flex items-end gap-2 pb-2"><input name="pool_winByTwo" type="checkbox" defaultChecked={pool.winByTwo} disabled={locked} /> Win by two</label>
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded border p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Knockout stage</legend>
+            <label className="mb-3 flex items-center gap-2"><input name="ko_same" type="checkbox" defaultChecked={koSame} disabled={locked} /> Same as the pool stage</label>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <label>Games per match<input name="ko_gamesPerMatch" type="number" defaultValue={knockout.gamesPerMatch} disabled={locked} className={field} /></label>
+              <label>Points per game<input name="ko_pointsPerGame" type="number" defaultValue={knockout.pointsPerGame} disabled={locked} className={field} /></label>
+              <label>Points cap (blank = none)<input name="ko_maxPoints" type="number" defaultValue={knockout.maxPoints ?? ''} disabled={locked} className={field} /></label>
+              <label>Clock minutes per game (blank = no clock)<input name="ko_timeCap" type="number" defaultValue={knockout.timeCapMinutes ?? ''} disabled={locked} className={field} /></label>
+              <label className="flex items-end gap-2 pb-2"><input name="ko_winByTwo" type="checkbox" defaultChecked={knockout.winByTwo} disabled={locked} /> Win by two</label>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">These are ignored while &ldquo;same as the pool stage&rdquo; is ticked.</p>
+          </fieldset>
+
+          <fieldset className="rounded border p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Draw</legend>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <label>Courts<input name="courtCount" type="number" defaultValue={t.court_count} disabled={locked} className={field} /></label>
+              <label>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={locked} className={field} /></label>
+            </div>
+          </fieldset>
+
+          {/* Disabled inputs are not posted, so once the rules are locked the form still has to
+              carry them: updateSettings validates the whole form and then writes only the date and
+              venue. These mirrors keep the submitted values identical to what is already stored. */}
+          {locked && (
+            <>
+              <input type="hidden" name="pool_gamesPerMatch" value={pool.gamesPerMatch} />
+              <input type="hidden" name="pool_pointsPerGame" value={pool.pointsPerGame} />
+              <input type="hidden" name="pool_maxPoints" value={pool.maxPoints ?? ''} />
+              <input type="hidden" name="pool_timeCap" value={pool.timeCapMinutes ?? ''} />
+              {pool.winByTwo && <input type="hidden" name="pool_winByTwo" value="on" />}
+              {koSame ? <input type="hidden" name="ko_same" value="on" /> : (
+                <>
+                  <input type="hidden" name="ko_gamesPerMatch" value={knockout.gamesPerMatch} />
+                  <input type="hidden" name="ko_pointsPerGame" value={knockout.pointsPerGame} />
+                  <input type="hidden" name="ko_maxPoints" value={knockout.maxPoints ?? ''} />
+                  <input type="hidden" name="ko_timeCap" value={knockout.timeCapMinutes ?? ''} />
+                  {knockout.winByTwo && <input type="hidden" name="ko_winByTwo" value="on" />}
+                </>
+              )}
+              <input type="hidden" name="courtCount" value={t.court_count} />
+              <input type="hidden" name="advancePerPool" value={t.advance_per_pool} />
+            </>
+          )}
+          <div><button className="rounded bg-slate-900 px-4 py-2 text-white">{locked ? 'Save date and venue' : 'Save settings'}</button></div>
         </form>
       </section>
       <TeamsAdmin slug={slug} teams={teams} tokens={tokens} locked={locked} baseUrl={baseUrl} />

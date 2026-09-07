@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { BADMINTON_DEFAULTS, type Match } from '@tournament/core';
+import { CLASSIC_BEST_OF_THREE, type Match } from '@tournament/core';
 import { planResult, planCourt } from './apply';
 
 const base = (over: Partial<Match> & { id: string }): Match => ({
   stage: 'knockout', poolId: null, round: 1, slot: 1, teamAId: null, teamBId: null, court: null,
-  status: 'pending', winnerId: null, nextMatchId: null, nextMatchSide: null, ...over,
+  status: 'pending', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null, ...over,
 });
 const s1 = base({ id: 's1', teamAId: 'A', teamBId: 'B', status: 'live', court: 1, nextMatchId: 'f', nextMatchSide: 'a' });
 const s2 = base({ id: 's2', slot: 2, teamAId: 'C', teamBId: 'D', status: 'ready', nextMatchId: 'f', nextMatchSide: 'b' });
@@ -13,7 +13,7 @@ const g = (a1: number, b1: number, a2: number, b2: number) => [{ gameNo: 1, scor
 
 describe('planResult', () => {
   it('completes a live match and fills the next match', () => {
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [s1, s2, f], matchId: 's1', games: g(15, 10, 15, 12) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [s1, s2, f], matchId: 's1', games: g(15, 10, 15, 12) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('A');
     expect(r.tournamentFinished).toBe(false);
@@ -24,20 +24,20 @@ describe('planResult', () => {
   });
 
   it('rejects an incomplete or invalid set of games', () => {
-    const inc = planResult({ settings: BADMINTON_DEFAULTS, matches: [s1, s2, f], matchId: 's1', games: g(15, 10, 10, 15) });
+    const inc = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [s1, s2, f], matchId: 's1', games: g(15, 10, 10, 15) });
     expect(inc).toMatchObject({ error: 'incomplete' });
-    const bad = planResult({ settings: BADMINTON_DEFAULTS, matches: [s1, s2, f], matchId: 's1', games: g(15, 14, 15, 12) });
+    const bad = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [s1, s2, f], matchId: 's1', games: g(15, 14, 15, 12) });
     expect(bad).toMatchObject({ error: 'invalid_score' });
   });
 
   it('refuses matches that are pending', () => {
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [s1, s2, f], matchId: 'f', games: g(15, 1, 15, 1) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [s1, s2, f], matchId: 'f', games: g(15, 1, 15, 1) });
     expect(r).toMatchObject({ error: 'match_not_editable' });
   });
 
   it('flags the tournament finished when the final completes', () => {
     const readyFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'ready' as const };
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [readyFinal], matchId: 'f', games: g(15, 1, 15, 1) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [readyFinal], matchId: 'f', games: g(15, 1, 15, 1) });
     if ('error' in r) throw new Error(r.message);
     expect(r.tournamentFinished).toBe(true);
   });
@@ -46,7 +46,7 @@ describe('planResult', () => {
     const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
     const liveFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'live' as const, court: 2 };
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [doneS1, doneS2, liveFinal], matchId: 's1', games: g(10, 15, 10, 15) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [doneS1, doneS2, liveFinal], matchId: 's1', games: g(10, 15, 10, 15) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('B');
     expect(r.clearGamesFor).toEqual(['f']);
@@ -59,7 +59,7 @@ describe('planResult', () => {
     const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
     const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A', court: null };
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(15, 10, 15, 13) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(15, 10, 15, 13) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('A');
     expect(r.clearGamesFor).toEqual([]);
@@ -70,7 +70,7 @@ describe('planResult', () => {
     const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
     const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A', court: null };
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(10, 15, 10, 15) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(10, 15, 10, 15) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('B');
     expect(r.clearGamesFor).toEqual(['f']);
@@ -81,7 +81,7 @@ describe('planResult', () => {
 
   it('completing the final reports it as done and the tournament as finished', () => {
     const readyFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'ready' as const };
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [readyFinal], matchId: 'f', games: g(15, 1, 15, 1) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [readyFinal], matchId: 'f', games: g(15, 1, 15, 1) });
     if ('error' in r) throw new Error(r.message);
     expect(r.tournamentFinished).toBe(true);
     expect(r.terminalStillDone).toBe(true);
@@ -89,7 +89,7 @@ describe('planResult', () => {
 
   it('pool matches complete without a next match', () => {
     const pm = base({ id: 'p1', stage: 'pool', poolId: 'P', round: null, teamAId: 'A', teamBId: 'B', status: 'ready' });
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [pm], matchId: 'p1', games: g(15, 3, 15, 3) });
+    const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [pm], matchId: 'p1', games: g(15, 3, 15, 3) });
     if ('error' in r) throw new Error(r.message);
     expect(r.updates).toHaveLength(1);
     expect(r.tournamentFinished).toBe(false);

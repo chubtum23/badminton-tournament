@@ -3,7 +3,7 @@ import { updateMyTeam, submitScores } from '@/actions/participant';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { FlashMessage } from '@/components/FlashMessage';
@@ -31,7 +31,8 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   const mine = matchRows.map(rowToMatch).filter((m) => m.teamAId === me.team.id || m.teamBId === me.team.id);
   const next = mine.find((m) => m.status === 'live') ?? mine.find((m) => m.status === 'ready' || m.status === 'submitted' || m.status === 'disputed');
   const label = (m: typeof mine[number]) => m.stage === 'pool' ? pools.find((p) => p.id === m.poolId)?.name ?? 'Pool' : `Round ${m.round}`;
-  const settings = settingsFromTournament(me.tournament);
+  // Rules are per stage, so each match card is rendered against its own settings.
+  const settingsOf = (m: typeof mine[number]) => settingsFor(me!.tournament, m.stage);
   const myTeamId = me.team.id;
   const sideOf = (m: typeof mine[number]) => (m.teamAId === myTeamId ? 'a' : 'b');
   const mySide = next ? sideOf(next) : 'a';
@@ -71,7 +72,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
             <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} />
             {canSubmit(next) && (
               <>
-                <ScoreForm matchId={next.id} settings={settings} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submit} submitLabel="Submit scores" />
+                <ScoreForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submit} submitLabel="Submit scores" />
                 <p className="text-xs text-slate-500">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
               </>
             )}
@@ -83,7 +84,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
         <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => (
           <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)}>
             {canSubmit(m) && (
-              <ScoreForm matchId={m.id} settings={settings} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
+              <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
                 teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submit} submitLabel="Submit scores" />
             )}
           </MatchCard>

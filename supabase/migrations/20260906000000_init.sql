@@ -14,14 +14,26 @@ create table public.tournaments (
   name text not null check (length(name) between 1 and 80),
   sport text not null default 'badminton',
   status text not null default 'setup' check (status in ('setup','pools','knockout','finished')),
-  games_per_match int not null default 3,
+  games_per_match int not null default 1,
   points_per_game int not null default 15,
-  win_by_two boolean not null default true,
-  max_points int default 21,
-  court_count int not null default 2 check (court_count between 1 and 50),
+  win_by_two boolean not null default false,
+  max_points int,
+  time_cap_minutes int check (time_cap_minutes is null or time_cap_minutes > 0),
+  ko_games_per_match int,
+  ko_points_per_game int,
+  ko_win_by_two boolean,
+  ko_max_points int,
+  -- 0 is the sentinel for "the knockout has no clock"; null means "same as the pool stage".
+  ko_time_cap_minutes int check (ko_time_cap_minutes is null or ko_time_cap_minutes >= 0),
+  starts_at timestamptz,
+  venue text check (venue is null or length(venue) <= 120),
+  court_count int not null default 4 check (court_count between 1 and 50),
   advance_per_pool int not null default 2 check (advance_per_pool between 1 and 8),
   created_at timestamptz not null default now()
 );
+
+-- Club night default: a 13-minute clock per game.
+alter table public.tournaments alter column time_cap_minutes set default 13;
 
 create table public.tournament_admins (
   tournament_id uuid not null references public.tournaments(id) on delete cascade,
@@ -54,6 +66,8 @@ create table public.teams (
   edit_token text not null default public.new_team_token(),
   pool_id uuid references public.pools(id) on delete set null,
   pool_order int not null default 0,
+  withdrawn boolean not null default false,
+  pool_rank_override int,
   unique (tournament_id, edit_token)
 );
 
@@ -66,7 +80,7 @@ create table public.team_players (
 create table public.matches (
   id uuid primary key default gen_random_uuid(),
   tournament_id uuid not null references public.tournaments(id) on delete cascade,
-  stage text not null check (stage in ('pool','knockout')),
+  stage text not null check (stage in ('pool','knockout','playoff')),
   pool_id uuid references public.pools(id) on delete cascade,
   round int,
   slot int not null,
@@ -76,10 +90,12 @@ create table public.matches (
   status text not null default 'pending'
     check (status in ('pending','ready','live','submitted','disputed','done')),
   winner_id uuid references public.teams(id) on delete set null,
+  decided_by text not null default 'played' check (decided_by in ('played','awarded','forfeit')),
   next_match_id uuid references public.matches(id) on delete set null,
   next_match_side text check (next_match_side in ('a','b')),
+  started_at timestamptz,
   finished_at timestamptz,
-  check ((stage = 'pool' and pool_id is not null and round is null)
+  check ((stage in ('pool','playoff') and pool_id is not null and round is null)
       or (stage = 'knockout' and pool_id is null and round is not null))
 );
 create index matches_tournament_idx on public.matches (tournament_id, stage, status);
@@ -89,6 +105,7 @@ create table public.games (
   game_no int not null check (game_no between 1 and 9),
   score_a int not null check (score_a >= 0),
   score_b int not null check (score_b >= 0),
+  time_expired boolean not null default false,
   primary key (match_id, game_no)
 );
 
@@ -186,7 +203,7 @@ create policy submissions_admin_write on public.score_submissions for all to aut
 
 -- ---------- hide edit_token from anon and authenticated ----------
 revoke select on public.teams from anon, authenticated;
-grant select (id, tournament_id, name, tagline, colour, seed, pool_id, pool_order)
+grant select (id, tournament_id, name, tagline, colour, seed, pool_id, pool_order, withdrawn, pool_rank_override)
   on public.teams to anon, authenticated;
 
 -- admins fetch tokens through a checked function
@@ -219,18 +236,18 @@ grant execute on function public.team_edit_tokens(uuid) to authenticated, servic
 grant execute on function public.regenerate_team_token(uuid) to authenticated, service_role;
 
 -- ---------- tournament creation (atomic: tournament + its first admin) ----------
-create or replace function public.create_tournament(p_slug text, p_name text) returns uuid
+create or replace function public.create_tournament(p_slug text, p_name text, p_starts_at timestamptz default null, p_venue text default null) returns uuid
 language plpgsql volatile security definer set search_path = public as $$
 declare new_id uuid;
 begin
   if auth.uid() is null then raise exception 'not_admin' using errcode = '42501'; end if;
-  insert into public.tournaments (slug, name) values (p_slug, p_name) returning id into new_id;
+  insert into public.tournaments (slug, name, starts_at, venue) values (p_slug, p_name, p_starts_at, nullif(p_venue, '')) returning id into new_id;
   insert into public.tournament_admins (tournament_id, user_id) values (new_id, auth.uid());
   return new_id;
 end; $$;
 
-revoke execute on function public.create_tournament(text, text) from public, anon;
-grant execute on function public.create_tournament(text, text) to authenticated, service_role;
+revoke execute on function public.create_tournament(text, text, timestamptz, text) from public, anon;
+grant execute on function public.create_tournament(text, text, timestamptz, text) to authenticated, service_role;
 
 -- ---------- realtime ----------
 -- Without this the client subscriptions in the app never receive anything.

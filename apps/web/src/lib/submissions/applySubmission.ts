@@ -3,7 +3,7 @@ import type { Game } from '@tournament/core';
 import type { ActionError } from '@/actions/errors';
 import type { MatchRow, TournamentRow } from '@/lib/db/types';
 import { listMatches, listSubmissions, latestByMatch, type LatestSubmissions } from '@/lib/db/queries';
-import { rowToMatch, settingsFromTournament } from '@/lib/db/mappers';
+import { rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
 import { decideSubmission } from './decide';
@@ -40,7 +40,6 @@ const fail = (error: ActionError, message: string): ApplySubmissionResult => ({ 
  */
 export async function applySubmission(sb: SupabaseClient, input: ApplySubmissionInput): Promise<ApplySubmissionResult> {
   const { tournament, teamId, matchId, games } = input;
-  const settings = settingsFromTournament(tournament);
 
   const read = async (): Promise<{ rows: MatchRow[]; latest: LatestSubmissions }> => {
     const [rows, subs] = await Promise.all([listMatches(sb, tournament.id), listSubmissions(sb, tournament.id)]);
@@ -57,6 +56,8 @@ export async function applySubmission(sb: SupabaseClient, input: ApplySubmission
     if (!row) return fail('invalid_input', 'Unknown match');
     const side = row.team_a_id === teamId ? 'a' : row.team_b_id === teamId ? 'b' : null;
     if (!side) return fail('not_your_match', 'Your team is not in this match');
+    // Rules are per stage, so they are read from the match, not from the tournament as a whole.
+    const settings = settingsFor(tournament, row.stage);
 
     const decision = decideSubmission({
       settings, match: rowToMatch(row), side, games, latest: state.latest[matchId] ?? {},

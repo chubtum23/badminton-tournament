@@ -5,12 +5,11 @@ const password = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-pass';
 const slug = `p2p-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal'];
 
-async function fillScores(page: Page, a: [number, number], b: [number, number]) {
+/** The club format is a single game per match, so only game 1 is on the form. */
+async function fillScores(page: Page, a: [number, number]) {
   const form = page.getByTestId('score-form').first();
   await form.locator('input[name="game1a"]').fill(String(a[0]));
   await form.locator('input[name="game1b"]').fill(String(a[1]));
-  await form.locator('input[name="game2a"]').fill(String(b[0]));
-  await form.locator('input[name="game2b"]').fill(String(b[1]));
   const before = page.url();
   await form.getByRole('button', { name: 'Submit scores' }).click();
   // Wait for the redirect itself to land before asserting on its message; the URL we started from
@@ -92,14 +91,14 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
   const opponentName = teams.find((n) => n !== 'Ann & Bo' && cardText.includes(n))!;
   const opp = await openAsTeam(browser, links[opponentName]!);
 
-  // Ann submits 15-7, 15-9; opponent submits the same -> confirmed (done)
-  await fillScores(ann, [15, 7], [15, 9]);
+  // Ann submits 15-7; opponent submits the same -> confirmed (done)
+  await fillScores(ann, [15, 7]);
   await expect(ann.getByText('Scores submitted, waiting for the other team')).toBeVisible();
   // the opponent's team page shows Ann's scores tagged unconfirmed (a submitted match is not
   // "live" or "up next", so it does not appear on the public Live page until it is done)
   await opp.goto(`/t/${slug}/team`);
   await expect(opp.getByText(/unconfirmed/i).first()).toBeVisible();
-  await fillScores(opp, [15, 7], [15, 9]);
+  await fillScores(opp, [15, 7]);
   await expect(opp.getByText('Result confirmed')).toBeVisible();
 
   // second match: the OTHER round-0 pairing submits different scores -> disputed. Ann's own
@@ -113,9 +112,9 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
   const others = teams.filter((n) => n !== 'Ann & Bo' && n !== opponentName);
   const teamC = await openAsTeam(browser, links[others[0]!]!);
   const teamD = await openAsTeam(browser, links[others[1]!]!);
-  await fillScores(teamC, [15, 3], [15, 4]);
+  await fillScores(teamC, [15, 3]);
   await expect(teamC.getByText('Scores submitted, waiting for the other team')).toBeVisible();
-  await fillScores(teamD, [15, 3], [15, 5]);
+  await fillScores(teamD, [15, 5]);
   await expect(teamD.getByText(/Scores differ from the other team/)).toBeVisible();
 
   // admin sees it in Needs attention and confirms teamC's version

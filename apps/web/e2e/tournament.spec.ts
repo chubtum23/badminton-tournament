@@ -6,7 +6,8 @@ const slug = `e2e-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal', 'Ivy & Jo', 'Kim & Lu', 'Mo & Ned', 'Oz & Pia'];
 
 /**
- * Fill every open score form on the Matches screen with a 2-0 win for side A until none remain.
+ * Fill every open score form on the Matches screen with a win for side A until none remain. The
+ * club format is a single game, so only game 1 exists on the form.
  * Returns how many results were actually entered, so callers can assert the expected count.
  */
 async function playAllOpen(page: Page, slugName: string, max: number): Promise<number> {
@@ -16,8 +17,6 @@ async function playAllOpen(page: Page, slugName: string, max: number): Promise<n
     if ((await form.count()) === 0) return i;
     await form.locator('input[name="game1a"]').fill('15');
     await form.locator('input[name="game1b"]').fill('7');
-    await form.locator('input[name="game2a"]').fill('15');
-    await form.locator('input[name="game2b"]').fill('9');
     await form.getByRole('button', { name: /save result|edit result/i }).click();
     await expect(page.getByText('Result saved')).toBeVisible();
   }
@@ -41,7 +40,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/${slug}$`));
 
-  // settings: 2 courts, top 2 advance (defaults) — just save to prove the form works
+  // settings: club defaults (one game to 15, 13-minute clock) — just save to prove the form works
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(page.getByText('Settings saved')).toBeVisible();
 
@@ -67,12 +66,13 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.goto(`/t/${slug}`);
   await expect(page.getByText('Court 1 · live')).toBeVisible();
 
-  // invalid score is rejected
+  // invalid score is rejected: the club format wins by one, so an unfinished 14-12 is the
+  // rejection to look for rather than a two-point-lead complaint.
   await page.goto(`/admin/${slug}/matches?filter=open`);
   const form = page.getByTestId('score-form').first();
-  await form.locator('input[name="game1a"]').fill('15');
-  await form.locator('input[name="game1b"]').fill('14');
-  await expect(form.getByText('must win by two')).toBeVisible();
+  await form.locator('input[name="game1a"]').fill('14');
+  await form.locator('input[name="game1b"]').fill('12');
+  await expect(form.getByText('winner must reach 15')).toBeVisible();
 
   // play all 12 pool matches
   expect(await playAllOpen(page, slug, 12)).toBe(12);
