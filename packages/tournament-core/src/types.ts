@@ -10,15 +10,18 @@ export interface Settings {
   maxPoints: number | null;
   /** Minutes per game before the clock ends it; null = no clock. */
   timeCapMinutes: number | null;
+  /** Every game is played even once the meeting is decided, so all scores count. */
+  playAllGames: boolean;
 }
 
-/** Club night format: one game to 15, win by one, 13-minute clock. */
+/** Club night format: every game played, to 15, win by one, 13-minute clock. */
 export const BADMINTON_DEFAULTS: Settings = {
-  gamesPerMatch: 1,
+  gamesPerMatch: 3,
   pointsPerGame: 15,
   winByTwo: false,
   maxPoints: null,
   timeCapMinutes: 13,
+  playAllGames: true,
 };
 
 /** Traditional best-of-three used by the original tests. */
@@ -28,6 +31,7 @@ export const CLASSIC_BEST_OF_THREE: Settings = {
   winByTwo: true,
   maxPoints: 21,
   timeCapMinutes: null,
+  playAllGames: false,
 };
 
 export type Side = 'a' | 'b';
@@ -53,7 +57,6 @@ export interface Match {
   slot: number;
   teamAId: string | null;
   teamBId: string | null;
-  court: number | null;
   status: MatchStatus;
   winnerId: string | null;
   decidedBy: DecidedBy;

@@ -57,7 +57,9 @@ export function matchResult(s: Settings, games: readonly Game[]): MatchResult {
     if (game.gameNo !== i + 1) {
       return { ok: false, reason: `expected game ${i + 1} but got game ${game.gameNo}` };
     }
-    if (gamesA >= needed || gamesB >= needed) {
+    if (s.playAllGames) {
+      if (i >= s.gamesPerMatch) return { ok: false, reason: `expected ${s.gamesPerMatch} games but got ${ordered.length}` };
+    } else if (gamesA >= needed || gamesB >= needed) {
       return { ok: false, reason: 'extra game after the match was decided' };
     }
     const v = validateGame(s, game.scoreA, game.scoreB, game.timeExpired ?? false);
@@ -66,6 +68,13 @@ export function matchResult(s: Settings, games: readonly Game[]): MatchResult {
     else gamesB++;
   }
 
+  if (s.playAllGames) {
+    // Every game is played, so the meeting is only over when the last score is in and it
+    // goes to whoever won more of them. An odd gamesPerMatch makes a draw impossible.
+    const complete = ordered.length === s.gamesPerMatch;
+    const winner: Side | null = !complete ? null : gamesA > gamesB ? 'a' : 'b';
+    return { ok: true, complete, winner, gamesA, gamesB };
+  }
   const winner: Side | null = gamesA >= needed ? 'a' : gamesB >= needed ? 'b' : null;
   return { ok: true, complete: winner !== null, winner, gamesA, gamesB };
 }
@@ -90,6 +99,9 @@ export function validateSettings(s: Settings): string[] {
   }
   if (s.timeCapMinutes !== null && (!Number.isInteger(s.timeCapMinutes) || s.timeCapMinutes <= 0)) {
     problems.push('timeCapMinutes must be null or a positive integer');
+  }
+  if (s.playAllGames && Number.isInteger(s.gamesPerMatch) && s.gamesPerMatch % 2 === 0) {
+    problems.push('playAllGames needs an odd gamesPerMatch so a meeting cannot be drawn');
   }
   return problems;
 }

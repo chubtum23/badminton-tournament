@@ -5,14 +5,14 @@ import { makeMatch } from './testUtils';
 const ko = (over: Parameters<typeof makeMatch>[0]) => makeMatch({ stage: 'knockout', ...over });
 
 describe('advance', () => {
-  const semi1 = ko({ id: 's1', round: 1, slot: 1, teamAId: 'A1', teamBId: 'B2', status: 'live', court: 2, nextMatchId: 'f', nextMatchSide: 'a' });
+  const semi1 = ko({ id: 's1', round: 1, slot: 1, teamAId: 'A1', teamBId: 'B2', status: 'live', nextMatchId: 'f', nextMatchSide: 'a' });
   const semi2 = ko({ id: 's2', round: 1, slot: 2, teamAId: 'B1', teamBId: 'A2', status: 'ready', nextMatchId: 'f', nextMatchSide: 'b' });
   const final = ko({ id: 'f', round: 2, slot: 1 });
 
-  it('marks the match done, clears the court and fills the next match side', () => {
+  it('marks the match done and fills the next match side', () => {
     const changed = advance([semi1, semi2, final], 's1', 'B2');
     expect(changed).toHaveLength(2);
-    expect(changed[0]).toMatchObject({ id: 's1', status: 'done', winnerId: 'B2', court: null });
+    expect(changed[0]).toMatchObject({ id: 's1', status: 'done', winnerId: 'B2' });
     expect(changed[1]).toMatchObject({ id: 'f', teamAId: 'B2', teamBId: null, status: 'pending' });
   });
 
@@ -80,7 +80,7 @@ describe('rollback', () => {
     expect(changed).toHaveLength(2);
     expect(changed[0]).toMatchObject({ id: 's2', teamAId: null, teamBId: null, status: 'pending', winnerId: null });
     expect(changed[1]).toMatchObject({
-      id: 'q3', status: 'ready', winnerId: null, court: null, teamAId: 'B1', teamBId: 'C2',
+      id: 'q3', status: 'ready', winnerId: null, teamAId: 'B1', teamBId: 'C2',
     });
   });
 
@@ -94,11 +94,11 @@ describe('rollback', () => {
     expect(changed).toHaveLength(3);
   });
 
-  it('flags a live downstream match for reset and clears its court', () => {
-    const liveFinal = { ...f, teamBId: 'B1', status: 'live' as const, court: 1 };
+  it('flags a live downstream match for reset', () => {
+    const liveFinal = { ...f, teamBId: 'B1', status: 'live' as const };
     const { changed, resetMatchIds } = rollback([...all.filter((m) => m.id !== 'f'), liveFinal], 's1');
     expect(resetMatchIds).toEqual(['f']);
-    expect(changed[0]).toMatchObject({ id: 'f', teamAId: null, teamBId: 'B1', court: null, status: 'pending' });
+    expect(changed[0]).toMatchObject({ id: 'f', teamAId: null, teamBId: 'B1', status: 'pending' });
     expect(changed[changed.length - 1]).toMatchObject({ id: 's1', status: 'ready', winnerId: null });
   });
 

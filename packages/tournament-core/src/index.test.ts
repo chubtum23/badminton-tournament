@@ -7,7 +7,7 @@ describe('public API', () => {
       'BADMINTON_DEFAULTS', 'validateGame', 'matchResult', 'gamesNeeded', 'winnerTeamId', 'validateSettings',
       'shuffle', 'assignPools', 'roundRobin', 'poolMatches',
       'poolStandings', 'bracketSize', 'bracketOrder', 'seedQualifiers', 'buildBracket',
-      'advance', 'rollback', 'liveBoard',
+      'advance', 'rollback',
     ];
     for (const name of expected) expect(core, name).toHaveProperty(name);
   });

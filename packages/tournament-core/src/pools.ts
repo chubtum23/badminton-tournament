@@ -68,7 +68,6 @@ export function poolMatches(poolId: string, teamIds: readonly string[], newId: (
     slot: p.slot,
     teamAId: p.teamAId,
     teamBId: p.teamBId,
-    court: null,
     status: 'ready',
     winnerId: null,
     decidedBy: 'played',

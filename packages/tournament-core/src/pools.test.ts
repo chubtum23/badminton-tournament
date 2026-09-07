@@ -91,7 +91,7 @@ describe('poolMatches', () => {
     expect(ms).toHaveLength(3);
     expect(ms[0]).toEqual({
       id: 'm1', stage: 'pool', poolId: 'poolA', round: null, slot: 1,
-      teamAId: expect.any(String), teamBId: expect.any(String), court: null,
+      teamAId: expect.any(String), teamBId: expect.any(String),
       status: 'ready', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null,
     });
   });

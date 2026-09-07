@@ -161,8 +161,42 @@ describe('validateSettings', () => {
   });
 });
 
+describe('playAllGames', () => {
+  const club: Settings = { gamesPerMatch: 3, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13, playAllGames: true };
+  const g = (gameNo: number, scoreA: number, scoreB: number) => ({ gameNo, scoreA, scoreB });
+
+  it('is incomplete at two games to nil, because the third is still played', () => {
+    expect(matchResult(club, [g(1, 15, 9), g(2, 15, 7)])).toEqual({ ok: true, complete: false, winner: null, gamesA: 2, gamesB: 0 });
+  });
+
+  it('accepts the dead third game and keeps the winner', () => {
+    expect(matchResult(club, [g(1, 15, 9), g(2, 15, 7), g(3, 4, 15)])).toEqual({ ok: true, complete: true, winner: 'a', gamesA: 2, gamesB: 1 });
+  });
+
+  it('decides a meeting won two games to one', () => {
+    expect(matchResult(club, [g(1, 15, 9), g(2, 7, 15), g(3, 15, 12)])).toMatchObject({ complete: true, winner: 'a', gamesA: 2, gamesB: 1 });
+  });
+
+  it('still refuses more games than the meeting has', () => {
+    expect(matchResult(club, [g(1, 15, 9), g(2, 15, 7), g(3, 4, 15), g(4, 15, 1)])).toEqual({ ok: false, reason: 'expected 3 games but got 4' });
+  });
+
+  it('leaves the majority rule alone when playAllGames is off', () => {
+    expect(matchResult(CLASSIC_BEST_OF_THREE, [g(1, 15, 9), g(2, 15, 7)])).toMatchObject({ complete: true, winner: 'a' });
+    expect(matchResult(CLASSIC_BEST_OF_THREE, [g(1, 15, 9), g(2, 15, 7), g(3, 4, 15)])).toEqual({ ok: false, reason: 'extra game after the match was decided' });
+  });
+
+  it('validateSettings rejects an even game count when all games are played', () => {
+    expect(validateSettings({ ...club, gamesPerMatch: 2 })).toEqual([
+      'gamesPerMatch must be a positive odd integer',
+      'playAllGames needs an odd gamesPerMatch so a meeting cannot be drawn',
+    ]);
+    expect(validateSettings(club)).toEqual([]);
+  });
+});
+
 describe('time-expired games', () => {
-  const club: Settings = { gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13 };
+  const club: Settings = { gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13, playAllGames: false };
   it('accepts any non-level score when time expired under a clock', () => {
     expect(validateGame(club, 11, 8, true)).toEqual({ ok: true, winner: 'a' });
     expect(validateGame(club, 3, 4, true)).toEqual({ ok: true, winner: 'b' });

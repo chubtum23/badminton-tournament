@@ -21,7 +21,6 @@ export function makeMatch(overrides: Partial<Match> & { id: string }): Match {
     slot: 1,
     teamAId: null,
     teamBId: null,
-    court: null,
     status: 'pending',
     winnerId: null,
     decidedBy: 'played',

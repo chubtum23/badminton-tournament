@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CLASSIC_BEST_OF_THREE, assignPools, poolMatches, poolStandings, buildBracket,
-  advance, rollback, matchResult, winnerTeamId, liveBoard, type Match, type Game, type TeamRef, type PoolResult,
+  advance, rollback, matchResult, winnerTeamId, type Match, type Game, type TeamRef, type PoolResult,
 } from './index';
 import { seededRng, idGen } from './testUtils';
 
@@ -38,7 +38,6 @@ describe('a 16-team, 4-pool tournament', () => {
 
   it('creates 24 pool matches', () => {
     expect(pool).toHaveLength(24);
-    expect(liveBoard(pool, 'pool', poolIds).upNext).toHaveLength(4);
   });
 
   it('plays every pool match and ranks each pool by strength', () => {

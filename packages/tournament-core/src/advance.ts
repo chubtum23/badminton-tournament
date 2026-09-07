@@ -13,7 +13,7 @@ export function advance(matches: readonly Match[], matchId: string, winnerId: st
     throw new Error('match is already done; roll it back before re-entering a different winner');
   }
 
-  const completed: Match = { ...match, status: 'done', winnerId, court: null };
+  const completed: Match = { ...match, status: 'done', winnerId };
   const changed: Match[] = [completed];
 
   if (match.nextMatchId) {
@@ -39,7 +39,7 @@ export interface RollbackResult {
 /**
  * Undo the downstream effects of a match's current winner so its result can be re-entered.
  * Recurses through every match the old winner had reached. The edited match itself is also
- * reset (to 'ready' or 'pending', winner and court cleared) so `advance` can be called with
+ * reset (to 'ready' or 'pending', winner cleared) so `advance` can be called with
  * the new winner directly; it is not added to `resetMatchIds` since the caller is deliberately
  * replacing its result.
  */
@@ -64,7 +64,6 @@ export function rollback(matches: readonly Match[], matchId: string): RollbackRe
     if (next.teamAId === winner) next.teamAId = null;
     else next.teamBId = null;
     next.winnerId = null;
-    next.court = null;
     next.status = 'pending';
     changed.set(next.id, next);
   };
@@ -76,7 +75,6 @@ export function rollback(matches: readonly Match[], matchId: string): RollbackRe
   const resetMatch: Match = {
     ...match,
     winnerId: null,
-    court: null,
     status: match.teamAId && match.teamBId ? 'ready' : 'pending',
   };
   changed.set(match.id, resetMatch);
