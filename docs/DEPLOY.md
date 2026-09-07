@@ -106,6 +106,11 @@ server, to resolve a team's private link.
 You get an address like `badminton-tournament.vercel.app`. Open `/login`, sign in with the user
 from step 4, and create a tournament.
 
+Leave **Output Directory** in Project Settings unset. Vercel detects the Next.js app inside
+`apps/web` and looks for `.next` there by itself. Setting it to `apps/web/.next` makes Vercel
+apply the prefix twice and fail with `The Next.js output directory "apps/web/.next" was not
+found at ".../apps/web/apps/web/.next"`, even though the build itself succeeded.
+
 **If the build fails with `Cannot find module '@tournament/core'`:** set Root Directory to
 `apps/web` in Project Settings → General instead, and turn on "Include source files outside of
 the Root Directory". Redeploy.
