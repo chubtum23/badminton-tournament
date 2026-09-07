@@ -7,7 +7,7 @@ import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { SubmissionCompare } from '@/components/SubmissionCompare';
-import { ConfirmButton } from '@/components/ConfirmButton';
+import { SubmitButton } from '@/components/SubmitButton';
 import { FlashMessage } from '@/components/FlashMessage';
 import { RecentOutcome } from '@/components/RecentOutcome';
 
@@ -71,7 +71,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
             <MatchCard key={m.id} match={m} teams={teams} games={[]} label={`${label(m)} · ${m.status}`}>
               <SubmissionCompare a={latest[m.id]?.a} b={latest[m.id]?.b} teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)}
                 onConfirm={(id) => (
-                  <form action={confirm}><input type="hidden" name="matchId" value={m.id} /><input type="hidden" name="submissionId" value={id} /><button className="rounded bg-emerald-700 px-2 py-1 text-xs text-white">Confirm this</button></form>
+                  <form action={confirm}><input type="hidden" name="matchId" value={m.id} /><input type="hidden" name="submissionId" value={id} /><SubmitButton className="rounded bg-emerald-700 px-2 py-1 text-xs text-white">Confirm this</SubmitButton></form>
                 )} />
               <p className="mt-2 text-xs text-slate-600">Or enter the result yourself below in the list.</p>
             </MatchCard>
@@ -94,11 +94,11 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
                   </select>
                 </label>
                 {m.status === 'ready'
-                  ? <button name="op" value="start" className="rounded border px-2 py-1">Start now</button>
+                  ? <SubmitButton name="op" value="start" className="rounded border px-2 py-1">Start now</SubmitButton>
                   : (
                     <>
-                      <button name="op" value="move" className="rounded border px-2 py-1">Move</button>
-                      <button name="op" value="off" className="rounded border px-2 py-1">Take off court</button>
+                      <SubmitButton name="op" value="move" className="rounded border px-2 py-1">Move</SubmitButton>
+                      <SubmitButton name="op" value="off" className="rounded border px-2 py-1">Take off court</SubmitButton>
                     </>
                   )}
               </form>
@@ -109,10 +109,10 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
                   <form key={side} action={award}>
                     <input type="hidden" name="matchId" value={m.id} />
                     <input type="hidden" name="winnerId" value={id!} />
-                    <ConfirmButton
-                      message={`Award this match to ${teamName(teams, id)} without a score? Any later match that depended on it is reset.`}
+                    <SubmitButton
+                      confirmMessage={`Award this match to ${teamName(teams, id)} without a score? Any later match that depended on it is reset.`}
                       className="rounded border px-2 py-1"
-                    >Award to {teamName(teams, id)}</ConfirmButton>
+                    >Award to {teamName(teams, id)}</SubmitButton>
                   </form>
                 ))}
               </div>

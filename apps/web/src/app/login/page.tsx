@@ -1,4 +1,5 @@
 import { signIn } from './actions';
+import { SubmitButton } from '@/components/SubmitButton';
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -13,7 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <label className="block text-sm">Password
           <input name="password" type="password" required className="mt-1 w-full rounded border p-2" />
         </label>
-        <button className="w-full rounded bg-slate-900 p-2 text-white">Sign in</button>
+        <SubmitButton className="w-full rounded bg-slate-900 p-2 text-white">Sign in</SubmitButton>
       </form>
       <p className="text-xs text-slate-500">Admins are created in the Supabase dashboard (Authentication → Users) for v1.</p>
     </main>

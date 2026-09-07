@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
 import { signOut } from '@/app/login/actions';
+import { SubmitButton } from '@/components/SubmitButton';
 
 const tabs = [
   ['', 'Setup'], ['/pools', 'Pools'], ['/matches', 'Matches'], ['/bracket', 'Bracket'], ['/announcements', 'Announcements'],
@@ -18,7 +19,7 @@ export default async function AdminLayout({ children, params }: { children: Reac
           <h1 className="text-xl font-bold">{ctx.tournament.name}</h1>
           <p className="text-xs text-slate-500">Admin · status: {ctx.tournament.status} · <Link className="underline" href={`/t/${slug}`}>public page</Link></p>
         </div>
-        <form action={signOut}><button className="text-sm underline">Sign out</button></form>
+        <form action={signOut}><SubmitButton className="text-sm underline">Sign out</SubmitButton></form>
       </header>
       <nav className="flex gap-2 border-b">
         {tabs.map(([path, label]) => (

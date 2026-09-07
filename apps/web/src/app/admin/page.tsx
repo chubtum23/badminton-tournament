@@ -4,6 +4,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { createTournament } from '@/actions/tournaments';
 import { signOut } from '@/app/login/actions';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
+import { SubmitButton } from '@/components/SubmitButton';
 import type { TournamentRow } from '@/lib/db/types';
 
 export default async function AdminHome({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
@@ -21,7 +22,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
     <main className="mx-auto max-w-2xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">My tournaments</h1>
-        <form action={signOut}><button className="text-sm underline">Sign out</button></form>
+        <form action={signOut}><SubmitButton className="text-sm underline">Sign out</SubmitButton></form>
       </div>
       {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
       <ul className="divide-y rounded border bg-white">
@@ -53,7 +54,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
         <label className="block text-sm">Venue (optional)
           <input name="venue" maxLength={120} className="mt-1 w-full rounded border p-2" placeholder="Northcote Leisure Centre" />
         </label>
-        <button className="rounded bg-slate-900 px-4 py-2 text-white">Create</button>
+        <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">Create</SubmitButton>
       </form>
     </main>
   );

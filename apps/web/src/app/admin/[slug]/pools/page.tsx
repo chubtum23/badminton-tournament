@@ -7,7 +7,7 @@ import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { computePool } from '@/lib/standings/compute';
 import { StandingsTable } from '@/components/StandingsTable';
-import { ConfirmButton } from '@/components/ConfirmButton';
+import { SubmitButton } from '@/components/SubmitButton';
 import { FlashMessage } from '@/components/FlashMessage';
 
 export default async function PoolsAdminPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -71,7 +71,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
           <label>Number of pools
             <input name="poolCount" type="number" min={1} max={teams.length} defaultValue={Math.max(1, Math.round(teams.length / 4))} className="mt-1 w-24 rounded border p-2" />
           </label>
-          <button className="rounded bg-slate-900 px-4 py-2 text-white">{pools.length ? 'Re-deal randomly' : 'Generate pools'}</button>
+          <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">{pools.length ? 'Re-deal randomly' : 'Generate pools'}</SubmitButton>
           <span className="text-slate-500">{teams.length} teams. Placement is random; seeds are labels only.</span>
         </form>
       )}
@@ -95,7 +95,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                         <select name="poolId" defaultValue={p.id} className="rounded border p-1 text-xs">
                           {pools.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                         </select>
-                        <button className="rounded border px-2 text-xs">Move</button>
+                        <SubmitButton className="rounded border px-2 text-xs">Move</SubmitButton>
                       </form>
                     </li>
                   ))}
@@ -124,13 +124,13 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                     <div className="mt-3 space-y-3 border-t pt-3 text-sm">
                       <form id={formId} action={order} className="flex flex-wrap items-center gap-2">
                         <input type="hidden" name="poolId" value={p.id} />
-                        <button className="rounded border px-2 py-1 text-xs">Set finishing order</button>
+                        <SubmitButton className="rounded border px-2 py-1 text-xs">Set finishing order</SubmitButton>
                         <span className="text-xs text-slate-500">Pick a place for every team above.</span>
                       </form>
                       {manual && (
                         <form action={clearOrder}>
                           <input type="hidden" name="poolId" value={p.id} />
-                          <button className="rounded border px-2 py-1 text-xs">Clear manual order</button>
+                          <SubmitButton className="rounded border px-2 py-1 text-xs">Clear manual order</SubmitButton>
                         </form>
                       )}
                       <form action={playoff} className="flex flex-wrap items-center gap-2">
@@ -142,7 +142,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                         <select name="teamY" defaultValue={tiedPair[1] ?? poolTeams[1]?.id} className="rounded border p-1 text-xs">
                           {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                         </select>
-                        <ConfirmButton message="Create a playoff match between these two teams?" className="rounded border px-2 py-1 text-xs">Record men&apos;s doubles playoff</ConfirmButton>
+                        <SubmitButton confirmMessage="Create a playoff match between these two teams?" className="rounded border px-2 py-1 text-xs">Record men&apos;s doubles playoff</SubmitButton>
                       </form>
                       {playoffs.length > 0 && (
                         <p className="text-xs text-slate-500">
@@ -159,7 +159,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
       </div>
       {editable && pools.length > 0 && (
         <form action={lock}>
-          <button className="rounded bg-emerald-700 px-4 py-2 text-white">Lock pools and create matches</button>
+          <SubmitButton className="rounded bg-emerald-700 px-4 py-2 text-white">Lock pools and create matches</SubmitButton>
           <p className="mt-1 text-xs text-slate-500">This cannot be undone. Settings and teams lock too.</p>
         </form>
       )}

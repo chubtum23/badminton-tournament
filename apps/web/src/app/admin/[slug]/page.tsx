@@ -8,6 +8,7 @@ import { getEditTokens } from '@/actions/teams';
 import { FlashMessage } from '@/components/FlashMessage';
 import { settingsFor } from '@/lib/db/mappers';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
+import { SubmitButton } from '@/components/SubmitButton';
 
 export default async function SetupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -102,7 +103,7 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
               <input type="hidden" name="advancePerPool" value={t.advance_per_pool} />
             </>
           )}
-          <div><button className="rounded bg-slate-900 px-4 py-2 text-white">{locked ? 'Save date and venue' : 'Save settings'}</button></div>
+          <div><SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">{locked ? 'Save date and venue' : 'Save settings'}</SubmitButton></div>
         </form>
       </section>
       <TeamsAdmin slug={slug} teams={teams} tokens={tokens} locked={locked} baseUrl={baseUrl} />

@@ -9,6 +9,7 @@ import { knockoutInput } from '@/lib/bracket/input';
 import { Bracket } from '@/components/Bracket';
 import { teamName } from '@/components/MatchCard';
 import { FlashMessage } from '@/components/FlashMessage';
+import { SubmitButton } from '@/components/SubmitButton';
 
 export default async function BracketAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -54,7 +55,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
               </ul>
             </section>
             <Bracket matches={preview.matches} teams={teams} games={{}} />
-            <form action={start}><button className="rounded bg-emerald-700 px-4 py-2 text-white">Start knockout with this bracket</button></form>
+            <form action={start}><SubmitButton className="rounded bg-emerald-700 px-4 py-2 text-white">Start knockout with this bracket</SubmitButton></form>
           </>
         )}
       </div>
@@ -89,7 +90,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
                   <select name="teamId" defaultValue={m.teamAId ?? selectable[0]?.id} className="rounded border p-1 text-xs">
                     {selectable.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                   </select>
-                  <button className="rounded border px-2 py-1 text-xs">Replace</button>
+                  <SubmitButton className="rounded border px-2 py-1 text-xs">Replace</SubmitButton>
                 </form>
               </li>
             ))}

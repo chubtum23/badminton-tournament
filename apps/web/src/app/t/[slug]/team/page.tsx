@@ -8,6 +8,7 @@ import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
 import { ScoreForm } from '@/components/ScoreForm';
 import { FlashMessage } from '@/components/FlashMessage';
 import { RecentOutcome } from '@/components/RecentOutcome';
+import { SubmitButton } from '@/components/SubmitButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
           <label>Team name<input name="name" defaultValue={me.team.name} maxLength={40} required className="mt-1 w-full rounded border p-2" /></label>
           <label>Tagline<input name="tagline" defaultValue={me.team.tagline} maxLength={80} className="mt-1 w-full rounded border p-2" /></label>
           <label>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1 h-10 w-full rounded border" /></label>
-          <div className="md:col-span-3"><button className="rounded bg-slate-900 px-4 py-2 text-white">Save team</button></div>
+          <div className="md:col-span-3"><SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">Save team</SubmitButton></div>
         </form>
       </section>
       <section className="space-y-2">

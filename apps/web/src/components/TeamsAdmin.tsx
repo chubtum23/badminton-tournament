@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { addTeams, deleteTeam, regenerateToken, reinstateTeam, setSeed, withdrawTeam } from '@/actions/teams';
 import type { TeamWithPlayers } from '@/lib/db/queries';
-import { ConfirmButton } from './ConfirmButton';
+import { SubmitButton } from './SubmitButton';
 
 export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
   slug: string; teams: TeamWithPlayers[]; tokens: Record<string, string>; locked: boolean; baseUrl: string;
@@ -57,14 +57,14 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
                 <form action={seed} className="flex gap-1">
                   <input type="hidden" name="teamId" value={t.id} />
                   <input name="seed" type="number" min={1} max={64} defaultValue={t.seed ?? ''} className="w-16 rounded border p-1" />
-                  <button className="rounded border px-2">Set</button>
+                  <SubmitButton className="rounded border px-2">Set</SubmitButton>
                 </form>
               </td>
               <td className="py-2">
                 {tokens[t.id] ? (
                   <div className="flex flex-col gap-1">
                     <code className="break-all text-xs">{baseUrl}/t/{slug}/team/{tokens[t.id]}</code>
-                    <form action={regen}><input type="hidden" name="teamId" value={t.id} /><button className="text-xs underline">Regenerate</button></form>
+                    <form action={regen}><input type="hidden" name="teamId" value={t.id} /><SubmitButton className="text-xs underline">Regenerate</SubmitButton></form>
                   </div>
                 ) : <span className="text-xs text-slate-400">n/a</span>}
               </td>
@@ -72,18 +72,18 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
                 {t.withdrawn ? (
                   <form action={reinstate}>
                     <input type="hidden" name="teamId" value={t.id} />
-                    <button className="text-xs underline">Reinstate</button>
+                    <SubmitButton className="text-xs underline">Reinstate</SubmitButton>
                   </form>
                 ) : (
                   <form action={withdraw}>
                     <input type="hidden" name="teamId" value={t.id} />
-                    <ConfirmButton message={`Withdraw ${t.name}? Their open matches are forfeited to the opponent.`} className="text-xs text-red-700 underline">Withdraw</ConfirmButton>
+                    <SubmitButton confirmMessage={`Withdraw ${t.name}? Their open matches are forfeited to the opponent.`} className="text-xs text-red-700 underline">Withdraw</SubmitButton>
                   </form>
                 )}
                 {!locked && (
                   <form action={remove}>
                     <input type="hidden" name="teamId" value={t.id} />
-                    <ConfirmButton message={`Remove ${t.name} and their players? This cannot be undone.`} className="text-xs text-red-700 underline">Remove</ConfirmButton>
+                    <SubmitButton confirmMessage={`Remove ${t.name} and their players? This cannot be undone.`} className="text-xs text-red-700 underline">Remove</SubmitButton>
                   </form>
                 )}
               </td>
@@ -96,7 +96,7 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
           <label className="block text-sm">Add teams, one per line (<code>Alice &amp; Bob</code>, or <code>Alice &amp; Bob = Team Name</code>)
             <textarea name="lines" rows={5} className="mt-1 w-full rounded border p-2 font-mono text-xs" />
           </label>
-          <button className="rounded bg-slate-900 px-4 py-2 text-white">Add teams</button>
+          <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">Add teams</SubmitButton>
         </form>
       )}
     </section>
