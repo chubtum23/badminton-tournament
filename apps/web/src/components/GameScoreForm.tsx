@@ -21,7 +21,7 @@ const outcomeText = (data: unknown): string | null =>
  * turns into a score line, and a finished meeting leaves the "open" filter — so the message is
  * also handed to <RecentOutcome /> at the top of the page.
  */
-export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, existing, action, successText = 'Saved' }: {
+export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, existing, action, successText = 'Saved', confirmMessage }: {
   matchId: string;
   gameNo: number;
   settings: Settings;
@@ -34,6 +34,8 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
   action: (formData: FormData) => Promise<ActionResult<unknown>>;
   /** Shown on success unless the action returns its own `text`. */
   successText?: string;
+  /** When set, submitting is gated behind a window.confirm() with this text. */
+  confirmMessage?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -51,6 +53,7 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
   return (
     <form
       action={(fd) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) return;
         start(async () => {
           const r = await action(fd);
           if (!r.ok) { setOutcome({ ok: false, text: r.message ?? r.error }); return; }
@@ -64,8 +67,6 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
       data-testid="game-score-form"
       className="flex flex-wrap items-center gap-2 text-sm"
     >
-      <input type="hidden" name="matchId" value={matchId} />
-      <input type="hidden" name="gameNo" value={gameNo} />
       <input
         name="scoreA" inputMode="numeric" value={a} onChange={(e) => setA(e.target.value)}
         aria-label={`${label} · ${teamA}`} className="w-14 rounded border p-1"

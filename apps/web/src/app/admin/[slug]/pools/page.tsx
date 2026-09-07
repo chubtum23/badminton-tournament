@@ -143,7 +143,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                             <span className="shrink-0 font-mono text-slate-500">
                               {m.status === 'done'
                                 ? (games[m.id] ?? []).map((x) => `${x.scoreA}-${x.scoreB}`).join(', ') || m.decidedBy
-                                : played(m.id).length > 0 ? `${played(m.id).length}/${(slots[m.id] ?? []).length} games` : m.status}
+                                : `${played(m.id).length}/${(slots[m.id] ?? []).length} games`}
                             </span>
                           </li>
                         ))}

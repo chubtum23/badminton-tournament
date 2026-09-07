@@ -4,7 +4,7 @@ import { gameSlotsByMatch, loadTournamentBundle, latestByMatch } from '@/lib/db/
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { scheduleBoard } from '@/lib/schedule/board';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
-import { GameLine } from '@/components/GameLine';
+import { NowPlaying } from '@/components/NowPlaying';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,17 +46,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
         <div key={a.id} className="rounded border border-amber-400 bg-amber-50 p-3 text-sm whitespace-pre-wrap">{a.body}</div>
       ))}
       {t.status === 'setup' && <p className="rounded border bg-white p-4 text-sm">Pools have not been drawn yet. Check back soon.</p>}
-      <section>
-        <h2 className="mb-2 font-semibold">Now playing</h2>
-        {board.nowPlaying.length === 0 ? <p className="text-sm text-slate-500">No game is on court.</p> : (
-          <div className="rounded border border-emerald-500 bg-white p-3">
-            {board.nowPlaying.map((g) => (
-              <GameLine key={`${g.slot.match_id}:${g.slot.game_no}`} tournament={t} match={g.match} slot={g.slot}
-                settings={settingsOf(g.match)} teams={teams} admin={false} showTeams />
-            ))}
-          </div>
-        )}
-      </section>
+      <NowPlaying tournament={t} games={board.nowPlaying} teams={teams} settings={settingsOf} />
       {awaiting.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold">Awaiting confirmation</h2>

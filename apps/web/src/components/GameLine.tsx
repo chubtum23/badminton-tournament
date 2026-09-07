@@ -79,11 +79,13 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
         )}
         {admin && running && (
           <>
-            <form action={() => run(() => (slot.paused_at ? resumeGame(tournament.slug, match.id, slot.game_no) : pauseGame(tournament.slug, match.id, slot.game_no)))}>
-              <SubmitButton className={`rounded border px-2 py-0.5 text-xs ${slot.paused_at ? 'border-amber-500 text-amber-800' : ''}`}>
-                {slot.paused_at ? 'Resume' : 'Pause'}
-              </SubmitButton>
-            </form>
+            {settings.timeCapMinutes !== null && (
+              <form action={() => run(() => (slot.paused_at ? resumeGame(tournament.slug, match.id, slot.game_no) : pauseGame(tournament.slug, match.id, slot.game_no)))}>
+                <SubmitButton className={`rounded border px-2 py-0.5 text-xs ${slot.paused_at ? 'border-amber-500 text-amber-800' : ''}`}>
+                  {slot.paused_at ? 'Resume' : 'Pause'}
+                </SubmitButton>
+              </form>
+            )}
             <form action={() => run(() => takeGameOffCourt(tournament.slug, match.id, slot.game_no))}>
               <SubmitButton className="rounded border px-2 py-0.5 text-xs">Take off court</SubmitButton>
             </form>
@@ -114,6 +116,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
             matchId={match.id} gameNo={slot.game_no} settings={settings} label={label} teamA={a} teamB={b}
             existing={scored ? { scoreA: slot.score_a!, scoreB: slot.score_b!, timeExpired: slot.time_expired } : undefined}
             action={saveGameScore.bind(null, tournament.slug, match.id, slot.game_no)}
+            confirmMessage={match.status === 'done' ? 'This meeting already has a result. Changing this score may reset every later match that depended on it. Continue?' : undefined}
           />
         </div>
       )}
