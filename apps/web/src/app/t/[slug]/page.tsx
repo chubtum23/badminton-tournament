@@ -23,6 +23,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
     : `Round ${m.round}`;
   // Match carries no timestamps, so the live clock reads started_at off the raw rows.
   const startedAtById: Record<string, string | null> = Object.fromEntries(bundle.matches.map((r) => [r.id, r.started_at]));
+  const pauseById: Record<string, { at: string | null; ms: number }> = Object.fromEntries(bundle.matches.map((r) => [r.id, { at: r.paused_at, ms: r.paused_ms }]));
   const capOf = (m: typeof matches[number]) => settingsFor(t, m.stage).timeCapMinutes;
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
@@ -47,7 +48,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       <section>
         <h2 className="mb-2 font-semibold">Now playing</h2>
         {board.nowPlaying.length === 0 ? <p className="text-sm text-slate-500">No match on court right now.</p> : (
-          <div className="grid gap-3 md:grid-cols-2">{board.nowPlaying.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={capOf(m)} />)}</div>
+          <div className="grid gap-3 md:grid-cols-2">{board.nowPlaying.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={capOf(m)} pausedAt={pauseById[m.id]?.at ?? null} pausedMs={pauseById[m.id]?.ms ?? 0} />)}</div>
         )}
       </section>
       {awaiting.length > 0 && (

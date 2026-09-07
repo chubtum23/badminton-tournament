@@ -64,6 +64,13 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await page.goto(`/t/${slug}`);
   await expect(page.getByTestId('court-clock').first()).toHaveText(/\d\d:\d\d|TIME/);
 
+  // Pause stops the clock on the live match; Resume starts it counting again.
+  await page.goto(`/admin/${slug}/matches?filter=open`);
+  await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
+  await expect(page.getByTestId('court-clock').first()).toHaveText(/\d\d:\d\d paused/);
+  await page.getByRole('button', { name: 'Resume', exact: true }).first().click();
+  await expect(page.getByTestId('court-clock').first()).toHaveText(/^\d\d:\d\d$/);
+
   // invalid single game 14-12 keeps Save disabled and shows the reason
   await page.goto(`/admin/${slug}/matches?filter=open`);
   const first = page.getByTestId('score-form').first();

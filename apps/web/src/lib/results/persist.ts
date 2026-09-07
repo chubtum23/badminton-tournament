@@ -31,8 +31,9 @@ export async function applyResultPlan(
   const primaryUpdate: Record<string, unknown> = {
     team_a_id: primaryRow.team_a_id, team_b_id: primaryRow.team_b_id, court: primaryRow.court,
     status: primaryRow.status, winner_id: primaryRow.winner_id, decided_by: input.decidedBy ?? 'played',
-    // The match is leaving court, so its clock stops with it.
-    started_at: null,
+    // The match is leaving court, so its clock stops with it — pause state included, so a
+    // later restart begins clean.
+    started_at: null, paused_at: null, paused_ms: 0,
   };
   if (primaryRow.status === 'done') {
     // Editing an already-done match keeps its original completion time, so "latest results" does
@@ -76,7 +77,7 @@ export async function applyResultPlan(
       winner_id: row.winner_id, decided_by: row.decided_by,
     };
     // A downstream match rolled off court (or reset to pending) has no running clock.
-    if (row.status !== 'live') update.started_at = null;
+    if (row.status !== 'live') { update.started_at = null; update.paused_at = null; update.paused_ms = 0; }
     if (row.status === 'done') {
       if (!wasAlreadyDone) update.finished_at = now;
     } else {

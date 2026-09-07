@@ -76,6 +76,10 @@ export interface MatchRow {
   started_at: string | null;
   /** Set when the match reached 'done'; null otherwise (and on rows written before this column existed). */
   finished_at: string | null;
+  /** Set while the live clock is stopped; null while it is running. */
+  paused_at: string | null;
+  /** Total milliseconds already spent paused, so the countdown ignores stoppages. */
+  paused_ms: number;
 }
 
 export interface GameRow {

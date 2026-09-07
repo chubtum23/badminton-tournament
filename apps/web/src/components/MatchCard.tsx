@@ -43,13 +43,17 @@ export function pendingFor(
 
 const compact = (games: Game[]) => games.map((g) => `${g.scoreA}-${g.scoreB}`).join(', ');
 
-export function MatchCard({ match, teams, games, label, pending, startedAt, capMinutes, taglines = true, children }: {
+export function MatchCard({ match, teams, games, label, pending, startedAt, capMinutes, pausedAt = null, pausedMs = 0, taglines = true, children }: {
   match: Match; teams: readonly TeamRow[]; games: Game[]; label?: string;
   pending?: Pending;
   /** When the match went to court; with `capMinutes` it drives the countdown on a live card. */
   startedAt?: string | null;
   /** The stage's time cap in minutes; null when this stage has no clock. */
   capMinutes?: number | null;
+  /** Set while the clock is stopped; the countdown freezes and reads "paused". */
+  pausedAt?: string | null;
+  /** Total milliseconds already spent paused, given back to the countdown. */
+  pausedMs?: number;
   /** Render each team's tagline under its name. */
   taglines?: boolean;
   children?: React.ReactNode;
@@ -76,7 +80,7 @@ export function MatchCard({ match, teams, games, label, pending, startedAt, capM
           {match.decidedBy !== 'played' && (
             <span className="rounded bg-slate-200 px-1 text-[10px] uppercase tracking-wide text-slate-700">{match.decidedBy}</span>
           )}
-          {showClock && <CourtClock startedAt={startedAt!} capMinutes={capMinutes!} />}
+          {showClock && <CourtClock startedAt={startedAt!} capMinutes={capMinutes!} pausedAt={pausedAt} pausedMs={pausedMs} />}
           <span>{match.status === 'live' && match.court ? `Court ${match.court} · live` : match.status}</span>
         </span>
       </div>

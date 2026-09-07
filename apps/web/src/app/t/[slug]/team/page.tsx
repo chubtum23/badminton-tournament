@@ -46,6 +46,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   const pending = (m: typeof mine[number]) => pendingFor(latest, teams, m, sideOf(m) === 'a' ? 'b' : 'a');
   // Match carries no timestamps, so the live clock reads started_at off the raw rows.
   const startedAtById: Record<string, string | null> = Object.fromEntries(matchRows.map((r) => [r.id, r.started_at]));
+  const pauseById: Record<string, { at: string | null; ms: number }> = Object.fromEntries(matchRows.map((r) => [r.id, { at: r.paused_at, ms: r.paused_ms }]));
   const canSubmit = (m: typeof mine[number]) =>
     !me.team.withdrawn && (m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed');
 
@@ -74,7 +75,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
         <h2 className="font-semibold">Your next match</h2>
         {next ? (
           <>
-            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} startedAt={startedAtById[next.id]} capMinutes={settingsOf(next).timeCapMinutes} />
+            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} startedAt={startedAtById[next.id]} capMinutes={settingsOf(next).timeCapMinutes} pausedAt={pauseById[next.id]?.at ?? null} pausedMs={pauseById[next.id]?.ms ?? 0} />
             {canSubmit(next) && (
               <>
                 <ScoreForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
@@ -87,7 +88,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
       <section className="space-y-2">
         <h2 className="font-semibold">Your matches</h2>
         <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes}>
+          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes} pausedAt={pauseById[m.id]?.at ?? null} pausedMs={pauseById[m.id]?.ms ?? 0}>
             {canSubmit(m) && (
               <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
                 teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />

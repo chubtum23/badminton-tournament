@@ -10,10 +10,11 @@ export function rowToMatch(r: MatchRow): Match {
 }
 
 /**
- * `Match` in @tournament/core has no timestamps, so `started_at` and `finished_at` are owned by
- * the caller (see enterResult) and deliberately left out of the mapped row.
+ * `Match` in @tournament/core has no timestamps, so `started_at`, `finished_at` and the pause
+ * fields (`paused_at`, `paused_ms`) are owned by the caller (see enterResult) and deliberately
+ * left out of the mapped row.
  */
-export function matchToRow(m: Match, tournamentId: string): Omit<MatchRow, 'finished_at' | 'started_at'> {
+export function matchToRow(m: Match, tournamentId: string): Omit<MatchRow, 'finished_at' | 'started_at' | 'paused_at' | 'paused_ms'> {
   return {
     id: m.id, tournament_id: tournamentId, stage: m.stage, pool_id: m.poolId, round: m.round, slot: m.slot,
     team_a_id: m.teamAId, team_b_id: m.teamBId, court: m.court, status: m.status,

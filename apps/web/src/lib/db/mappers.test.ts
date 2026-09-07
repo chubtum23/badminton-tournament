@@ -6,6 +6,7 @@ const row: MatchRow = {
   id: 'm1', tournament_id: 't1', stage: 'knockout', pool_id: null, round: 2, slot: 1,
   team_a_id: 'a', team_b_id: null, court: 3, status: 'live', winner_id: null, decided_by: 'played',
   next_match_id: 'm9', next_match_side: 'b', started_at: null, finished_at: null,
+  paused_at: null, paused_ms: 0,
 };
 
 describe('match mapping', () => {
@@ -15,11 +16,14 @@ describe('match mapping', () => {
       id: 'm1', stage: 'knockout', poolId: null, round: 2, slot: 1, teamAId: 'a', teamBId: null,
       court: 3, status: 'live', winnerId: null, decidedBy: 'played', nextMatchId: 'm9', nextMatchSide: 'b',
     });
-    // matchToRow owns neither timestamp (see mappers.ts), so both are absent from the mapped row.
-    const { finished_at, started_at, ...withoutTimestamps } = row;
+    // matchToRow owns neither timestamp nor the pause fields (see mappers.ts), so all four are
+    // absent from the mapped row.
+    const { finished_at, started_at, paused_at, paused_ms, ...withoutTimestamps } = row;
     expect(matchToRow(m, 't1')).toEqual(withoutTimestamps);
     expect(finished_at).toBeNull();
     expect(started_at).toBeNull();
+    expect(paused_at).toBeNull();
+    expect(paused_ms).toBe(0);
   });
   it('carries a non-played decision both ways', () => {
     const forfeited: MatchRow = { ...row, decided_by: 'forfeit' };

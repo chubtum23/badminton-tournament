@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { assignCourt, awardMatch, startNow, enterResultForm, confirmSubmission } from '@/actions/matches';
+import { assignCourt, awardMatch, startNow, enterResultForm, confirmSubmission, pauseMatch, resumeMatch } from '@/actions/matches';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
@@ -24,8 +24,10 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   // Rules are per stage, so each card gets its own settings; the score action needs the same
   // per-match game count, which it looks up in this (serialisable) map.
   const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
-  // `Match` carries no timestamps, so the court clock reads started_at straight off the raw rows.
+  // `Match` carries no timestamps, so the court clock reads started_at and the pause fields
+  // straight off the raw rows.
   const startedAtById: Record<string, string | null> = Object.fromEntries(matchRows.map((r) => [r.id, r.started_at]));
+  const pauseById: Record<string, { at: string | null; ms: number }> = Object.fromEntries(matchRows.map((r) => [r.id, { at: r.paused_at, ms: r.paused_ms }]));
   const games = gamesByMatch(gameRows);
   const latest = latestByMatch(subs);
   const shown = matches.filter((m) => filter === 'all' ? true : filter === 'done' ? m.status === 'done' : m.status !== 'done' && m.status !== 'pending');
@@ -48,6 +50,16 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
       return redirectWithMsg(here, await assignCourt(slug, matchId, null), 'Taken off court');
     } else {
       return redirectWithMsg(here, await startNow(slug, matchId, picked), 'On court');
+    }
+  }
+  /** Stops or restarts the countdown on a live match; `op` says which button was pressed. */
+  async function clock(formData: FormData) {
+    'use server';
+    const matchId = String(formData.get('matchId'));
+    if (String(formData.get('op')) === 'resume') {
+      return redirectWithMsg(here, await resumeMatch(slug, matchId), 'Clock resumed');
+    } else {
+      return redirectWithMsg(here, await pauseMatch(slug, matchId), 'Clock paused');
     }
   }
   async function confirm(formData: FormData) {
@@ -83,9 +95,10 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
       </nav>
       <div className="grid gap-3 md:grid-cols-2">
         {shown.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes}>
+          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes} pausedAt={pauseById[m.id]?.at ?? null} pausedMs={pauseById[m.id]?.ms ?? 0}>
             {(m.status === 'ready' || m.status === 'live') && (
-              <form action={court} className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+              <form action={court} className="flex flex-wrap items-center gap-2 text-xs">
                 <input type="hidden" name="matchId" value={m.id} />
                 <label>Court
                   <select name="court" defaultValue="" className="ml-1 rounded border p-1">
@@ -102,6 +115,15 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
                     </>
                   )}
               </form>
+              {m.status === 'live' && (
+                <form action={clock} className="text-xs">
+                  <input type="hidden" name="matchId" value={m.id} />
+                  {pauseById[m.id]?.at
+                    ? <SubmitButton name="op" value="resume" className="rounded border border-amber-500 px-2 py-1 text-amber-800">Resume</SubmitButton>
+                    : <SubmitButton name="op" value="pause" className="rounded border px-2 py-1">Pause</SubmitButton>}
+                </form>
+              )}
+              </div>
             )}
             {m.teamAId && m.teamBId && m.status !== 'pending' && (
               <div className="mb-2 flex flex-wrap gap-2 text-xs">
