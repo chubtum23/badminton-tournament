@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { cookies, headers } from 'next/headers';
 import { createServiceSupabase } from '@/lib/supabase/service';
 import { getTournamentBySlug } from '@/lib/db/queries';
@@ -49,11 +50,16 @@ export async function resolveTeamByToken(slug: string, token: string, clientKey:
   return found;
 }
 
-/** The participant identified by this request's cookie, or null (including when rate limited). */
-export async function currentParticipant(slug: string): Promise<Participant | null> {
+/**
+ * The participant identified by this request's cookie, or null (including when rate limited).
+ *
+ * Cached per request: the public layout resolves it for the tab bar and the team page resolves
+ * it again, and one database round trip is enough for both.
+ */
+export const currentParticipant = cache(async (slug: string): Promise<Participant | null> => {
   const jar = await cookies();
   const token = jar.get(cookieName(slug))?.value;
   if (!token) return null;
   const resolved = await resolveTeamByToken(slug, token, clientKeyFrom(await headers()));
   return resolved === RATE_LIMITED ? null : resolved;
-}
+});

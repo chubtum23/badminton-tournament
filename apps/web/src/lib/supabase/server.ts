@@ -1,7 +1,9 @@
+import { cache } from 'react';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function createServerSupabase() {
+/** One client per request: several components and actions ask for it during the same render. */
+export const createServerSupabase = cache(async () => {
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,4 +23,4 @@ export async function createServerSupabase() {
       },
     },
   );
-}
+});
