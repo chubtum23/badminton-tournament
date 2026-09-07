@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { BADMINTON_DEFAULTS, CLASSIC_BEST_OF_THREE, type Match } from '@tournament/core';
-import { planAward, planResult, planCourt } from './apply';
+import { planAward, planResult } from './apply';
 
 const base = (over: Partial<Match> & { id: string }): Match => ({
-  stage: 'knockout', poolId: null, round: 1, slot: 1, teamAId: null, teamBId: null, court: null,
+  stage: 'knockout', poolId: null, round: 1, slot: 1, teamAId: null, teamBId: null,
   status: 'pending', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null, ...over,
 });
-const s1 = base({ id: 's1', teamAId: 'A', teamBId: 'B', status: 'live', court: 1, nextMatchId: 'f', nextMatchSide: 'a' });
+const s1 = base({ id: 's1', teamAId: 'A', teamBId: 'B', status: 'live', nextMatchId: 'f', nextMatchSide: 'a' });
 const s2 = base({ id: 's2', slot: 2, teamAId: 'C', teamBId: 'D', status: 'ready', nextMatchId: 'f', nextMatchSide: 'b' });
 const f = base({ id: 'f', round: 2 });
 const g = (a1: number, b1: number, a2: number, b2: number) => [{ gameNo: 1, scoreA: a1, scoreB: b1 }, { gameNo: 2, scoreA: a2, scoreB: b2 }];
@@ -19,7 +19,7 @@ describe('planResult', () => {
     expect(r.tournamentFinished).toBe(false);
     expect(r.clearGamesFor).toEqual([]);
     expect(r.gamesToWrite).toHaveLength(2);
-    expect(r.updates.find((m) => m.id === 's1')).toMatchObject({ status: 'done', winnerId: 'A', court: null });
+    expect(r.updates.find((m) => m.id === 's1')).toMatchObject({ status: 'done', winnerId: 'A' });
     expect(r.updates.find((m) => m.id === 'f')).toMatchObject({ teamAId: 'A', status: 'pending' });
   });
 
@@ -43,22 +43,22 @@ describe('planResult', () => {
   });
 
   it('edits a done match by rolling back downstream and re-advancing', () => {
-    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A' };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
-    const liveFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'live' as const, court: 2 };
+    const liveFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'live' as const };
     const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [doneS1, doneS2, liveFinal], matchId: 's1', games: g(10, 15, 10, 15) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('B');
     expect(r.clearGamesFor).toEqual(['f']);
     const final = r.updates.find((m) => m.id === 'f');
-    expect(final).toMatchObject({ teamAId: 'B', teamBId: 'C', status: 'ready', court: null, winnerId: null });
+    expect(final).toMatchObject({ teamAId: 'B', teamBId: 'C', status: 'ready', winnerId: null });
     expect(r.updates.find((m) => m.id === 's1')).toMatchObject({ status: 'done', winnerId: 'B' });
   });
 
   it('correcting a semi-final score without changing its winner keeps the final done', () => {
-    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A' };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
-    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A', court: null };
+    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A' };
     const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(15, 10, 15, 13) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('A');
@@ -67,9 +67,9 @@ describe('planResult', () => {
   });
 
   it('flipping a semi-final winner rolls the done final back to ready', () => {
-    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A' };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
-    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A', court: null };
+    const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A' };
     const r = planResult({ settings: CLASSIC_BEST_OF_THREE, matches: [doneS1, doneS2, doneFinal], matchId: 's1', games: g(10, 15, 10, 15) });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('B');
@@ -89,7 +89,10 @@ describe('planResult', () => {
 
   it('completes a club-format match on a single time-expired game', () => {
     const pm = base({ id: 'p1', stage: 'pool', poolId: 'P', round: null, teamAId: 'A', teamBId: 'B', status: 'live' });
-    const r = planResult({ settings: BADMINTON_DEFAULTS, matches: [pm], matchId: 'p1', games: [{ gameNo: 1, scoreA: 10, scoreB: 7, timeExpired: true }] });
+    // A single-game club format: BADMINTON_DEFAULTS now plays all three games, so one game
+    // no longer decides a meeting there.
+    const settings = { ...BADMINTON_DEFAULTS, gamesPerMatch: 1, playAllGames: false };
+    const r = planResult({ settings, matches: [pm], matchId: 'p1', games: [{ gameNo: 1, scoreA: 10, scoreB: 7, timeExpired: true }] });
     if ('error' in r) throw new Error(r.message);
     expect(r.winnerId).toBe('A');
     expect(r.gamesToWrite).toEqual([{ gameNo: 1, scoreA: 10, scoreB: 7, timeExpired: true }]);
@@ -112,12 +115,12 @@ describe('planAward', () => {
     expect(r.winnerId).toBe('D');
     expect(r.gamesToWrite).toEqual([]);
     expect(r.clearGamesFor).toEqual([]);
-    expect(r.updates.find((m) => m.id === 's2')).toMatchObject({ status: 'done', winnerId: 'D', court: null });
+    expect(r.updates.find((m) => m.id === 's2')).toMatchObject({ status: 'done', winnerId: 'D' });
     expect(r.updates.find((m) => m.id === 'f')).toMatchObject({ teamBId: 'D' });
   });
 
   it('awarding a done match to the other team rolls back downstream and writes no games', () => {
-    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A' };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
     const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A' };
     const r = planAward({ matches: [doneS1, doneS2, doneFinal], matchId: 's1', winnerId: 'B' });
@@ -130,7 +133,7 @@ describe('planAward', () => {
   });
 
   it('re-awarding a done match to the same team leaves the downstream alone', () => {
-    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A', court: null };
+    const doneS1 = { ...s1, status: 'done' as const, winnerId: 'A' };
     const doneS2 = { ...s2, status: 'done' as const, winnerId: 'C' };
     const doneFinal = { ...f, teamAId: 'A', teamBId: 'C', status: 'done' as const, winnerId: 'A' };
     const r = planAward({ matches: [doneS1, doneS2, doneFinal], matchId: 's1', winnerId: 'A' });
@@ -158,24 +161,5 @@ describe('planAward', () => {
     if ('error' in r) throw new Error(r.message);
     expect(r.updates).toHaveLength(1);
     expect(r.tournamentFinished).toBe(false);
-  });
-});
-
-describe('planCourt', () => {
-  it('moves ready to live with a court, and live back to ready when cleared', () => {
-    expect(planCourt([s1, s2], 's2', 2, 4)).toMatchObject({ id: 's2', status: 'live', court: 2 });
-    expect(planCourt([s1, s2], 's1', null, 4)).toMatchObject({ id: 's1', status: 'ready', court: null });
-  });
-  it('moves a live match to another free court', () => {
-    expect(planCourt([s1, s2], 's1', 3, 4)).toMatchObject({ id: 's1', status: 'live', court: 3 });
-  });
-  it('refuses moving a live match onto a court another live match holds', () => {
-    const other = { ...s2, status: 'live' as const, court: 2 };
-    expect(planCourt([s1, other], 's1', 2, 4)).toMatchObject({ error: expect.stringMatching(/in use/) });
-  });
-  it('refuses a court in use, an out-of-range court, and a non-ready match', () => {
-    expect(planCourt([s1, s2], 's2', 1, 4)).toMatchObject({ error: expect.stringMatching(/in use/) });
-    expect(planCourt([s1, s2], 's2', 5, 4)).toMatchObject({ error: expect.stringMatching(/between 1 and 4/) });
-    expect(planCourt([s1, s2, f], 'f', 2, 4)).toMatchObject({ error: expect.stringMatching(/not ready/) });
   });
 });

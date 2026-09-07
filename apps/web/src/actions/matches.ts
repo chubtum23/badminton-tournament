@@ -5,91 +5,9 @@ import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 import { listMatches, listSubmissions } from '@/lib/db/queries';
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
-import { planAward, planCourt, planResult } from '@/lib/results/apply';
+import { planAward, planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
 import { gamesFromForm } from '@/lib/results/form';
-
-export async function assignCourt(slug: string, matchId: string, court: number | null): Promise<ActionResult> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const planned = planCourt(rows.map(rowToMatch), matchId, court, ctx.tournament.court_count);
-  if ('error' in planned) return fail(planned.error.includes('court must be between') ? 'invalid_input' : 'match_not_editable', planned.error);
-  const before = rows.find((r) => r.id === matchId)!;
-  const update: Record<string, unknown> = { court: planned.court, status: planned.status };
-  // The clock starts when the match first reaches a court; moving an already-live match to a
-  // different court must not restart it, and taking it off court clears the stamp.
-  if (planned.status === 'live') {
-    // A fresh start clears any pause left over from the last time this match was on court.
-    if (before.status !== 'live') { update.started_at = new Date().toISOString(); update.paused_at = null; update.paused_ms = 0; }
-  } else {
-    update.started_at = null;
-    update.paused_at = null;
-    update.paused_ms = 0;
-  }
-  const upd = await ctx.sb.from('matches').update(update)
-    .eq('id', matchId).eq('status', before.status).select('id');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
-  revalidateTournament(slug);
-  return ok(undefined);
-}
-
-/**
- * Puts a match on court right now. With no court given it takes the lowest-numbered court that no
- * live match is holding, which is what an organiser calling the next match actually wants.
- */
-export async function startNow(slug: string, matchId: string, court?: number | null): Promise<ActionResult> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  if (court !== undefined && court !== null) return assignCourt(slug, matchId, court);
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const busy = new Set(rows.filter((r) => r.status === 'live' && r.id !== matchId && r.court !== null).map((r) => r.court));
-  const chosen = Array.from({ length: ctx.tournament.court_count }, (_, i) => i + 1).find((c) => !busy.has(c));
-  if (chosen === undefined) return fail('invalid_input', 'All courts are busy');
-  return assignCourt(slug, matchId, chosen);
-}
-
-/**
- * Stops the clock on a live match. The countdown is derived from `started_at`, so a stoppage is
- * recorded rather than the clock being rewound: `paused_at` freezes it now, and `resumeMatch`
- * folds the length of the stoppage into `paused_ms`.
- */
-export async function pauseMatch(slug: string, matchId: string): Promise<ActionResult> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const before = rows.find((r) => r.id === matchId);
-  if (!before) return fail('invalid_input', 'Unknown match');
-  if (before.status !== 'live') return fail('match_not_editable', 'Only a live match has a running clock');
-  if (before.paused_at !== null) return fail('stale_state', 'Match is already paused');
-  // The guards are repeated in the update so a concurrent change loses instead of double-pausing.
-  const upd = await ctx.sb.from('matches').update({ paused_at: new Date().toISOString() })
-    .eq('id', matchId).eq('status', 'live').is('paused_at', null).select('id');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
-  revalidateTournament(slug);
-  return ok(undefined);
-}
-
-/** Restarts a paused clock, crediting the whole stoppage back to the match. */
-export async function resumeMatch(slug: string, matchId: string): Promise<ActionResult> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const before = rows.find((r) => r.id === matchId);
-  if (!before) return fail('invalid_input', 'Unknown match');
-  if (before.status !== 'live') return fail('match_not_editable', 'Only a live match has a clock');
-  if (before.paused_at === null) return fail('stale_state', 'Match is not paused');
-  const stoppage = Math.max(0, Date.now() - Date.parse(before.paused_at));
-  const upd = await ctx.sb.from('matches')
-    .update({ paused_ms: before.paused_ms + stoppage, paused_at: null })
-    .eq('id', matchId).eq('paused_at', before.paused_at).select('id');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
-  revalidateTournament(slug);
-  return ok(undefined);
-}
 
 export async function enterResult(slug: string, matchId: string, games: Game[]): Promise<ActionResult<{ winnerId: string }>> {
   const ctx = await requireAdmin(slug);

@@ -78,18 +78,3 @@ export function planAward(input: { matches: Match[]; matchId: string; winnerId: 
   }
   return { ...applyWinner(input.matches, match, input.winnerId), gamesToWrite: [], winnerId: input.winnerId };
 }
-
-export function planCourt(matches: Match[], matchId: string, court: number | null, courtCount: number): Match | { error: string } {
-  const match = matches.find((m) => m.id === matchId);
-  if (!match) return { error: 'unknown match' };
-  if (court === null) {
-    if (match.status !== 'live') return { error: 'match is not live' };
-    return { ...match, court: null, status: 'ready' };
-  }
-  if (!Number.isInteger(court) || court < 1 || court > courtCount) return { error: `court must be between 1 and ${courtCount}` };
-  // 'live' is allowed so a match already on court can be moved to a different free court.
-  if (match.status !== 'ready' && match.status !== 'live') return { error: 'match is not ready' };
-  const busy = matches.find((m) => m.id !== matchId && m.status === 'live' && m.court === court);
-  if (busy) return { error: `court ${court} is in use` };
-  return { ...match, court, status: 'live' };
-}
