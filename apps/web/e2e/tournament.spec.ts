@@ -8,15 +8,24 @@ const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal', 'Ivy & Jo', 'Kim 
 /**
  * Fill every open score form on the Matches screen with a win for side A until none remain. The
  * club format is a single game, so only game 1 exists on the form.
+ *
+ * The margin is the match's slot number (read off the card's label), so every match in a pool is
+ * won by a different amount. A constant margin would not do: side A wins two of its three
+ * round-robin matches for three of the four teams in a pool, so identical margins leave those
+ * three level on points *and* on score difference — a genuine unresolved tie across the
+ * qualification line, which the bracket then correctly refuses to start.
  * Returns how many results were actually entered, so callers can assert the expected count.
  */
 async function playAllOpen(page: Page, slugName: string, max: number): Promise<number> {
   for (let i = 0; i < max; i++) {
     await page.goto(`/admin/${slugName}/matches?filter=open`);
-    const form = page.getByTestId('score-form').first();
-    if ((await form.count()) === 0) return i;
+    const card = page.locator('div.rounded.border', { has: page.getByTestId('score-form') }).first();
+    if ((await card.count()) === 0) return i;
+    const form = card.getByTestId('score-form');
+    // The card label is "Pool A · #3" (or "Round 2 · #1" in the knockout); #n is the slot.
+    const slot = Number(/#(\d+)/.exec((await card.locator('span').first().textContent()) ?? '')?.[1] ?? 6);
     await form.locator('input[name="game1a"]').fill('15');
-    await form.locator('input[name="game1b"]').fill('7');
+    await form.locator('input[name="game1b"]').fill(String(15 - slot));
     await form.getByRole('button', { name: /save result|edit result/i }).click();
     // The form posts the action itself now, so the outcome lands inline instead of as a redirect.
     await expect(form.getByTestId('score-outcome')).toHaveText('Result saved');

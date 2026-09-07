@@ -23,9 +23,11 @@ never queues a playoff match in `upNext`, but still shows it in `nowPlaying` onc
 Every `Match` carries `decidedBy: 'played' | 'awarded' | 'forfeit'`, recording how its
 result was reached.
 
-| Function | Purpose |
+| Export | Purpose |
 |---|---|
-| `validateGame(settings, a, b, timeExpired?)` | Is this a legal finished game score? Returns the winning side or a reason. |
+| `BADMINTON_DEFAULTS` | Club-night `Settings`: one game to 15, win by one, no cap, 13-minute clock. What a new tournament starts on. |
+| `CLASSIC_BEST_OF_THREE` | Traditional `Settings`: best of 3 to 15, win by two, cap 21, no clock. |
+| `validateGame(settings, a, b, timeExpired?)` | Is this a legal finished game score? Returns the winning side or a reason. With `timeExpired` the clock ended the game: any non-level score up to the ceiling passes, a level score still fails, and the flag is rejected outright when the stage has no `timeCapMinutes`. |
 | `matchResult(settings, games)` | Winner of a match from its games, or incomplete, or an error naming the bad game. |
 | `gamesNeeded(settings)` | Number of games needed to win a match under these settings. |
 | `winnerTeamId(match, winner)` | Map a matchResult winner side to the team id occupying that side. |
