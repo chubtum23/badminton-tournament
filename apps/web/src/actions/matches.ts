@@ -1,5 +1,4 @@
 'use server';
-import type { Game } from '@tournament/core';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
@@ -7,49 +6,12 @@ import { listMatches, listSubmissions } from '@/lib/db/queries';
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planAward, planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
-import { gamesFromForm } from '@/lib/results/form';
-
-export async function enterResult(slug: string, matchId: string, games: Game[]): Promise<ActionResult<{ winnerId: string }>> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  // 'finished' is editable too: a wrong result in the final (or anywhere upstream of it) has to
-  // be correctable after the champion was decided.
-  if (ctx.tournament.status !== 'pools' && ctx.tournament.status !== 'knockout' && ctx.tournament.status !== 'finished') {
-    return fail('stale_state', 'Tournament is not in play');
-  }
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  // Each stage can carry its own rules, so the settings come from the match being scored.
-  const settings = settingsFor(ctx.tournament, rows.find((r) => r.id === matchId)?.stage ?? 'pool');
-  const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games });
-  if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
-
-  const persisted = await applyResultPlan(ctx.sb, {
-    tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status, decidedBy: 'played',
-  });
-  if (!persisted.ok) return fail(persisted.error, persisted.message);
-  revalidateTournament(slug);
-  return ok({ winnerId: plan.winnerId });
-}
-
-/**
- * Form-friendly wrapper for the Matches screen: the games are parsed here, against the settings of
- * the match's own stage, so the client form only has to post its fields.
- */
-export async function enterResultForm(slug: string, formData: FormData): Promise<ActionResult<{ winnerId: string }>> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  const matchId = String(formData.get('matchId') ?? '');
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const row = rows.find((r) => r.id === matchId);
-  if (!row) return fail('invalid_input', 'Unknown match');
-  return enterResult(slug, matchId, gamesFromForm(formData, settingsFor(ctx.tournament, row.stage).gamesPerMatch));
-}
 
 /** Accept one team's submitted games as the result. */
 export async function confirmSubmission(slug: string, matchId: string, submissionId: string): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
-  // Same window as enterResult: 'finished' stays editable so a wrong result can be corrected.
+  // Same window as saveGameScore: 'finished' stays editable so a wrong result can be corrected.
   if (ctx.tournament.status !== 'pools' && ctx.tournament.status !== 'knockout' && ctx.tournament.status !== 'finished') {
     return fail('stale_state', 'Tournament is not in play');
   }
@@ -72,7 +34,7 @@ export async function confirmSubmission(slug: string, matchId: string, submissio
 export async function awardMatch(slug: string, matchId: string, winnerId: string, kind: 'awarded' | 'forfeit' = 'awarded'): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
-  // Same window as enterResult: 'finished' stays editable so a wrong result can be corrected.
+  // Same window as saveGameScore: 'finished' stays editable so a wrong result can be corrected.
   if (!['pools', 'knockout', 'finished'].includes(ctx.tournament.status)) return fail('stale_state', 'Tournament is not in play');
   const rows = await listMatches(ctx.sb, ctx.tournament.id);
   const plan = planAward({ matches: rows.map(rowToMatch), matchId, winnerId });

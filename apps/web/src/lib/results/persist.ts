@@ -7,6 +7,14 @@ import type { ResultPlan } from './apply';
 export type PersistResult = { ok: true } | { ok: false; error: ActionError; message: string };
 
 /**
+ * A game slot with nothing played on it: no score, no court, no clock. The row itself is never
+ * deleted, because a meeting owns its three slots from the moment it is created.
+ */
+export const BLANK_GAME = {
+  score_a: null, score_b: null, time_expired: false, court: null, started_at: null, paused_at: null, paused_ms: 0,
+} as const;
+
+/**
  * Writes a ResultPlan. Shared by the admin result action and the participant confirmation path.
  * The caller has already authorised the write and loaded `rows` (all matches of the tournament).
  */
@@ -48,21 +56,33 @@ export async function applyResultPlan(
   if ((claim.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
 
   for (const id of plan.clearGamesFor) {
-    const del = await sb.from('games').delete().eq('match_id', id);
-    if (del.error) return fail('invalid_input', del.error.message);
+    // The rows are the meeting's game slots, so they stay; only the results go.
+    const blank = await sb.from('games').update(BLANK_GAME).eq('match_id', id);
+    if (blank.error) return fail('invalid_input', blank.error.message);
     const subs = await sb.from('score_submissions').delete().eq('match_id', id);
     if (subs.error) return fail('invalid_input', subs.error.message);
   }
-  // The primary match is claimed (and marked done) before its own games are written below; a
-  // crash in between leaves a done match briefly without games, which is acceptable and
-  // self-healing on the next edit (this routine always deletes and re-inserts a match's games).
-  const delOwn = await sb.from('games').delete().eq('match_id', matchId);
-  if (delOwn.error) return fail('invalid_input', delOwn.error.message);
   // ADDITION 1: a confirmed result supersedes any pending submissions for this match.
   const delOwnSubs = await sb.from('score_submissions').delete().eq('match_id', matchId);
   if (delOwnSubs.error) return fail('invalid_input', delOwnSubs.error.message);
-  const insGames = await sb.from('games').insert(plan.gamesToWrite.map((g) => ({ match_id: matchId, game_no: g.gameNo, score_a: g.scoreA, score_b: g.scoreB, time_expired: g.timeExpired ?? false })));
-  if (insGames.error) return fail('invalid_input', insGames.error.message);
+  // Slots this result does not name hold nothing afterwards: awarding a meeting (which writes no
+  // games at all) rubs out whatever had been played, and a result shorter than the meeting must
+  // not leave a stale game behind it. The rows themselves stay either way.
+  const named = plan.gamesToWrite.map((g) => g.gameNo);
+  let blankOwn = sb.from('games').update(BLANK_GAME).eq('match_id', matchId);
+  if (named.length > 0) blankOwn = blankOwn.not('game_no', 'in', `(${named.join(',')})`);
+  const blankedOwn = await blankOwn;
+  if (blankedOwn.error) return fail('invalid_input', blankedOwn.error.message);
+  // The slots already exist, so the scores are written into them rather than the rows being
+  // replaced: deleting them would throw away the court and clock of the meeting's other games,
+  // and a meeting must always have its full set of slots.
+  for (const g of plan.gamesToWrite) {
+    const wrote = await sb.from('games')
+      .update({ score_a: g.scoreA, score_b: g.scoreB, time_expired: g.timeExpired ?? false, court: null, started_at: null, paused_at: null, paused_ms: 0 })
+      .eq('match_id', matchId).eq('game_no', g.gameNo).select('game_no');
+    if (wrote.error) return fail('invalid_input', wrote.error.message);
+    if ((wrote.data ?? []).length === 0) return fail('stale_state', 'A game slot is missing; reload');
+  }
 
   for (const m of plan.updates) {
     if (m.id === matchId) continue; // already claimed above

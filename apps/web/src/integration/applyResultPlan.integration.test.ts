@@ -3,7 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { CLASSIC_BEST_OF_THREE } from '@tournament/core';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
-import { rowToMatch } from '@/lib/db/mappers';
+import { rowToMatch, slotRowsFor } from '@/lib/db/mappers';
 import type { MatchRow } from '@/lib/db/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -11,10 +11,10 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const enabled = Boolean(url && anonKey && serviceKey);
 
-// Simulates the conditional "claim" write that enterResult performs as its first write:
+// Simulates the conditional "claim" write that applyResultPlan performs as its first write:
 // an update scoped to .eq('status', before.status).is/.eq('winner_id', before.winner_id) so that
 // two concurrent submitters racing on the same match can only have one of them win the claim.
-describe.skipIf(!enabled)('enterResult claim race', () => {
+describe.skipIf(!enabled)('result claim race', () => {
   let service: SupabaseClient;
   let admin: SupabaseClient;
   let tournamentId: string;
@@ -35,7 +35,7 @@ describe.skipIf(!enabled)('enterResult claim race', () => {
     service = createClient(url!, serviceKey!, { auth: { persistSession: false } });
     admin = await signedInClient(`admin-${slug}@example.com`);
 
-    const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'enterResult race test' });
+    const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'result race test' });
     if (t.error) throw t.error;
     tournamentId = t.data as string;
 
@@ -75,7 +75,7 @@ describe.skipIf(!enabled)('enterResult claim race', () => {
   });
 });
 
-// applyResultPlan is the shared writer used by both enterResult and the (later) participant
+// applyResultPlan is the shared writer used by both the per-game admin path and the participant
 // confirmation path; a confirmed result must supersede any pending submission on that match.
 describe.skipIf(!enabled)('applyResultPlan clears pending submissions', () => {
   let service: SupabaseClient;
@@ -119,6 +119,9 @@ describe.skipIf(!enabled)('applyResultPlan clears pending submissions', () => {
       team_a_id: teamAId, team_b_id: teamBId, status: 'ready',
     }).select('id').single();
     if (match.error) throw match.error;
+    // A meeting owns its game slots from creation; a result is written into them, never inserted.
+    const slots = await admin.from('games').insert(slotRowsFor(match.data.id, CLASSIC_BEST_OF_THREE.gamesPerMatch));
+    if (slots.error) throw slots.error;
     matchId = match.data.id;
 
     const submission = await service.from('score_submissions').insert({
@@ -150,9 +153,12 @@ describe.skipIf(!enabled)('applyResultPlan clears pending submissions', () => {
     if (updated.error) throw updated.error;
     expect(updated.data.status).toBe('done');
 
-    const gameRows = await service.from('games').select('game_no').eq('match_id', matchId);
+    const gameRows = await service.from('games').select('game_no, score_a, score_b').eq('match_id', matchId).order('game_no');
     if (gameRows.error) throw gameRows.error;
-    expect(gameRows.data).toHaveLength(2);
+    // Three slots, always: the third game the result does not name is blanked, not removed.
+    expect(gameRows.data).toEqual([
+      { game_no: 1, score_a: 15, score_b: 7 }, { game_no: 2, score_a: 15, score_b: 9 }, { game_no: 3, score_a: null, score_b: null },
+    ]);
 
     const subRows = await service.from('score_submissions').select('id').eq('match_id', matchId);
     if (subRows.error) throw subRows.error;

@@ -4,7 +4,7 @@ import type { Game } from '@tournament/core';
 import { applySubmission } from '@/lib/submissions/applySubmission';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
-import { rowToMatch, settingsFor } from '@/lib/db/mappers';
+import { rowToMatch, settingsFor, slotRowsFor } from '@/lib/db/mappers';
 import type { MatchRow, SubmissionRow, TournamentRow } from '@/lib/db/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,9 +12,15 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const enabled = Boolean(url && anonKey && serviceKey);
 
-// The tournament is created with the DB defaults, which are the club format: one game to 15.
-const WIN: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 7 }];
-const OTHER: Game[] = [{ gameNo: 1, scoreA: 15, scoreB: 10 }];
+// The tournament is created with the DB defaults, which are the club format: three games to 15,
+// every one of them played. A team submits the whole meeting, so that is three games at a time.
+const WIN: Game[] = [
+  { gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }, { gameNo: 3, scoreA: 15, scoreB: 10 },
+];
+// The same meeting reported differently by the other side: the last game's score disagrees.
+const OTHER: Game[] = [
+  { gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }, { gameNo: 3, scoreA: 12, scoreB: 15 },
+];
 
 /**
  * Drives the real participant submission path (`applySubmission`) against the real tables, plus
@@ -80,6 +86,10 @@ describe.skipIf(!enabled)('applySubmission against the database', () => {
       }).select('id').single();
       if (res.error) throw res.error;
       match[key] = res.data.id as string;
+      // Every meeting owns its game slots from the moment it is created; results are written
+      // into those rows rather than replacing them.
+      const slots = await admin.from('games').insert(slotRowsFor(match[key]!, settingsFor(tournament, 'pool').gamesPerMatch));
+      if (slots.error) throw slots.error;
     }
   });
 
@@ -103,7 +113,9 @@ describe.skipIf(!enabled)('applySubmission against the database', () => {
 
     const games = await service.from('games').select('game_no, score_a, score_b').eq('match_id', match.agree!).order('game_no');
     if (games.error) throw games.error;
-    expect(games.data).toEqual([{ game_no: 1, score_a: 15, score_b: 7 }]);
+    expect(games.data).toEqual([
+      { game_no: 1, score_a: 15, score_b: 7 }, { game_no: 2, score_a: 15, score_b: 9 }, { game_no: 3, score_a: 15, score_b: 10 },
+    ]);
 
     expect(await submissionsOf(match.agree!)).toHaveLength(0);
   });
