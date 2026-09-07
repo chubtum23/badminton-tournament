@@ -2,7 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 300_000,
+  // A meeting is three games now, so each spec enters three times as many scores as it used
+  // to: the 8-team run takes a little over three minutes on a quiet machine, which leaves no
+  // useful headroom under the old 300s cap.
+  timeout: 480_000,
   // Next dev compiles each route on first visit; a cold compile under load can take longer
   // than the 5s Playwright default, so give expect() assertions more room.
   expect: { timeout: 15_000 },

@@ -1,35 +1,64 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const email = process.env.E2E_ADMIN_EMAIL ?? 'admin@local.test';
 const password = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-pass';
 const slug = `e2e-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal', 'Ivy & Jo', 'Kim & Lu', 'Mo & Ned', 'Oz & Pia'];
 
+/** The three games of a meeting, in the order the organiser scores them. */
+type Rounds = readonly (readonly [number, number])[];
+
 /**
- * Fill every open score form on the Matches screen with a win for side A until none remain. The
- * club format is a single game, so only game 1 exists on the form.
+ * Scores games of one meeting, oldest unscored game first.
  *
- * The margin is the match's slot number (read off the card's label), so every match in a pool is
- * won by a different amount. A constant margin would not do: side A wins two of its three
- * round-robin matches for three of the four teams in a pool, so identical margins leave those
+ * `card` must be a locator that identifies *this* meeting and nothing else: a scored game unmounts
+ * its own form, so the count of forms still inside the card is what tells us the save landed.
+ * Waiting on the word "Saved" would not: the page-top <RecentOutcome/> banner keeps the previous
+ * game's message on screen for eight seconds, so the assertion would pass before the click.
+ *
+ * A running game deliberately renders its form twice — once in the Now playing box and once on its
+ * own meeting card — so every locator here is scoped to the card.
+ */
+async function playGames(card: Locator, rounds: Rounds, timeUp = false): Promise<void> {
+  const forms = card.getByTestId('game-score-form');
+  for (const [a, b] of rounds) {
+    const before = await forms.count();
+    const form = forms.first();
+    await form.locator('input[name="scoreA"]').fill(String(a));
+    await form.locator('input[name="scoreB"]').fill(String(b));
+    if (timeUp) await form.locator('input[name="timeExpired"]').check();
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(forms).toHaveCount(before - 1);
+  }
+}
+
+/**
+ * Plays every open meeting on the Matches screen until none remain, one meeting at a time.
+ *
+ * A meeting is three games and all three are always played, so side A takes games 1 and 2 and side
+ * B takes game 3: the meeting goes to A two games to one, and A's net points difference over the
+ * whole meeting is exactly the margin.
+ *
+ * The margin is the meeting's slot number (read off the card's label), so every meeting in a pool
+ * is won by a different amount. A constant margin would not do: side A wins two of its three
+ * round-robin meetings for three of the four teams in a pool, so identical margins leave those
  * three level on points *and* on score difference — a genuine unresolved tie across the
  * qualification line, which the bracket then correctly refuses to start.
- * Returns how many results were actually entered, so callers can assert the expected count.
+ * Returns how many meetings were actually played, so callers can assert the expected count.
  */
 async function playAllOpen(page: Page, slugName: string, max: number): Promise<number> {
   for (let i = 0; i < max; i++) {
     await page.goto(`/admin/${slugName}/matches?filter=open`);
-    const card = page.locator('div.rounded.border', { has: page.getByTestId('score-form') }).first();
-    if ((await card.count()) === 0) return i;
-    const form = card.getByTestId('score-form');
+    const open = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') });
+    if ((await open.count()) === 0) return i;
     // The card label is "Pool A · #3" (or "Round 2 · #1" in the knockout); #n is the slot.
-    const slot = Number(/#(\d+)/.exec((await card.locator('span').first().textContent()) ?? '')?.[1] ?? 6);
-    await form.locator('input[name="game1a"]').fill('15');
-    await form.locator('input[name="game1b"]').fill(String(15 - slot));
-    await form.getByRole('button', { name: /save result|edit result/i }).click();
-    // The form posts the action itself now, so the outcome lands inline instead of as a redirect.
-    // Inline while the card is mounted, in the page-top banner once the refresh unmounts it.
-    await expect(page.getByText('Result saved').first()).toBeVisible();
+    const label = ((await open.first().locator('span').first().textContent()) ?? '').trim();
+    const slot = Number(/#(\d+)/.exec(label)?.[1] ?? 6);
+    // Pin the card by its label: a plain `.first()` would slide onto the *next* meeting the moment
+    // this one is decided and drops off the open list, and the count assertions would never settle.
+    const card = open.filter({ hasText: label }).first();
+    await playGames(card, [[15, 15 - slot], [15, 15 - slot], [15 - slot, 15]]);
+    await expect(card).toHaveCount(0);
   }
   return max;
 }
@@ -51,7 +80,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/${slug}$`));
 
-  // settings: club defaults (one game to 15, 13-minute clock) — just save to prove the form works
+  // settings: club defaults (three games to 15, 13-minute clock) — just save to prove the form works
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(page.getByText('Settings saved')).toBeVisible();
 
@@ -68,28 +97,31 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.getByRole('button', { name: 'Lock pools and create matches' }).click();
   await expect(page.getByText('Pools locked and matches created')).toBeVisible();
 
-  // put the first ready match on court: "Start now" with the court left on auto takes court 1
+  // Put the first ready game on court: "Start now" with the court left on auto takes court 1. A
+  // court holds one game now rather than a whole meeting, so what goes out is a single game, and
+  // it appears in the Now playing box at the top of the organiser's screen.
   await page.goto(`/admin/${slug}/matches?filter=open`);
   await page.getByRole('button', { name: 'Start now' }).first().click();
-  await expect(page.getByText('On court')).toBeVisible();
+  await expect(page.getByTestId('now-playing').getByText('Court 1')).toBeVisible();
   await page.goto(`/t/${slug}`);
-  await expect(page.getByText('Court 1 · live')).toBeVisible();
-  // the club format has a 13-minute clock, so a live match counts down on the public board
-  await expect(page.getByTestId('court-clock').first()).toHaveText(/^\d\d:\d\d$/);
+  const publicNowPlaying = page.getByTestId('now-playing');
+  await expect(publicNowPlaying.getByText('Court 1')).toBeVisible();
+  // the club format gives every game its own 13-minute clock, so it counts down on the public board
+  await expect(publicNowPlaying.getByTestId('court-clock')).toHaveText(/^\d\d:\d\d$/);
 
-  // invalid score is rejected: the club format wins by one, so an unfinished 14-12 is the
-  // rejection to look for rather than a two-point-lead complaint.
+  // Invalid score is rejected: the club format wins by one, so an unfinished 14-12 is the rejection
+  // to look for rather than a two-point-lead complaint. This is scoped to one meeting card because
+  // the game on court renders its form here *and* in the Now playing box.
   await page.goto(`/admin/${slug}/matches?filter=open`);
-  const form = page.getByTestId('score-form').first();
-  await form.locator('input[name="game1a"]').fill('14');
-  await form.locator('input[name="game1b"]').fill('12');
-  // Exact match: the per-game hint says "winner must reach 15" and the match status line now
-  // repeats it as "game 1: winner must reach 15", so a substring match hits both.
+  const firstCard = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') }).first();
+  const form = firstCard.getByTestId('game-score-form').first();
+  await form.locator('input[name="scoreA"]').fill('14');
+  await form.locator('input[name="scoreB"]').fill('12');
   await expect(form.getByText('winner must reach 15', { exact: true })).toBeVisible();
   // an unfinished score cannot be saved
-  await expect(form.getByRole('button', { name: /save result/i })).toBeDisabled();
+  await expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
 
-  // play all 12 pool matches
+  // play all 12 pool meetings — three games each
   expect(await playAllOpen(page, slug, 12)).toBe(12);
   await page.goto(`/admin/${slug}/matches?filter=open`);
   await expect(page.getByText('Nothing here.')).toBeVisible();

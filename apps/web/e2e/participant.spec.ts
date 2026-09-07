@@ -6,15 +6,23 @@ const slug = `p2p-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal'];
 
 /**
- * Fills the first score form (the club format is a single game per match, so only game 1 exists)
- * and submits it, then asserts the inline outcome. There is no redirect any more: the form calls
- * the action itself and the server-chosen text lands inline in [data-testid="score-outcome"] and,
- * for when the refresh unmounts the card, in the page-top [data-testid="score-outcome-banner"].
+ * Fills the first score form and submits it, then asserts the inline outcome. Unlike the organiser,
+ * who scores one game at a time, a participant reports the whole meeting at once — and a meeting is
+ * three games, all of which are always played, so all three rows have to be filled before the form
+ * will submit. The reported meeting goes to side A two games to one: `a` wins games 1 and 2, and
+ * game 3 is the same score the other way round.
+ *
+ * There is no redirect any more: the form calls the action itself and the server-chosen text lands
+ * inline in [data-testid="score-outcome"] and, for when the refresh unmounts the card, in the
+ * page-top [data-testid="score-outcome-banner"].
  */
 async function submitScores(page: Page, a: [number, number], expected: RegExp) {
   const form = page.getByTestId('score-form').first();
-  await form.locator('input[name="game1a"]').fill(String(a[0]));
-  await form.locator('input[name="game1b"]').fill(String(a[1]));
+  const rounds: [number, number][] = [a, a, [a[1], a[0]]];
+  for (const [n, [x, y]] of rounds.entries()) {
+    await form.locator(`input[name="game${n + 1}a"]`).fill(String(x));
+    await form.locator(`input[name="game${n + 1}b"]`).fill(String(y));
+  }
   await form.getByRole('button', { name: 'Submit scores' }).click();
   // The message shows inline while the card is mounted and, after the refresh unmounts it, in the
   // page-top banner; either location satisfies this.

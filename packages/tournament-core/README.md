@@ -32,7 +32,10 @@ when `timeCapMinutes` is `null`. `validateSettings` requires `timeCapMinutes` to
 Every `Match` carries `decidedBy: 'played' | 'awarded' | 'forfeit'`, recording how its
 result was reached. `Match` no longer carries a court: court and clock are scheduling
 concerns that belong to an individual game, not the meeting, and this package leaves
-scheduling to the application from here on.
+scheduling to the application from here on. There is no board export here either — what
+is on court now and what goes on next are per-game questions the application answers
+from its own `games` rows (`apps/web/src/lib/schedule/board.ts`), and this package never
+sees a court number or a clock.
 
 | Export | Purpose |
 |---|---|

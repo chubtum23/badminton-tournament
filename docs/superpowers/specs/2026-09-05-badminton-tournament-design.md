@@ -247,6 +247,9 @@ Driven by the first real event: 4 pools, round robin, one game to 15 per match w
 13-minute clock, top two per pool to a top-8 knockout, men's doubles playoff for a 2nd/3rd tie.
 
 ### 11.1 Scoring
+> **Amended by section 12 (v1.2):** a meeting is three named games, every one of them played,
+> and the meeting goes to whoever wins more of them.
+
 - Settings are per stage. Pool and knockout each have `games_per_match`, `points_per_game`,
   `win_by_two`, `max_points`, `time_cap_minutes` (null = no clock). Knockout defaults to the
   pool values; the organiser changes them later without code changes.
@@ -274,6 +277,9 @@ finishing order by hand (`manual order`, shown publicly as "order set by organis
 - **Replace team in bracket slot**: swap the team in any knockout match that is not done.
 
 ### 11.4 Match flow and clock
+> **Amended by section 12 (v1.2):** the court and the clock belong to an individual game, not
+> to the meeting, and the organiser enters scores one game at a time.
+
 - "Start now" starts a match on the first free court (dropdown to override) and stamps
   `started_at`. A live match shows a countdown from `time_cap_minutes` on the live board and
   the admin Matches screen, turning red when expired.
@@ -284,3 +290,68 @@ finishing order by hand (`manual order`, shown publicly as "order set by organis
 - `starts_at` (date and time) and `venue` are set at creation and editable in Settings; shown
   in the public header.
 - Team taglines appear under team names on cards, bracket boxes and standings.
+
+## 12. v1.2 addendum (agreed 2026-09-08): three games per meeting
+
+Amends 11.1 and 11.4. Driven by how the club actually plays: two teams meet for a fixed set
+of three games rather than a single game, and each of those games is called on and clocked
+by itself.
+
+### 12.1 The format
+- A **meeting** between two teams is **three games**. The word "match" in sections 1-11 means
+  a meeting; a "game" is one of its three.
+- Each game has a **name**, configurable per tournament in `tournaments.game_labels` (one
+  label per game, in order). The default is `Mixed doubles #1`, `Mixed doubles #2`,
+  `Men's doubles`.
+- `games_per_match` must be **odd**, so a meeting can never be drawn. Three is the default;
+  the per-stage settings of 11.1 are otherwise unchanged, and each game is validated exactly
+  as 11.1 describes (including **time expired**).
+
+### 12.2 All games are always played
+- A new setting, `play_all_games`, is **on** by default. With it on, a meeting does **not**
+  stop when one side reaches a majority: all three games are played even at two games to nil.
+- The meeting is complete only when every one of its games has a score, and it then goes to
+  the team that **won more games**. That is still worth **1 team point** (11.1), and every
+  game's score counts towards Score ± — which is the point of playing the dead rubber.
+- With `play_all_games` off, the traditional majority rule of 11.1 stands unchanged: the
+  meeting stops as soon as one side cannot be caught, and a game recorded after that is
+  rejected.
+
+### 12.3 Scheduling and the clock belong to the game
+- The court and the clock are properties of a **game**, not of the meeting. A `games` row
+  carries `court`, `started_at`, `paused_at` and `paused_ms`; `matches` carries none of them.
+- **Start now** sends one game to a court (first free by default, or a chosen one) and stamps
+  that game's `started_at`. **Take off court** clears it. The three games of a meeting can be
+  on three different courts at once, or hours apart.
+- Each running game counts down `time_cap_minutes` from its own `started_at`. The end time
+  stays derived, so nothing is written per tick and every viewer sees the same clock.
+- **Pause** and **Resume** stop and restart that countdown. A stoppage is *recorded*, not
+  rewound: `paused_at` freezes the clock, and resuming folds the length of the stoppage into
+  `paused_ms`, so time spent stopped never eats into the cap.
+- Saving a game's score also takes it off its court and clears its clock: the game is over.
+- The meeting's status is derived from its games — `live` while any game of it is on court,
+  `done` once the last game is scored.
+
+### 12.4 Entering scores
+- The organiser scores **one game at a time**: every unscored game of a meeting shows its own
+  small form (two scores, a **Time up** box when the stage has a clock, **Save**). There is no
+  whole-meeting score form on the admin Matches screen any more.
+- A saved game reopens with **Change** and is rubbed out with **Clear**. Changing or clearing
+  a game on a meeting that already has a result asks for confirmation and rolls back every
+  later match that depended on it, exactly as 11.3 and 6.5 describe.
+- **Participants are unchanged**: a player still reports the whole meeting at once, all three
+  games on one form, and the matching/disputing rules of section 8 apply to that submission as
+  before.
+
+### 12.5 Now playing
+- The admin Matches screen and the public live page both open with a **Now playing** box above
+  everything else, listing the games on court right now — the meeting's two teams, the game's
+  name, its court and its clock — ordered by court number.
+- The organiser's copy of the box carries the same per-game controls as the meeting card
+  (pause, resume, take off court, enter the score), so the game on court can be dealt with
+  without hunting for its meeting. A running game therefore appears twice on that screen by
+  design.
+- "Up next" is likewise a list of **games**: the earliest unstarted game of the earliest
+  unplayed meeting in each pool (or knockout round).
+- The board is computed by the application, not by `tournament-core`: that package no longer
+  knows about courts, clocks or boards.

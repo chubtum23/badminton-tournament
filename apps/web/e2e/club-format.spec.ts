@@ -1,10 +1,14 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const email = process.env.E2E_ADMIN_EMAIL ?? 'admin@local.test';
 const password = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-pass';
 const slug = `club-${Date.now().toString(36)}`;
-// One pool of 4 -> 6 matches; we engineer a 2nd/3rd tie: A beats everyone; B beats C; C beats D; D beats B.
+// One pool of 4 -> 6 meetings; we engineer a 2nd/3rd tie: A beats everyone; B beats C; C beats D; D beats B.
 const teams = ['Alpha & Ana', 'Bravo & Bea', 'Charlie & Cho', 'Delta & Dee'];
+const GAME_LABELS = ['Mixed doubles #1', 'Mixed doubles #2', "Men's doubles"] as const;
+
+/** The games of a meeting, in the order the organiser scores them. */
+type Rounds = readonly (readonly [number, number])[];
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -14,20 +18,59 @@ async function signIn(page: Page) {
   await expect(page).toHaveURL(/\/admin$/);
 }
 
-/** Enter a single-game result on the open match between two named teams. */
+/**
+ * Scores games of one meeting, oldest unscored game first.
+ *
+ * `card` must identify *this* meeting and nothing else: a scored game unmounts its own form, so
+ * the number of forms left inside the card is what tells us the save landed. The word "Saved" will
+ * not do — the page-top banner keeps the previous game's message up for eight seconds.
+ *
+ * A running game deliberately renders its form twice, in the Now playing box and on its meeting
+ * card, so everything here is scoped to the card.
+ */
+async function playGames(card: Locator, rounds: Rounds, timeUp = false): Promise<void> {
+  const forms = card.getByTestId('game-score-form');
+  for (const [a, b] of rounds) {
+    const before = await forms.count();
+    const form = forms.first();
+    await form.locator('input[name="scoreA"]').fill(String(a));
+    await form.locator('input[name="scoreB"]').fill(String(b));
+    if (timeUp) await form.locator('input[name="timeExpired"]').check();
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(forms).toHaveCount(before - 1);
+  }
+}
+
+/** The open meeting between two named teams. */
+function meetingCard(page: Page, a: string, b: string): Locator {
+  return page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') })
+    .filter({ hasText: a }).filter({ hasText: b }).first();
+}
+
+/**
+ * True when `a` is the meeting's side A. The score form names its inputs after the game and the
+ * team ("Men's doubles · Alpha & Ana"), which is the only place the card states the orientation
+ * unambiguously.
+ */
+async function aIsSideA(card: Locator, a: string): Promise<boolean> {
+  const aria = await card.getByTestId('game-score-form').first().locator('input[name="scoreA"]').getAttribute('aria-label');
+  return (aria ?? '').includes(a);
+}
+
+/**
+ * Plays every game of the open meeting between two named teams, so that `a` wins it. All three
+ * games are always played, so `a` takes games 1 and 2 and `b` takes game 3: the meeting goes to
+ * `a` two games to one and its net points difference is exactly `sa - sb`, which is what the
+ * standings below are engineered around.
+ */
 async function enterResult(page: Page, a: string, b: string, sa: number, sb: number, timeUp = false) {
   await page.goto(`/admin/${slug}/matches?filter=open`);
-  const card = page.locator('div.rounded.border', { has: page.getByTestId('score-form') }).filter({ hasText: a }).filter({ hasText: b }).first();
-  const form = card.getByTestId('score-form');
-  // The form's column order is teamA then teamB; find which is which from the header labels.
-  const headers = await form.locator('span.font-medium').allTextContents();
-  const aIsFirst = headers[0]?.includes(a);
-  await form.locator('input[name="game1a"]').fill(String(aIsFirst ? sa : sb));
-  await form.locator('input[name="game1b"]').fill(String(aIsFirst ? sb : sa));
-  if (timeUp) await form.locator('input[name="game1x"]').check();
-  await form.getByRole('button', { name: /save result/i }).click();
-  // Inline while the card is mounted, in the page-top banner once the refresh unmounts it.
-  await expect(page.getByText('Result saved').first()).toBeVisible();
+  const card = meetingCard(page, a, b);
+  const first = await aIsSideA(card, a);
+  const win: readonly [number, number] = first ? [sa, sb] : [sb, sa];
+  const lose: readonly [number, number] = first ? [sb, sa] : [sa, sb];
+  await playGames(card, [win, win, lose], timeUp);
+  await expect(card).toHaveCount(0);
 }
 
 test('club format: clock, time-expired results, awards, withdrawal, playoff, bracket replacement', async ({ page }) => {
@@ -57,33 +100,56 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await page.getByRole('button', { name: 'Lock pools and create matches' }).click();
   await expect(page.getByText('Pools locked and matches created')).toBeVisible();
 
-  // Start now on the first open match: clock appears on the public live board
+  // A meeting is three labelled games, and every one of them is listed on its card.
   await page.goto(`/admin/${slug}/matches?filter=open`);
+  const anyCard = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') }).first();
+  for (const label of GAME_LABELS) {
+    await expect(anyCard.getByText(label, { exact: true })).toBeVisible();
+  }
+
+  // Start now on the first open game: it goes to a court of its own and the Now playing box at the
+  // top of the screen picks it up, clock and all. The public live board shows the same box.
   await page.getByRole('button', { name: 'Start now' }).first().click();
-  await expect(page.getByTestId('court-clock').first()).toBeVisible();
+  const nowPlaying = page.getByTestId('now-playing');
+  await expect(nowPlaying.getByTestId('court-clock')).toBeVisible();
+  await expect(nowPlaying.getByText(GAME_LABELS[0], { exact: true })).toBeVisible();
   await page.goto(`/t/${slug}`);
-  await expect(page.getByTestId('court-clock').first()).toHaveText(/\d\d:\d\d|TIME/);
+  await expect(page.getByTestId('now-playing').getByTestId('court-clock')).toHaveText(/\d\d:\d\d|TIME/);
 
-  // Pause stops the clock on the live match; Resume starts it counting again.
+  // Pause stops that game's clock; Resume starts it counting again. The clock belongs to the game,
+  // so both controls live on the game's line inside the Now playing box.
   await page.goto(`/admin/${slug}/matches?filter=open`);
-  await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
-  await expect(page.getByTestId('court-clock').first()).toHaveText(/\d\d:\d\d paused/);
-  await page.getByRole('button', { name: 'Resume', exact: true }).first().click();
-  await expect(page.getByTestId('court-clock').first()).toHaveText(/^\d\d:\d\d$/);
+  const playing = page.getByTestId('now-playing');
+  await playing.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(playing.getByTestId('court-clock')).toHaveText(/\d\d:\d\d paused/);
+  await playing.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect(playing.getByTestId('court-clock')).toHaveText(/^\d\d:\d\d$/);
 
-  // invalid single game 14-12 keeps Save disabled and shows the reason
+  // invalid single game 14-12 keeps Save disabled and shows the reason. Scoped to a meeting card,
+  // because the game on court renders its form in the Now playing box as well.
   await page.goto(`/admin/${slug}/matches?filter=open`);
-  const first = page.getByTestId('score-form').first();
-  await first.locator('input[name="game1a"]').fill('14');
-  await first.locator('input[name="game1b"]').fill('12');
-  // The per-game hint reads exactly "winner must reach 15"; the match status line below repeats it
-  // as "game 1: winner must reach 15", so `exact` is what keeps this to a single element.
+  const first = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') })
+    .first().getByTestId('game-score-form').first();
+  await first.locator('input[name="scoreA"]').fill('14');
+  await first.locator('input[name="scoreB"]').fill('12');
   await expect(first.getByText('winner must reach 15', { exact: true })).toBeVisible();
-  await expect(first.getByRole('button', { name: /save result/i })).toBeDisabled();
+  await expect(first.getByRole('button', { name: 'Save' })).toBeDisabled();
 
-  // results: A beats all by 6; B beats C, C beats D (time expired 10-4), D beats B, each by 6.
+  // Two games to nil does not end a meeting: the third is always played, and only then does the
+  // meeting leave the open list.
+  await page.goto(`/admin/${slug}/matches?filter=open`);
+  const opener = meetingCard(page, 'Alpha & Ana', 'Bravo & Bea');
+  const alphaFirst = await aIsSideA(opener, 'Alpha & Ana');
+  const alphaWins: readonly [number, number] = alphaFirst ? [15, 9] : [9, 15];
+  const bravoWins: readonly [number, number] = alphaFirst ? [9, 15] : [15, 9];
+  await playGames(opener, [alphaWins, alphaWins]);
+  await expect(opener).toHaveCount(1);
+  await expect(opener.getByTestId('game-score-form')).toHaveCount(1);
+  await playGames(opener, [bravoWins]);
+  await expect(opener).toHaveCount(0);
+
+  // results: A beats all by 6 on aggregate; B beats C, C beats D (time expired 10-4), D beats B.
   // B, C, D end on 1 point each with a circular head-to-head and identical -6 score difference.
-  await enterResult(page, 'Alpha & Ana', 'Bravo & Bea', 15, 9);
   await enterResult(page, 'Alpha & Ana', 'Charlie & Cho', 15, 9);
   await enterResult(page, 'Alpha & Ana', 'Delta & Dee', 15, 9);
   await enterResult(page, 'Bravo & Bea', 'Charlie & Cho', 15, 9);
@@ -104,16 +170,14 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await page.goto(`/admin/${slug}/pools`);
   await page.getByRole('button', { name: /Record men.s doubles playoff/ }).click();
   await expect(page.getByText('Playoff created')).toBeVisible();
-  // The playoff is a real match: it appears on the open list labelled "<pool> · playoff".
+  // The playoff is a real meeting: it appears on the open list labelled "<pool> · playoff", and it
+  // is three games like any other.
   await page.goto(`/admin/${slug}/matches?filter=open`);
-  const playoffCard = page.locator('div.rounded.border', { has: page.getByTestId('score-form') })
+  const playoffCard = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') })
     .filter({ hasText: /playoff/i }).first();
   await expect(playoffCard).toBeVisible();
-  const playoffForm = playoffCard.getByTestId('score-form');
-  await playoffForm.locator('input[name="game1a"]').fill('15');
-  await playoffForm.locator('input[name="game1b"]').fill('9');
-  await playoffForm.getByRole('button', { name: /save result/i }).click();
-  await expect(page.getByText('Result saved').first()).toBeVisible();
+  await playGames(playoffCard, [[15, 9], [15, 9], [9, 15]]);
+  await expect(playoffCard).toHaveCount(0);
   // The public pools page lists it under its own "Playoff" heading (inside the collapsed
   // "Matches (n/n played)" disclosure, which counts pool matches only).
   await page.goto(`/t/${slug}/pools`);
@@ -164,7 +228,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   // Alpha and Bravo also met in the pool, and pool matches sort first, so the card is pinned by its
   // knockout label ("Round 1 · #1") as well as by the two team names.
   await page.goto(`/admin/${slug}/matches?filter=done`);
-  const finalCard = page.locator('div.rounded.border', { has: page.getByTestId('score-form') })
+  const finalCard = page.locator('div.rounded.border')
     .filter({ hasText: 'Round 1' }).filter({ hasText: 'Alpha & Ana' }).filter({ hasText: 'Bravo & Bea' }).first();
   await finalCard.getByRole('button', { name: 'Award to Bravo & Bea' }).click();
   await expect(page.getByText('Match awarded')).toBeVisible();
