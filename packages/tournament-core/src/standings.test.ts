@@ -101,15 +101,25 @@ describe('club format ordering', () => {
   });
 
   it('a recorded playoff between two tied teams decides before head-to-head', () => {
-    // B beat C in the pool, but C won the playoff -> C ranks above B
+    // A beat B in the pool, but B won the playoff -> B ranks above A; C above D by head-to-head
     const { matches, games } = build([
-      done('m1', 'A', 'B', 15, 9), done('m2', 'A', 'C', 15, 9), done('m3', 'B', 'C', 15, 9),
-      done('m4', 'A', 'D', 15, 9), done('m5', 'B', 'D', 9, 15), done('m6', 'C', 'D', 15, 9),
-      done('po', 'B', 'C', 10, 15, 'playoff'),
+      done('m1', 'A', 'B', 15, 9), done('m2', 'A', 'C', 15, 9), done('m3', 'D', 'A', 15, 9),
+      done('m4', 'B', 'C', 15, 9), done('m5', 'B', 'D', 15, 9), done('m6', 'C', 'D', 15, 9),
+      done('po', 'A', 'B', 9, 15, 'playoff'),
     ]);
     const rows = poolStandings(four, matches, games);
-    expect(rows.map((r) => r.teamId)).toEqual(['A', 'C', 'B', 'D']);
+    expect(rows.map((r) => r.teamId)).toEqual(['B', 'A', 'C', 'D']);
     expect(rows.find((r) => r.teamId === 'B')!.played).toBe(3); // playoff not counted
+    expect(rows.every((r) => !r.tieUnresolved)).toBe(true);
+  });
+
+  it('without the playoff, head-to-head alone decides both two-way ties', () => {
+    const { matches, games } = build([
+      done('m1', 'A', 'B', 15, 9), done('m2', 'A', 'C', 15, 9), done('m3', 'D', 'A', 15, 9),
+      done('m4', 'B', 'C', 15, 9), done('m5', 'B', 'D', 15, 9), done('m6', 'C', 'D', 15, 9),
+    ]);
+    const rows = poolStandings(four, matches, games);
+    expect(rows.map((r) => r.teamId)).toEqual(['A', 'B', 'C', 'D']);
     expect(rows.every((r) => !r.tieUnresolved)).toBe(true);
   });
 
