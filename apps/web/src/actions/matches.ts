@@ -47,6 +47,10 @@ export async function enterResult(slug: string, matchId: string, games: Game[]):
 export async function confirmSubmission(slug: string, matchId: string, submissionId: string): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
+  // Same window as enterResult: 'finished' stays editable so a wrong result can be corrected.
+  if (ctx.tournament.status !== 'pools' && ctx.tournament.status !== 'knockout' && ctx.tournament.status !== 'finished') {
+    return fail('stale_state', 'Tournament is not in play');
+  }
   const [rows, subs] = await Promise.all([listMatches(ctx.sb, ctx.tournament.id), listSubmissions(ctx.sb, ctx.tournament.id)]);
   const sub = subs.find((s) => s.id === submissionId && s.match_id === matchId);
   if (!sub) return fail('invalid_input', 'Submission not found');

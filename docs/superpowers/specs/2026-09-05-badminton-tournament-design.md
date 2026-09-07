@@ -97,6 +97,7 @@ ready|live -> admin enters full result        -> done
 submitted -> opponent submits same result     -> done
 submitted -> opponent submits different one   -> disputed
 submitted -> admin confirms                   -> done
+disputed  -> a team resubmits matching the other side -> done
 disputed  -> admin enters or chooses result   -> done
 done      -> admin edits result               -> done (cascade, see 6.5)
 ```

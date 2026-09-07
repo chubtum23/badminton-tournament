@@ -23,8 +23,19 @@ export async function applyResultPlan(
   const before = rows.find((r) => r.id === matchId)!;
   const primary = plan.updates.find((m) => m.id === matchId)!;
   const primaryRow = matchToRow(primary, tournamentId);
+  const primaryUpdate: Record<string, unknown> = {
+    team_a_id: primaryRow.team_a_id, team_b_id: primaryRow.team_b_id, court: primaryRow.court,
+    status: primaryRow.status, winner_id: primaryRow.winner_id,
+  };
+  if (primaryRow.status === 'done') {
+    // Editing an already-done match keeps its original completion time, so "latest results" does
+    // not reorder itself every time an organiser corrects a score (same rule as the loop below).
+    if (before.status !== 'done') primaryUpdate.finished_at = now;
+  } else {
+    primaryUpdate.finished_at = null;
+  }
   let claimQuery = sb.from('matches')
-    .update({ team_a_id: primaryRow.team_a_id, team_b_id: primaryRow.team_b_id, court: primaryRow.court, status: primaryRow.status, winner_id: primaryRow.winner_id, finished_at: primaryRow.status === 'done' ? now : null })
+    .update(primaryUpdate)
     .eq('id', matchId).eq('status', before.status);
   claimQuery = before.winner_id === null ? claimQuery.is('winner_id', null) : claimQuery.eq('winner_id', before.winner_id);
   const claim = await claimQuery.select('id');

@@ -17,11 +17,16 @@ tournament and redirects to `/t/<slug>/team`, so the token itself never sits in 
 browser URL after the first visit. From there a participant can rename their team, set
 a tagline and colour, and submit game scores for their own current match; a matching
 opponent submission confirms the result automatically, a mismatch is flagged
-"unconfirmed" until an admin resolves it. Visits to a token link are rate limited to 30
-per minute per IP (in-memory, so this only holds on a single server instance). Public
-pages, including the participant's, refresh via a Supabase realtime channel per
+"unconfirmed" until an admin resolves it. Every resolution of a team token — the one-time
+link and each later request that presents the cookie — is rate limited to 30 per minute
+per client (in-memory, so this only holds on a single server instance). The client is
+identified from `x-real-ip` when a trusted proxy sets it (Vercel does), otherwise from
+the LAST entry of `x-forwarded-for`, which is the only entry a client cannot forge.
+Public pages, including the participant's, refresh via a Supabase realtime channel per
 tournament; the `games` and `score_submissions` subscriptions are unfiltered by
-tournament, which is acceptable for v1 since they only trigger a refetch.
+tournament, which is acceptable for v1 since they only trigger a refetch. Team profile
+edits are deliberately not pushed live: `teams` is outside the realtime publication, so
+a renamed team appears on other people's screens at their next refresh.
 
 ## Tests
 
