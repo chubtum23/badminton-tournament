@@ -4,6 +4,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getTournamentBySlug } from '@/lib/db/queries';
 import { currentParticipant } from '@/lib/participant/token';
 import { RealtimeRefresh } from '@/components/RealtimeRefresh';
+import { LocalDateTime } from '@/components/LocalDateTime';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export default async function PublicLayout({ children, params }: { children: Rea
         <h1 className="text-2xl font-bold">{t.name}</h1>
         {(t.starts_at || t.venue) && (
           <p className="text-sm text-slate-600">
-            {t.starts_at && new Date(t.starts_at).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}
+            {t.starts_at && <LocalDateTime iso={t.starts_at} />}
             {t.starts_at && t.venue ? ' · ' : ''}
             {t.venue}
           </p>

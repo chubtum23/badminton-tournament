@@ -99,6 +99,21 @@ Public: `/t/[slug]` (live board), `/t/[slug]/pools`, `/t/[slug]/bracket`.
 Participant: `/t/[slug]/team/[token]` (one-time link), `/t/[slug]/team` (after the cookie is set).
 Admin: `/login`, `/admin`, `/admin/[slug]` (setup), `/admin/[slug]/pools`, `/admin/[slug]/matches`, `/admin/[slug]/bracket`, `/admin/[slug]/announcements`.
 
+## Previewing
+
+`npm run dev -w @tournament/web` compiles each page the first time you open it, so the first
+click on a screen feels slow. To see what a real visitor gets, build once and serve it:
+
+```bash
+npm run build -w @tournament/web
+npm run start -w @tournament/web
+```
+
+Both need Docker Desktop and `npx supabase start`, and both are reachable only from this
+machine.
+
 ## Deploying
 
-Create a hosted Supabase project, run `npx supabase db push` against it, set the three env vars on Vercel, deploy `apps/web` with root directory `apps/web` and build command `npm run build`. Not automated in this repo.
+See [docs/DEPLOY.md](../../docs/DEPLOY.md) for the full walkthrough: GitHub, a hosted Supabase
+project (`npx supabase db push`), and Vercel with the three environment variables. The
+committed `vercel.json` at the repo root carries the monorepo build settings.

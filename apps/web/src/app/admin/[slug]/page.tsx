@@ -7,15 +7,7 @@ import { listTeamsWithPlayers } from '@/lib/db/queries';
 import { getEditTokens } from '@/actions/teams';
 import { FlashMessage } from '@/components/FlashMessage';
 import { settingsFor } from '@/lib/db/mappers';
-
-/** An ISO timestamp as the `YYYY-MM-DDTHH:mm` that <input type="datetime-local"> expects. */
-function toLocalInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import { LocalDateTimeInput } from '@/components/LocalDateTime';
 
 export default async function SetupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -50,7 +42,7 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
           <fieldset className="rounded border p-3">
             <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Event</legend>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <label>Date and time<input name="startsAt" type="datetime-local" defaultValue={toLocalInput(t.starts_at)} className={field} /></label>
+              <label>Date and time<LocalDateTimeInput name="startsAt" defaultIso={t.starts_at} className={field} /></label>
               <label>Venue<input name="venue" maxLength={120} defaultValue={t.venue ?? ''} className={field} /></label>
             </div>
           </fieldset>

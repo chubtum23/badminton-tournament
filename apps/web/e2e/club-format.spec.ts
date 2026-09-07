@@ -37,7 +37,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   // create with date and venue
   await page.fill('input[name="name"]', 'Club Night');
   await page.fill('input[name="slug"]', slug);
-  await page.fill('input[name="startsAt"]', '2026-10-03T19:00');
+  await page.fill('input[name="startsAtLocal"]', '2026-10-03T19:00');
   await page.fill('input[name="venue"]', 'Riverside Sports Hall');
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/${slug}$`));

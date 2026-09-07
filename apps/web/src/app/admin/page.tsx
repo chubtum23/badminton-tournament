@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { createTournament } from '@/actions/tournaments';
 import { signOut } from '@/app/login/actions';
+import { LocalDateTimeInput } from '@/components/LocalDateTime';
 import type { TournamentRow } from '@/lib/db/types';
 
 export default async function AdminHome({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
@@ -47,7 +48,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
           <input name="slug" className="mt-1 w-full rounded border p-2" placeholder="spring-club-night" />
         </label>
         <label className="block text-sm">Date and time (optional)
-          <input name="startsAt" type="datetime-local" className="mt-1 w-full rounded border p-2" />
+          <LocalDateTimeInput name="startsAt" className="mt-1 w-full rounded border p-2" />
         </label>
         <label className="block text-sm">Venue (optional)
           <input name="venue" maxLength={120} className="mt-1 w-full rounded border p-2" placeholder="Northcote Leisure Centre" />
