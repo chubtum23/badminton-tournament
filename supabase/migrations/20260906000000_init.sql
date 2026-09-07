@@ -304,7 +304,7 @@ begin
   if (select status from public.tournaments where id = t) <> 'pools' then raise exception 'stale_state'; end if;
   select count(*) into n from public.teams where pool_id = p_pool;
   if n <> coalesce(array_length(p_team_ids, 1), 0) or n <> (select count(distinct y) from unnest(p_team_ids) y where y in (select id from public.teams where pool_id = p_pool)) then
-    raise exception 'invalid_input' using message = 'order must list every team in the pool exactly once';
+    raise exception using errcode = '22023', message = 'order must list every team in the pool exactly once';
   end if;
   update public.teams set pool_rank_override = null where pool_id = p_pool;
   foreach x in array p_team_ids loop i := i + 1; update public.teams set pool_rank_override = i where id = x and pool_id = p_pool; end loop;
