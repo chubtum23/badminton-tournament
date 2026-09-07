@@ -2,7 +2,7 @@
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
-import { rollback, validateGame } from '@tournament/core';
+import { matchResult, rollback, validateGame } from '@tournament/core';
 import { listGames, listMatches } from '@/lib/db/queries';
 import { matchToRow, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planResult } from '@/lib/results/apply';
@@ -117,15 +117,22 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
   if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
 
   const slots = (await listGames(ctx.sb, ctx.tournament.id)).filter((g) => g.match_id === matchId);
-  const scored = slots.filter((g) => g.score_a !== null && g.score_b !== null);
-  if (scored.length < settings.gamesPerMatch) {
+  const scored = slots
+    .filter((g) => g.score_a !== null && g.score_b !== null)
+    .sort((x, y) => x.game_no - y.game_no);
+  // Games can finish out of order, so a set with a gap in it (game 3 played before game 2)
+  // is simply not a result yet. Only a run starting at game 1 can be judged.
+  const contiguous = scored.every((g, i) => g.game_no === i + 1);
+  const games = scored.map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
+  const verdict = contiguous ? matchResult(settings, games) : null;
+  if (verdict && !verdict.ok) return fail('invalid_score', verdict.reason);
+
+  if (!verdict || !verdict.complete) {
     await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
     revalidateTournament(slug);
     return ok(undefined);
   }
-
-  // Every game is in: the meeting can be decided and the winner moved on.
-  const games = scored.map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
+  // The rules package says the meeting is decided: write the result and advance the winner.
   const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games });
   if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
   const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status });
@@ -187,6 +194,9 @@ export async function clearGameScore(slug: string, matchId: string, gameNo: numb
     }
   }
 
+  // score_submissions is left alone here (unlike applyResultPlan, which clears it on a fresh
+  // result): the teams' report still stands even though the organiser has withdrawn the
+  // confirmed result, so it can be judged again once the meeting is redecided.
   const cleared = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
   if (cleared.error) return fail('invalid_input', cleared.error.message);
   if ((cleared.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');

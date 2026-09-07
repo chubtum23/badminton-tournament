@@ -164,4 +164,163 @@ describe.skipIf(!enabled)('scoring a meeting one game at a time', () => {
     expect(slots.every((g) => g.court === null && g.started_at === null && g.paused_at === null && g.paused_ms === 0)).toBe(true);
     expect(teamBId).not.toBe(row.winner_id);
   });
+
+  /**
+   * `saveGameScore` needs a request-scoped cookie jar, so it cannot be called directly from this
+   * test; instead this replicates its completion gate against real rows the same way the cases
+   * above replicate the scoring flow, exercising the gate's logic rather than the action itself.
+   */
+  const gateVerdict = (settings: ReturnType<typeof settingsFor>, slots: GameRow[]) => {
+    const scored = slots.filter((g) => g.score_a !== null && g.score_b !== null).sort((x, y) => x.game_no - y.game_no);
+    const contiguous = scored.every((g, i) => g.game_no === i + 1);
+    const games = scored.map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
+    return contiguous ? matchResult(settings, games) : null;
+  };
+
+  it('does not treat a gap as a decided meeting when games finish out of order', async () => {
+    // A second meeting in the same (playAllGames) tournament, scored out of order.
+    const match = await admin.from('matches').insert({
+      tournament_id: tournament.id, stage: 'pool', pool_id: (await matchRow(matchId)).pool_id, slot: 1,
+      team_a_id: teamAId, team_b_id: teamBId, status: 'ready',
+    }).select('id').single();
+    if (match.error) throw match.error;
+    const oooMatchId = match.data.id as string;
+    const slots = await admin.from('games').insert(slotRowsFor(oooMatchId, 3));
+    if (slots.error) throw slots.error;
+
+    const settings = settingsFor(tournament, 'pool');
+    const scoreOoo = async (gameNo: number, scoreA: number, scoreB: number) => {
+      const upd = await service.from('games')
+        .update({ score_a: scoreA, score_b: scoreB, time_expired: false, court: null, started_at: null, paused_at: null, paused_ms: 0 })
+        .eq('match_id', oooMatchId).eq('game_no', gameNo).select('game_no');
+      if (upd.error) throw upd.error;
+      expect(upd.data).toHaveLength(1);
+    };
+    const slotsOfOoo = async () =>
+      (await listGames(service, tournament.id)).filter((g) => g.match_id === oooMatchId).sort((x, y) => x.game_no - y.game_no);
+
+    // Game 3 finishes before game 2: a gap, not a result.
+    await scoreOoo(1, 15, 9);
+    await scoreOoo(3, 8, 15);
+    expect(gateVerdict(settings, await slotsOfOoo())).toBeNull();
+    expect((await matchRow(oooMatchId)).status).not.toBe('done');
+
+    // Filling the gap makes the run contiguous again, and the meeting is decided.
+    await scoreOoo(2, 15, 11);
+    const verdict = gateVerdict(settings, await slotsOfOoo());
+    expect(verdict).toMatchObject({ ok: true, complete: true, winner: 'a', gamesA: 2, gamesB: 1 });
+
+    const rowsRes = await service.from('matches').select('*').eq('tournament_id', tournament.id);
+    if (rowsRes.error) throw rowsRes.error;
+    const rows = rowsRes.data as MatchRow[];
+    const games = (await slotsOfOoo())
+      .filter((g) => g.score_a !== null && g.score_b !== null)
+      .map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
+    const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId: oooMatchId, games });
+    if ('error' in plan) throw new Error(plan.message);
+    const persisted = await applyResultPlan(service, {
+      tournamentId: tournament.id, matchId: oooMatchId, rows, plan, tournamentStatus: tournament.status,
+    });
+    expect(persisted).toEqual({ ok: true });
+    const row = await matchRow(oooMatchId);
+    expect(row.status).toBe('done');
+    expect(row.winner_id).toBe(teamAId);
+  });
+});
+
+describe.skipIf(!enabled)('the gate defers to the rules package when not every game is played', () => {
+  let service: SupabaseClient;
+  let admin: SupabaseClient;
+  let tournament: TournamentRow;
+  let matchId: string;
+  let teamAId: string;
+  let teamBId: string;
+  const slug = `best-of-three-${Date.now().toString(36)}`;
+
+  const matchRow = async (id: string): Promise<MatchRow> => {
+    const res = await service.from('matches').select('*').eq('id', id).single();
+    if (res.error) throw res.error;
+    return res.data as MatchRow;
+  };
+  const slotsOf = async (): Promise<GameRow[]> =>
+    (await listGames(service, tournament.id)).filter((g) => g.match_id === matchId).sort((x, y) => x.game_no - y.game_no);
+  const score = async (gameNo: number, scoreA: number, scoreB: number): Promise<void> => {
+    const upd = await service.from('games')
+      .update({ score_a: scoreA, score_b: scoreB, time_expired: false, court: null, started_at: null, paused_at: null, paused_ms: 0 })
+      .eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
+    if (upd.error) throw upd.error;
+    expect(upd.data).toHaveLength(1);
+  };
+
+  beforeAll(async () => {
+    service = createClient(url!, serviceKey!, { auth: { persistSession: false } });
+    const password = 'Passw0rd!Passw0rd!';
+    const email = `admin-${slug}@example.com`;
+    const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
+    if (created.error) throw created.error;
+    const c = createClient(url!, anonKey!, { auth: { persistSession: false } });
+    const signed = await c.auth.signInWithPassword({ email, password });
+    if (signed.error) throw signed.error;
+    admin = c;
+
+    const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'best of three test' });
+    if (t.error) throw t.error;
+    // A best-of-three: three games, but the meeting can be decided two games to nil.
+    const settingsUpd = await service.from('tournaments')
+      .update({ play_all_games: false, games_per_match: 3 }).eq('id', t.data as string).select('*').single();
+    if (settingsUpd.error) throw settingsUpd.error;
+    tournament = settingsUpd.data as TournamentRow;
+    expect(settingsFor(tournament, 'pool')).toMatchObject({ gamesPerMatch: 3, playAllGames: false });
+
+    const a = await admin.from('teams').insert({ tournament_id: tournament.id, name: 'Alpha' }).select('id').single();
+    if (a.error) throw a.error;
+    teamAId = a.data.id as string;
+    const b = await admin.from('teams').insert({ tournament_id: tournament.id, name: 'Bravo' }).select('id').single();
+    if (b.error) throw b.error;
+    teamBId = b.data.id as string;
+
+    const pool = await admin.from('pools').insert({ tournament_id: tournament.id, name: 'Pool A', position: 0 }).select('id').single();
+    if (pool.error) throw pool.error;
+    const match = await admin.from('matches').insert({
+      tournament_id: tournament.id, stage: 'pool', pool_id: pool.data.id, slot: 0,
+      team_a_id: teamAId, team_b_id: teamBId, status: 'ready',
+    }).select('id').single();
+    if (match.error) throw match.error;
+    matchId = match.data.id as string;
+    const slots = await admin.from('games').insert(slotRowsFor(matchId, 3));
+    if (slots.error) throw slots.error;
+  });
+
+  it('finishes a best-of-three two games to nil, leaving the third slot blank', async () => {
+    const settings = settingsFor(tournament, 'pool');
+    await score(1, 15, 9);
+    await score(2, 15, 11);
+
+    const scored = (await slotsOf()).filter((g) => g.score_a !== null && g.score_b !== null).sort((x, y) => x.game_no - y.game_no);
+    const contiguous = scored.every((g, i) => g.game_no === i + 1);
+    expect(contiguous).toBe(true);
+    const games = scored.map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
+    const verdict = matchResult(settings, games);
+    // Two games to nil is already decided under playAllGames: false, even with a slot still open.
+    expect(verdict).toMatchObject({ ok: true, complete: true, winner: 'a', gamesA: 2, gamesB: 0 });
+
+    const rowsRes = await service.from('matches').select('*').eq('tournament_id', tournament.id);
+    if (rowsRes.error) throw rowsRes.error;
+    const rows = rowsRes.data as MatchRow[];
+    const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games });
+    if ('error' in plan) throw new Error(plan.message);
+    const persisted = await applyResultPlan(service, {
+      tournamentId: tournament.id, matchId, rows, plan, tournamentStatus: tournament.status,
+    });
+    expect(persisted).toEqual({ ok: true });
+
+    const row = await matchRow(matchId);
+    expect(row.status).toBe('done');
+    expect(row.winner_id).toBe(teamAId);
+    expect(teamBId).not.toBe(row.winner_id);
+
+    // Game 3 was never needed: its slot stays blank.
+    const slots = await slotsOf();
+    expect(slots.find((g) => g.game_no === 3)).toMatchObject({ score_a: null, score_b: null });
+  });
 });
