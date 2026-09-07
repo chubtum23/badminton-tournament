@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
+import { gameSlotsByMatch, loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { computePool } from '@/lib/standings/compute';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -16,6 +16,8 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
   const { tournament: t, pools, teams } = bundle;
   const matches = bundle.matches.map(rowToMatch);
   const games = gamesByMatch(bundle.games);
+  // Each meeting is three labelled games; the cards list them rather than one score column.
+  const slots = gameSlotsByMatch(bundle.games);
   if (pools.length === 0) return <p className="text-sm text-slate-500">Pools have not been drawn yet.</p>;
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
@@ -32,11 +34,11 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-slate-600">Matches ({poolMatches.filter((m) => m.status === 'done').length}/{poolMatches.length} played)</summary>
               <div className="mt-2 grid gap-2">
-                {poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} pending={pending(m)} />)}
+                {poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
                 {playoffs.length > 0 && (
                   <>
                     <h3 className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Playoff</h3>
-                    {playoffs.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label="Playoff" pending={pending(m)} />)}
+                    {playoffs.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label="Playoff" pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
                   </>
                 )}
               </div>

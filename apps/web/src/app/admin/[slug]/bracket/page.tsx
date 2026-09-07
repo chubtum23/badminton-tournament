@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
 import { replaceTeamInMatch, startKnockout } from '@/actions/bracket';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
-import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
+import { gameSlotsByMatch, listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
 import { knockoutInput } from '@/lib/bracket/input';
@@ -71,7 +71,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     <div className="space-y-4">
       <FlashMessage />
       {t.status === 'setup' && <p className="text-sm text-slate-500">Lock the pools first.</p>}
-      <Bracket matches={matches} teams={teams} games={games} hrefFor={() => `/admin/${slug}/matches?filter=all`} />
+      <Bracket matches={matches} teams={teams} games={games} slots={gameSlotsByMatch(gameRows)} hrefFor={() => `/admin/${slug}/matches?filter=all`} />
       {t.status === 'finished' && <p className="rounded bg-amber-50 p-3 text-sm">Tournament finished. Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}</p>}
       {replaceable.length > 0 && (
         <section className="rounded border bg-white p-4 text-sm">

@@ -12,11 +12,12 @@ const outcomeText = (data: unknown): string | null =>
     : null;
 
 /**
- * Score entry for one match. The form calls the server action itself (rather than being a plain
+ * Whole-meeting score entry for a participant: a player reports every game of their meeting at
+ * once, unlike the organiser, who scores one game at a time through GameScoreForm. The form calls the server action itself (rather than being a plain
  * `<form action>`), so the outcome lands inline instead of as a redirect: the typed values survive
  * a rejected save and the page around the form is refreshed on success.
  */
-export function ScoreForm({ matchId, settings, existing, teamA, teamB, action, submitLabel, confirmMessage, successText = 'Saved' }: {
+export function SubmitScoresForm({ matchId, settings, existing, teamA, teamB, action, submitLabel, confirmMessage, successText = 'Saved' }: {
   matchId: string; settings: Settings; existing: Game[]; teamA: string; teamB: string;
   action: (formData: FormData) => Promise<ActionResult<unknown>>; submitLabel: string;
   /** When set, the submit is gated behind a window.confirm() with this text. */

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Game, Match } from '@tournament/core';
-import type { TeamRow } from '@/lib/db/types';
+import type { GameRow, TeamRow } from '@/lib/db/types';
 import type { Pending } from './MatchCard';
 
 function roundTitle(round: number, totalRounds: number): string {
@@ -11,8 +11,10 @@ function roundTitle(round: number, totalRounds: number): string {
   return `Round ${round}`;
 }
 
-export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
+export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
   matches: Match[]; teams: readonly TeamRow[]; games: Record<string, Game[]>; hrefFor?: (m: Match) => string;
+  /** Every game row per match; the courts a live meeting is spread over are read off these. */
+  slots?: Record<string, GameRow[]>;
   /** Supplies the unconfirmed submission to label a submitted/disputed box with, if any. */
   pendingFor?: (m: Match) => Pending | undefined;
 }) {
@@ -21,6 +23,10 @@ export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
   const totalRounds = Math.max(...ko.map((m) => m.round ?? 1));
   const rounds = Array.from({ length: totalRounds }, (_, i) => ko.filter((m) => m.round === i + 1).sort((x, y) => x.slot - y.slot));
   const team = (id: string | null) => teams.find((t) => t.id === id);
+  /** A court holds one game, so a live meeting can be on several at once. */
+  const courtsOf = (m: Match) => (slots?.[m.id] ?? [])
+    .filter((s) => s.started_at !== null && s.score_a === null && s.court !== null)
+    .map((s) => s.court!);
 
   const row = (m: Match, id: string | null, side: 'a' | 'b') => {
     const t = team(id);
@@ -60,7 +66,7 @@ export function Bracket({ matches, teams, games, hrefFor, pendingFor }: {
                   <div className={`bk-box relative w-full divide-y rounded border-2 bg-white text-sm ${m.status === 'live' ? 'border-emerald-500 shadow-md' : 'border-blue-900'}`}>
                     {row(m, m.teamAId, 'a')}
                     {row(m, m.teamBId, 'b')}
-                    {m.status === 'live' && m.court && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {m.court} · live</div>}
+                    {m.status === 'live' && courtsOf(m).length > 0 && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {courtsOf(m).join(', ')} · live</div>}
                     {(m.status === 'submitted' || m.status === 'disputed') && (
                       <div className="px-2 py-0.5 text-[10px] uppercase text-amber-700">
                         {m.status === 'disputed' ? 'disputed' : 'unconfirmed'}{pending ? ` · ${pending.by}` : ''}

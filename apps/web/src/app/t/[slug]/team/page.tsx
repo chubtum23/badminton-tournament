@@ -2,10 +2,10 @@ import { currentParticipant } from '@/lib/participant/token';
 import { updateMyTeam, submitScoresForm } from '@/actions/participant';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
+import { gameSlotsByMatch, listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
-import { ScoreForm } from '@/components/ScoreForm';
+import { SubmitScoresForm } from '@/components/SubmitScoresForm';
 import { FlashMessage } from '@/components/FlashMessage';
 import { RecentOutcome } from '@/components/RecentOutcome';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -29,6 +29,8 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
     listGames(sb, me.tournament.id), listSubmissions(sb, me.tournament.id),
   ]);
   const games = gamesByMatch(gameRows);
+  // Each meeting is three labelled games, so the cards list them rather than one score column.
+  const slots = gameSlotsByMatch(gameRows);
   const latest = latestByMatch(subs);
   const mine = matchRows.map(rowToMatch).filter((m) => m.teamAId === me.team.id || m.teamBId === me.team.id);
   const next = mine.find((m) => m.status === 'live') ?? mine.find((m) => m.status === 'ready' || m.status === 'submitted' || m.status === 'disputed');
@@ -44,9 +46,6 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   // Prefer the opponent's submission: a player wants to see what the other team claimed, not their
   // own numbers read back to them.
   const pending = (m: typeof mine[number]) => pendingFor(latest, teams, m, sideOf(m) === 'a' ? 'b' : 'a');
-  // Match carries no timestamps, so the live clock reads started_at off the raw rows.
-  const startedAtById: Record<string, string | null> = Object.fromEntries(matchRows.map((r) => [r.id, r.started_at]));
-  const pauseById: Record<string, { at: string | null; ms: number }> = Object.fromEntries(matchRows.map((r) => [r.id, { at: r.paused_at, ms: r.paused_ms }]));
   const canSubmit = (m: typeof mine[number]) =>
     !me.team.withdrawn && (m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed');
 
@@ -75,10 +74,10 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
         <h2 className="font-semibold">Your next match</h2>
         {next ? (
           <>
-            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} startedAt={startedAtById[next.id]} capMinutes={settingsOf(next).timeCapMinutes} pausedAt={pauseById[next.id]?.at ?? null} pausedMs={pauseById[next.id]?.ms ?? 0} />
+            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} tournament={me.tournament} slots={slots[next.id]} />
             {canSubmit(next) && (
               <>
-                <ScoreForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
+                <SubmitScoresForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
                 <p className="text-xs text-slate-500">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
               </>
             )}
@@ -88,9 +87,9 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
       <section className="space-y-2">
         <h2 className="font-semibold">Your matches</h2>
         <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={settingsOf(m).timeCapMinutes} pausedAt={pauseById[m.id]?.at ?? null} pausedMs={pauseById[m.id]?.ms ?? 0}>
+          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} tournament={me.tournament} slots={slots[m.id]}>
             {canSubmit(m) && (
-              <ScoreForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
+              <SubmitScoresForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
                 teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
             )}
           </MatchCard>

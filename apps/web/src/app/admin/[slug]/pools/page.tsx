@@ -3,7 +3,7 @@ import { requireAdmin } from '@/actions/guard';
 import { clearManualOrder, createPlayoff, generatePools, lockPools, moveTeam, setManualOrder, unlockPools } from '@/actions/pools';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { fail } from '@/actions/errors';
-import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
+import { gameSlotsByMatch, listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { computePool } from '@/lib/standings/compute';
 import { StandingsTable } from '@/components/StandingsTable';
@@ -24,6 +24,10 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   const inPlay = t.status === 'pools';
   const matches = matchRows.map(rowToMatch);
   const games = gamesByMatch(gameRows);
+  // A meeting is three games now, so a finished fixture lists every game score and one still going
+  // shows how many of its games have been played.
+  const slots = gameSlotsByMatch(gameRows);
+  const played = (id: string) => (slots[id] ?? []).filter((g) => g.score_a !== null);
   const here = `/admin/${slug}/pools`;
   const nameOf = (id: string) => teams.find((x) => x.id === id)?.name ?? '?';
   // Named in the unlock confirmation so the organiser sees what the draw is taking with it.
@@ -138,8 +142,8 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                             <span>{m.teamAId ? nameOf(m.teamAId) : '?'} v {m.teamBId ? nameOf(m.teamBId) : '?'}</span>
                             <span className="shrink-0 font-mono text-slate-500">
                               {m.status === 'done'
-                                ? (games[m.id] ?? []).map((x) => `${x.scoreA}-${x.scoreB}`).join(', ')
-                                : m.status === 'live' && m.court !== null ? `court ${m.court}` : m.status}
+                                ? (games[m.id] ?? []).map((x) => `${x.scoreA}-${x.scoreB}`).join(', ') || m.decidedBy
+                                : played(m.id).length > 0 ? `${played(m.id).length}/${(slots[m.id] ?? []).length} games` : m.status}
                             </span>
                           </li>
                         ))}

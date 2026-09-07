@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
-import { liveBoard } from '@tournament/core';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
+import { gameSlotsByMatch, loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
+import { scheduleBoard } from '@/lib/schedule/board';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
+import { GameLine } from '@/components/GameLine';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,16 +16,15 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const { tournament: t, pools, teams } = bundle;
   const matches = bundle.matches.map(rowToMatch);
   const games = gamesByMatch(bundle.games);
+  const slots = gameSlotsByMatch(bundle.games);
   const stage = t.status === 'knockout' || t.status === 'finished' ? 'knockout' : 'pool';
-  const board = liveBoard(matches, stage, pools.map((p) => p.id));
+  // A court holds one game, so the board is a list of games rather than of meetings.
+  const board = scheduleBoard({ tournament: t, matches, slots: bundle.games, poolOrder: pools.map((p) => p.id), stage });
   const poolName = (m: typeof matches[number]) => pools.find((p) => p.id === m.poolId)?.name ?? 'Pool';
   const label = (m: typeof matches[number]) => m.stage === 'pool' ? poolName(m)
     : m.stage === 'playoff' ? `${poolName(m)} · playoff`
     : `Round ${m.round}`;
-  // Match carries no timestamps, so the live clock reads started_at off the raw rows.
-  const startedAtById: Record<string, string | null> = Object.fromEntries(bundle.matches.map((r) => [r.id, r.started_at]));
-  const pauseById: Record<string, { at: string | null; ms: number }> = Object.fromEntries(bundle.matches.map((r) => [r.id, { at: r.paused_at, ms: r.paused_ms }]));
-  const capOf = (m: typeof matches[number]) => settingsFor(t, m.stage).timeCapMinutes;
+  const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
   // Submitted/disputed matches are neither "now playing" nor "up next", so without this section a
@@ -38,6 +38,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
     .sort((x, y) => (y.finished_at ?? '').localeCompare(x.finished_at ?? ''))
     .slice(0, 6)
     .map(rowToMatch);
+  const nameOf = (id: string | null) => (id ? teams.find((x) => x.id === id)?.name ?? '?' : 'TBD');
 
   return (
     <div className="space-y-6">
@@ -47,20 +48,32 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       {t.status === 'setup' && <p className="rounded border bg-white p-4 text-sm">Pools have not been drawn yet. Check back soon.</p>}
       <section>
         <h2 className="mb-2 font-semibold">Now playing</h2>
-        {board.nowPlaying.length === 0 ? <p className="text-sm text-slate-500">No match on court right now.</p> : (
-          <div className="grid gap-3 md:grid-cols-2">{board.nowPlaying.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} startedAt={startedAtById[m.id]} capMinutes={capOf(m)} pausedAt={pauseById[m.id]?.at ?? null} pausedMs={pauseById[m.id]?.ms ?? 0} />)}</div>
+        {board.nowPlaying.length === 0 ? <p className="text-sm text-slate-500">No game is on court.</p> : (
+          <div className="rounded border border-emerald-500 bg-white p-3">
+            {board.nowPlaying.map((g) => (
+              <GameLine key={`${g.slot.match_id}:${g.slot.game_no}`} tournament={t} match={g.match} slot={g.slot}
+                settings={settingsOf(g.match)} teams={teams} admin={false} showTeams />
+            ))}
+          </div>
         )}
       </section>
       {awaiting.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold">Awaiting confirmation</h2>
-          <div className="grid gap-3 md:grid-cols-2">{awaiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} />)}</div>
+          <div className="grid gap-3 md:grid-cols-2">{awaiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}</div>
         </section>
       )}
       <section>
         <h2 className="mb-2 font-semibold">Up next</h2>
         {board.upNext.length === 0 ? <p className="text-sm text-slate-500">Nothing queued.</p> : (
-          <div className="grid gap-3 md:grid-cols-2">{board.upNext.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} pending={pending(m)} />)}</div>
+          <ul className="space-y-1 rounded border bg-white p-3 text-sm">
+            {board.upNext.map((g) => (
+              <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="flex flex-wrap items-baseline gap-2">
+                <span className="text-xs text-slate-500">{label(g.match)} · {g.label}</span>
+                <span>{nameOf(g.match.teamAId)} v {nameOf(g.match.teamBId)}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
       {seeded.length > 0 && (
@@ -72,7 +85,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       {recent.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold">Latest results</h2>
-          <div className="grid gap-3 md:grid-cols-2">{recent.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} />)}</div>
+          <div className="grid gap-3 md:grid-cols-2">{recent.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tournament={t} slots={slots[m.id]} />)}</div>
         </section>
       )}
     </div>

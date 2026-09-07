@@ -1,8 +1,8 @@
 import type { Game, Match } from '@tournament/core';
-import type { TeamRow } from '@/lib/db/types';
+import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
-import { CourtClock } from './CourtClock';
+import { gameLabel } from '@/lib/db/mappers';
 
 export function teamName(teams: readonly TeamRow[], id: string | null, fallback = 'TBD'): string {
   return id ? teams.find((t) => t.id === id)?.name ?? '?' : fallback;
@@ -43,17 +43,17 @@ export function pendingFor(
 
 const compact = (games: Game[]) => games.map((g) => `${g.scoreA}-${g.scoreB}`).join(', ');
 
-export function MatchCard({ match, teams, games, label, pending, startedAt, capMinutes, pausedAt = null, pausedMs = 0, taglines = true, children }: {
+export function MatchCard({ match, teams, games, label, pending, tournament, slots, taglines = true, children }: {
   match: Match; teams: readonly TeamRow[]; games: Game[]; label?: string;
   pending?: Pending;
-  /** When the match went to court; with `capMinutes` it drives the countdown on a live card. */
-  startedAt?: string | null;
-  /** The stage's time cap in minutes; null when this stage has no clock. */
-  capMinutes?: number | null;
-  /** Set while the clock is stopped; the countdown freezes and reads "paused". */
-  pausedAt?: string | null;
-  /** Total milliseconds already spent paused, given back to the countdown. */
-  pausedMs?: number;
+  /** Supplies the game names when `slots` is given. */
+  tournament?: Pick<TournamentRow, 'game_labels'>;
+  /**
+   * Every game row of the meeting, played or not. When given, the card lists one line per game
+   * (its label and score) instead of the old single score column, because a meeting is now three
+   * separately scheduled games. A bye has no slots, and then the old rendering stands.
+   */
+  slots?: readonly GameRow[];
   /** Render each team's tagline under its name. */
   taglines?: boolean;
   children?: React.ReactNode;
@@ -61,7 +61,9 @@ export function MatchCard({ match, teams, games, label, pending, startedAt, capM
   const a = teamName(teams, match.teamAId), b = teamName(teams, match.teamBId);
   const shown = games.length ? games : pending?.games ?? [];
   const showPending = pending !== undefined && match.status !== 'done';
-  const showClock = match.status === 'live' && !!startedAt && !!capMinutes;
+  const perGame = slots !== undefined && slots.length > 0;
+  // A court belongs to a game now, so a live meeting can be spread over several of them.
+  const courts = (slots ?? []).filter((s) => s.started_at !== null && s.score_a === null && s.court !== null).map((s) => s.court!);
   const tagline = (id: string | null) => (id ? teams.find((t) => t.id === id)?.tagline ?? '' : '');
   const line = (id: string | null, name: string, side: 'a' | 'b') => (
     <div className={`flex items-center justify-between gap-2 ${match.winnerId && match.winnerId === id ? 'font-semibold' : ''}`}>
@@ -69,7 +71,7 @@ export function MatchCard({ match, teams, games, label, pending, startedAt, capM
         <span className="block truncate">{name}</span>
         {taglines && tagline(id) && <span className="block truncate text-[11px] font-normal text-slate-500">{tagline(id)}</span>}
       </span>
-      <span className="font-mono text-xs">{shown.map((g) => (side === 'a' ? g.scoreA : g.scoreB)).join(' ')}</span>
+      {!perGame && <span className="font-mono text-xs">{shown.map((g) => (side === 'a' ? g.scoreA : g.scoreB)).join(' ')}</span>}
     </div>
   );
   return (
@@ -80,8 +82,7 @@ export function MatchCard({ match, teams, games, label, pending, startedAt, capM
           {match.decidedBy !== 'played' && (
             <span className="rounded bg-slate-200 px-1 text-[10px] uppercase tracking-wide text-slate-700">{match.decidedBy}</span>
           )}
-          {showClock && <CourtClock startedAt={startedAt!} capMinutes={capMinutes!} pausedAt={pausedAt} pausedMs={pausedMs} />}
-          <span>{match.status === 'live' && match.court ? `Court ${match.court} · live` : match.status}</span>
+          <span>{match.status === 'live' && courts.length > 0 ? `Court ${courts.join(', ')} · live` : match.status}</span>
         </span>
       </div>
       {showPending && (
@@ -98,6 +99,22 @@ export function MatchCard({ match, teams, games, label, pending, startedAt, capM
       )}
       {line(match.teamAId, a, 'a')}
       {line(match.teamBId, b, 'b')}
+      {perGame && (
+        <ul className="mt-1 space-y-0.5 text-xs">
+          {slots!.map((s) => (
+            <li key={s.game_no} className="flex items-baseline justify-between gap-2">
+              <span className="truncate text-slate-500">{tournament ? gameLabel(tournament, s.game_no) : `Game ${s.game_no}`}</span>
+              <span className="shrink-0 font-mono text-slate-700">
+                {s.score_a !== null && s.score_b !== null
+                  ? `${s.score_a}-${s.score_b}${s.time_expired ? ' (time)' : ''}`
+                  : s.started_at !== null
+                    ? `court ${s.court ?? '?'}`
+                    : '–'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       {children && <div className="mt-2 border-t pt-2">{children}</div>}
     </div>
   );

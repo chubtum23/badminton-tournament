@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
+import { gameSlotsByMatch, loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { Bracket } from '@/components/Bracket';
 import { pendingFor } from '@/components/MatchCard';
@@ -20,7 +20,7 @@ export default async function BracketPage({ params }: { params: Promise<{ slug: 
   return (
     <div className="space-y-4">
       {champion && <p className="rounded bg-amber-50 p-3 text-sm font-semibold">Champions: {champion.name}</p>}
-      <Bracket matches={matches} teams={bundle.teams} games={gamesByMatch(bundle.games)}
+      <Bracket matches={matches} teams={bundle.teams} games={gamesByMatch(bundle.games)} slots={gameSlotsByMatch(bundle.games)}
         pendingFor={(m) => pendingFor(latest, bundle.teams, m)} />
     </div>
   );
