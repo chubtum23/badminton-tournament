@@ -14,6 +14,10 @@ export interface TournamentRow {
   max_points: number | null;
   /** Minutes per game before the clock ends it; null = no clock. */
   time_cap_minutes: number | null;
+  /** Every game of a meeting is played even once the meeting is decided. Applies to every stage. */
+  play_all_games: boolean;
+  /** One name per game, in game order; `gameLabel` falls back for anything past the end. */
+  game_labels: string[];
   /** Knockout overrides. null on any column means "use the pool value". */
   ko_games_per_match: number | null;
   ko_points_per_game: number | null;
@@ -66,30 +70,40 @@ export interface MatchRow {
   slot: number;
   team_a_id: string | null;
   team_b_id: string | null;
-  court: number | null;
   status: 'pending' | 'ready' | 'live' | 'submitted' | 'disputed' | 'done';
   winner_id: string | null;
   decided_by: 'played' | 'awarded' | 'forfeit' | 'bye';
   next_match_id: string | null;
   next_match_side: 'a' | 'b' | null;
-  /** Set when the match went to court; null otherwise. */
-  started_at: string | null;
   /** Set when the match reached 'done'; null otherwise (and on rows written before this column existed). */
   finished_at: string | null;
+}
+
+/**
+ * One game of a meeting. The row exists from the moment its match is created, so it can be put on
+ * a court and clocked before anyone has played it; that is why the scores are nullable. Scheduling
+ * lives here rather than on the match because the three games of a meeting run on three courts.
+ */
+export interface GameRow {
+  match_id: string;
+  game_no: number;
+  /** null until the game has been scored. */
+  score_a: number | null;
+  score_b: number | null;
+  /** The clock ended this game; any non-level score is accepted. */
+  time_expired: boolean;
+  /** The court this game is on; null while it is unscheduled. */
+  court: number | null;
+  /** Set when the game went to court; null otherwise. */
+  started_at: string | null;
   /** Set while the live clock is stopped; null while it is running. */
   paused_at: string | null;
   /** Total milliseconds already spent paused, so the countdown ignores stoppages. */
   paused_ms: number;
 }
 
-export interface GameRow {
-  match_id: string;
-  game_no: number;
-  score_a: number;
-  score_b: number;
-  /** The clock ended this game; any non-level score is accepted. */
-  time_expired: boolean;
-}
+/** A game row that has actually been scored, so it maps to the core `Game` type. */
+export type ScoredGameRow = GameRow & { score_a: number; score_b: number };
 
 export interface SubmissionRow {
   id: string;

@@ -6,7 +6,7 @@ import { fail, ok, type ActionResult } from './errors';
 import { planLock, planPools } from '@/lib/pools/plan';
 import { listMatches, listPools, listTeams } from '@/lib/db/queries';
 import type { MatchRow } from '@/lib/db/types';
-import { matchToRow } from '@/lib/db/mappers';
+import { matchToRow, settingsFor, slotRowsFor } from '@/lib/db/mappers';
 import { revalidateTournament } from './revalidate';
 
 export async function generatePools(slug: string, poolCount: number): Promise<ActionResult> {
@@ -78,6 +78,10 @@ export async function lockPools(slug: string): Promise<ActionResult> {
   const matches = planLock(grouped, randomUUID);
   const ins = await ctx.sb.from('matches').insert(matches.map((m) => matchToRow(m, ctx.tournament.id)));
   if (ins.error) return fail('invalid_input', ins.error.message);
+  // Every game of every meeting gets its row up front so it can be put on a court before it is played.
+  const slots = matches.flatMap((m) => slotRowsFor(m.id, settingsFor(ctx.tournament, 'pool').gamesPerMatch));
+  const insSlots = await ctx.sb.from('games').insert(slots);
+  if (insSlots.error) return fail('invalid_input', insSlots.error.message);
   const lock = await ctx.sb.from('pools').update({ locked: true }).eq('tournament_id', ctx.tournament.id);
   if (lock.error) return fail('invalid_input', lock.error.message);
   revalidatePath(`/admin/${slug}`);
@@ -131,10 +135,13 @@ export async function createPlayoff(slug: string, poolId: string, teamXId: strin
     tournament_id: ctx.tournament.id, stage: 'playoff', pool_id: poolId, round: null,
     // Playoff slots start at 101 so they sort after the pool's scheduled matches.
     slot: 100 + playoffs.length + 1,
-    team_a_id: teamXId, team_b_id: teamYId, court: null, status: 'ready',
+    team_a_id: teamXId, team_b_id: teamYId, status: 'ready',
     winner_id: null, decided_by: 'played', next_match_id: null, next_match_side: null,
-  });
+  }).select('id').single();
   if (ins.error) return fail('invalid_input', ins.error.message);
+  const insSlots = await ctx.sb.from('games')
+    .insert(slotRowsFor(ins.data.id, settingsFor(ctx.tournament, 'pool').gamesPerMatch));
+  if (insSlots.error) return fail('invalid_input', insSlots.error.message);
   revalidateTournament(slug);
   return ok(undefined);
 }

@@ -17,7 +17,7 @@ const teams: TeamRow[] = [
 ];
 
 const match = (id: string, over: Partial<Match>): Match => ({
-  id, stage: 'pool', poolId: 'pA', round: null, slot: 1, teamAId: null, teamBId: null, court: null,
+  id, stage: 'pool', poolId: 'pA', round: null, slot: 1, teamAId: null, teamBId: null,
   status: 'done', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null, ...over,
 });
 

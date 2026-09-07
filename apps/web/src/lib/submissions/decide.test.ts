@@ -3,7 +3,7 @@ import { CLASSIC_BEST_OF_THREE, type Match } from '@tournament/core';
 import { decideSubmission, sameGames } from './decide';
 import type { SubmissionRow } from '@/lib/db/types';
 
-const match: Match = { id: 'm1', stage: 'pool', poolId: 'P', round: null, slot: 1, teamAId: 'A', teamBId: 'B', court: 1, status: 'live', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null };
+const match: Match = { id: 'm1', stage: 'pool', poolId: 'P', round: null, slot: 1, teamAId: 'A', teamBId: 'B', status: 'live', winnerId: null, decidedBy: 'played', nextMatchId: null, nextMatchSide: null };
 const win = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 9 }];
 const other = [{ gameNo: 1, scoreA: 15, scoreB: 7 }, { gameNo: 2, scoreA: 15, scoreB: 10 }];
 const sub = (by: 'team_a' | 'team_b', games = win): SubmissionRow => ({ id: `s-${by}`, match_id: 'm1', submitted_by: by, games, created_at: '2026-09-07T10:00:00Z' });

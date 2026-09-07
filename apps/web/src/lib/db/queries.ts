@@ -39,10 +39,23 @@ export async function listGames(sb: SupabaseClient, tournamentId: string): Promi
   // games has no tournament_id; join through matches
   const res = await sb
     .from('games')
-    .select('match_id, game_no, score_a, score_b, time_expired, matches!inner(tournament_id)')
+    .select('match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms, matches!inner(tournament_id)')
     .eq('matches.tournament_id', tournamentId);
   const rows = must(res, 'games') as Array<GameRow & { matches: unknown }>;
-  return rows.map(({ match_id, game_no, score_a, score_b, time_expired }) => ({ match_id, game_no, score_a, score_b, time_expired }));
+  return rows.map(({ match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms }) => ({
+    match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms,
+  }));
+}
+
+/**
+ * Every game row of a match in game order, unplayed slots included — this is what the schedule and
+ * the match cards render. `gamesByMatch` in mappers.ts is the scored-only view the rules consume.
+ */
+export function gameSlotsByMatch(rows: readonly GameRow[]): Record<string, GameRow[]> {
+  const out: Record<string, GameRow[]> = {};
+  for (const r of rows) (out[r.match_id] ??= []).push(r);
+  for (const list of Object.values(out)) list.sort((x, y) => x.game_no - y.game_no);
+  return out;
 }
 
 export interface TeamWithPlayers extends TeamRow {

@@ -10,6 +10,8 @@ export interface SettingsInput {
   startsAt: string | null;
   /** Trimmed; '' means "no venue". */
   venue: string;
+  /** One name per pool game, in game order. */
+  labels: string[];
 }
 
 function int(fd: FormData, key: string): number {
@@ -17,6 +19,10 @@ function int(fd: FormData, key: string): number {
   return raw === '' ? Number.NaN : Number(raw);
 }
 
+/**
+ * `playAllGames` is a format decision for the whole event, so it is read once from the pool
+ * checkbox and the knockout simply inherits it; the form has no knockout control for it.
+ */
 function stageSettings(fd: FormData, prefix: 'pool' | 'ko'): Settings {
   const cap = String(fd.get(`${prefix}_maxPoints`) ?? '').trim();
   const clock = String(fd.get(`${prefix}_timeCap`) ?? '').trim();
@@ -26,7 +32,17 @@ function stageSettings(fd: FormData, prefix: 'pool' | 'ko'): Settings {
     winByTwo: fd.get(`${prefix}_winByTwo`) !== null,
     maxPoints: cap === '' ? null : Number(cap),
     timeCapMinutes: clock === '' ? null : Number(clock),
+    playAllGames: fd.get('pool_playAllGames') !== null,
   };
+}
+
+/**
+ * The per-game names, one field per pool game. A gamesPerMatch that is not a sane game count is
+ * already reported by validateSettings, so no labels are read for it rather than reporting twice.
+ */
+function gameLabels(fd: FormData, gamesPerMatch: number): string[] {
+  const count = Number.isInteger(gamesPerMatch) && gamesPerMatch >= 1 && gamesPerMatch <= 9 ? gamesPerMatch : 0;
+  return Array.from({ length: count }, (_, i) => String(fd.get(`gameLabel${i + 1}`) ?? '').trim());
 }
 
 export function parseSettingsForm(fd: FormData): { ok: true; value: SettingsInput } | { ok: false; problems: string[] } {
@@ -37,10 +53,12 @@ export function parseSettingsForm(fd: FormData): { ok: true; value: SettingsInpu
   const rawStart = String(fd.get('startsAt') ?? '').trim();
   const startsAt = rawStart === '' || Number.isNaN(Date.parse(rawStart)) ? null : new Date(rawStart).toISOString();
   const venue = String(fd.get('venue') ?? '').trim();
+  const labels = gameLabels(fd, pool.gamesPerMatch);
   const value: SettingsInput = {
-    pool, knockout, courtCount: int(fd, 'courtCount'), advancePerPool: int(fd, 'advancePerPool'), startsAt, venue,
+    pool, knockout, courtCount: int(fd, 'courtCount'), advancePerPool: int(fd, 'advancePerPool'), startsAt, venue, labels,
   };
   const problems = validateSettings(pool).map((p) => `pool: ${p}`);
+  if (labels.some((l) => l === '')) problems.push('game labels must not be blank');
   if (knockout) problems.push(...validateSettings(knockout).map((p) => `knockout: ${p}`));
   if (rawStart !== '' && Number.isNaN(Date.parse(rawStart))) problems.push('start date/time is not valid');
   if (venue.length > 120) problems.push('venue must be at most 120 characters');

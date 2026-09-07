@@ -6,7 +6,7 @@ import { TeamsAdmin } from '@/components/TeamsAdmin';
 import { listTeamsWithPlayers } from '@/lib/db/queries';
 import { getEditTokens } from '@/actions/teams';
 import { FlashMessage } from '@/components/FlashMessage';
-import { settingsFor } from '@/lib/db/mappers';
+import { gameLabel, settingsFor } from '@/lib/db/mappers';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
 import { SubmitButton } from '@/components/SubmitButton';
 
@@ -25,6 +25,11 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
   // "Same as the pool stage" is the stored state when no ko_* override is set at all.
   const koSame = t.ko_games_per_match === null && t.ko_points_per_game === null && t.ko_win_by_two === null
     && t.ko_max_points === null && t.ko_time_cap_minutes === null;
+  // One name field per game. The stored list can be longer than the current games per match (it
+  // holds the club default of three), so show those too: raising games per match then saving keeps
+  // the names the organiser can already see, and parseSettingsForm ignores anything past the count.
+  const labelCount = Math.max(pool.gamesPerMatch, t.game_labels.length, 1);
+  const gameNumbers = Array.from({ length: labelCount }, (_, i) => i + 1);
 
   async function save(formData: FormData) {
     'use server';
@@ -56,6 +61,16 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
               <label>Points cap (blank = none)<input name="pool_maxPoints" type="number" defaultValue={pool.maxPoints ?? ''} disabled={locked} className={field} /></label>
               <label>Clock minutes per game (blank = no clock)<input name="pool_timeCap" type="number" defaultValue={pool.timeCapMinutes ?? ''} disabled={locked} className={field} /></label>
               <label className="flex items-end gap-2 pb-2"><input name="pool_winByTwo" type="checkbox" defaultChecked={pool.winByTwo} disabled={locked} /> Win by two</label>
+              <label className="flex items-end gap-2 pb-2"><input name="pool_playAllGames" type="checkbox" defaultChecked={pool.playAllGames} disabled={locked} /> Play every game</label>
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded border p-3">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Game names</legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {gameNumbers.map((n) => (
+                <label key={n}>Game {n}<input name={`gameLabel${n}`} maxLength={40} defaultValue={gameLabel(t, n)} disabled={locked} className={field} /></label>
+              ))}
             </div>
           </fieldset>
 
@@ -90,6 +105,8 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
               <input type="hidden" name="pool_maxPoints" value={pool.maxPoints ?? ''} />
               <input type="hidden" name="pool_timeCap" value={pool.timeCapMinutes ?? ''} />
               {pool.winByTwo && <input type="hidden" name="pool_winByTwo" value="on" />}
+              {pool.playAllGames && <input type="hidden" name="pool_playAllGames" value="on" />}
+              {gameNumbers.map((n) => <input key={n} type="hidden" name={`gameLabel${n}`} value={gameLabel(t, n)} />)}
               {koSame ? <input type="hidden" name="ko_same" value="on" /> : (
                 <>
                   <input type="hidden" name="ko_gamesPerMatch" value={knockout.gamesPerMatch} />

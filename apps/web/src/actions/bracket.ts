@@ -5,7 +5,7 @@ import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 import { listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
-import { matchToRow } from '@/lib/db/mappers';
+import { matchToRow, settingsFor, slotRowsFor } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
 import { knockoutInput } from '@/lib/bracket/input';
 
@@ -37,10 +37,14 @@ export async function startKnockout(slug: string): Promise<ActionResult> {
 
   // Insert later rounds first so next_match_id always references an existing row.
   const rounds = [...new Set(plan.matches.map((m) => m.round ?? 0))].sort((a, b) => b - a);
+  const gamesPerMatch = settingsFor(t, 'knockout').gamesPerMatch;
   for (const r of rounds) {
-    const rows = plan.matches.filter((m) => m.round === r).map((m) => matchToRow(m, t.id));
-    const ins = await ctx.sb.from('matches').insert(rows);
+    const roundMatches = plan.matches.filter((m) => m.round === r);
+    const ins = await ctx.sb.from('matches').insert(roundMatches.map((m) => matchToRow(m, t.id)));
     if (ins.error) return fail('invalid_input', ins.error.message);
+    // Each match's games exist from the moment the match does, so they can be scheduled unplayed.
+    const insSlots = await ctx.sb.from('games').insert(roundMatches.flatMap((m) => slotRowsFor(m.id, gamesPerMatch)));
+    if (insSlots.error) return fail('invalid_input', insSlots.error.message);
   }
   for (const p of [`/admin/${slug}`, `/admin/${slug}/bracket`, `/admin/${slug}/matches`, `/t/${slug}`, `/t/${slug}/bracket`]) revalidatePath(p);
   return ok(undefined);
@@ -69,7 +73,7 @@ export async function replaceTeamInMatch(slug: string, matchId: string, side: 'a
   const column = side === 'a' ? 'team_a_id' : 'team_b_id';
   // A match with both sides known is playable; one still empty stays pending.
   const status = other === null ? match.status : 'ready';
-  let q = ctx.sb.from('matches').update({ [column]: teamId, status, court: null, started_at: null })
+  let q = ctx.sb.from('matches').update({ [column]: teamId, status })
     .eq('id', matchId).eq('status', match.status);
   q = current === null ? q.is(column, null) : q.eq(column, current);
   const upd = await q.select('id');
@@ -77,13 +81,16 @@ export async function replaceTeamInMatch(slug: string, matchId: string, side: 'a
   if ((upd.data ?? []).length === 0) return fail('stale_state', 'Match changed underneath you; reload');
 
   // The update above already puts a two-sided match back to 'ready', so a submitted/disputed match
-  // is no longer flagged. Its stored submissions (and any games, defensively — a match that is not
-  // done should have none) still name the team that just left the slot, so they go too; otherwise
-  // the card would show the old team's unconfirmed score against the new one.
+  // is no longer flagged. Its stored submissions still name the team that just left the slot, so
+  // they go too; otherwise the card would show the old team's unconfirmed score against the new one.
   const delSubs = await ctx.sb.from('score_submissions').delete().eq('match_id', matchId);
   if (delSubs.error) return fail('invalid_input', delSubs.error.message);
-  const delGames = await ctx.sb.from('games').delete().eq('match_id', matchId);
-  if (delGames.error) return fail('invalid_input', delGames.error.message);
+  // The game rows stay (they are the match's slots now), but any score or clock on them belonged
+  // to the team that just left, so every slot goes back to unplayed and unscheduled.
+  const resetGames = await ctx.sb.from('games')
+    .update({ score_a: null, score_b: null, time_expired: false, court: null, started_at: null, paused_at: null, paused_ms: 0 })
+    .eq('match_id', matchId);
+  if (resetGames.error) return fail('invalid_input', resetGames.error.message);
   revalidateTournament(slug);
   return ok(undefined);
 }

@@ -1,34 +1,48 @@
 import type { Game, Match, Settings, Stage, TeamRef } from '@tournament/core';
-import type { GameRow, MatchRow, TeamRow, TournamentRow } from './types';
+import type { GameRow, MatchRow, ScoredGameRow, TeamRow, TournamentRow } from './types';
 
 export function rowToMatch(r: MatchRow): Match {
   return {
     id: r.id, stage: r.stage, poolId: r.pool_id, round: r.round, slot: r.slot,
-    teamAId: r.team_a_id, teamBId: r.team_b_id, court: r.court, status: r.status,
+    teamAId: r.team_a_id, teamBId: r.team_b_id, status: r.status,
     winnerId: r.winner_id, decidedBy: r.decided_by, nextMatchId: r.next_match_id, nextMatchSide: r.next_match_side,
   };
 }
 
 /**
- * `Match` in @tournament/core has no timestamps, so `started_at`, `finished_at` and the pause
- * fields (`paused_at`, `paused_ms`) are owned by the caller (see enterResult) and deliberately
- * left out of the mapped row.
+ * `Match` in @tournament/core has no timestamps, so `finished_at` is owned by the caller (see
+ * enterResult) and deliberately left out of the mapped row. The court and the clock are not here
+ * at all any more: they belong to the individual game rows.
  */
-export function matchToRow(m: Match, tournamentId: string): Omit<MatchRow, 'finished_at' | 'started_at' | 'paused_at' | 'paused_ms'> {
+export function matchToRow(m: Match, tournamentId: string): Omit<MatchRow, 'finished_at'> {
   return {
     id: m.id, tournament_id: tournamentId, stage: m.stage, pool_id: m.poolId, round: m.round, slot: m.slot,
-    team_a_id: m.teamAId, team_b_id: m.teamBId, court: m.court, status: m.status,
+    team_a_id: m.teamAId, team_b_id: m.teamBId, status: m.status,
     winner_id: m.winnerId, decided_by: m.decidedBy, next_match_id: m.nextMatchId, next_match_side: m.nextMatchSide,
   };
 }
 
-export function rowToGame(r: GameRow): Game {
+export function rowToGame(r: ScoredGameRow): Game {
   return { gameNo: r.game_no, scoreA: r.score_a, scoreB: r.score_b, timeExpired: r.time_expired };
 }
 
+/** The name the organiser gave this game, e.g. "Men's doubles". */
+export function gameLabel(t: Pick<TournamentRow, 'game_labels'>, gameNo: number): string {
+  return t.game_labels[gameNo - 1] ?? `Game ${gameNo}`;
+}
+
+/** The empty game rows a newly created match starts with, one per game of the meeting. */
+export function slotRowsFor(matchId: string, gamesPerMatch: number): { match_id: string; game_no: number }[] {
+  return Array.from({ length: gamesPerMatch }, (_, i) => ({ match_id: matchId, game_no: i + 1 }));
+}
+
+/** Only the games that have actually been scored, because that is what the rules package consumes. */
 export function gamesByMatch(rows: readonly GameRow[]): Record<string, Game[]> {
   const out: Record<string, Game[]> = {};
-  for (const r of rows) (out[r.match_id] ??= []).push(rowToGame(r));
+  for (const r of rows) {
+    if (r.score_a === null || r.score_b === null) continue; // an unplayed slot is not a game yet
+    (out[r.match_id] ??= []).push({ gameNo: r.game_no, scoreA: r.score_a, scoreB: r.score_b, timeExpired: r.time_expired });
+  }
   for (const list of Object.values(out)) list.sort((x, y) => x.gameNo - y.gameNo);
   return out;
 }
@@ -47,6 +61,7 @@ export function settingsFor(t: TournamentRow, stage: Stage): Settings {
   const pool: Settings = {
     gamesPerMatch: t.games_per_match, pointsPerGame: t.points_per_game,
     winByTwo: t.win_by_two, maxPoints: t.max_points, timeCapMinutes: t.time_cap_minutes,
+    playAllGames: t.play_all_games,
   };
   if (stage !== 'knockout') return pool;
   return {
@@ -55,6 +70,9 @@ export function settingsFor(t: TournamentRow, stage: Stage): Settings {
     winByTwo: t.ko_win_by_two ?? pool.winByTwo,
     maxPoints: t.ko_max_points ?? pool.maxPoints,
     timeCapMinutes: t.ko_time_cap_minutes === null ? pool.timeCapMinutes : t.ko_time_cap_minutes === 0 ? null : t.ko_time_cap_minutes,
+    // Whether every game is played is a format decision for the whole event, so there is no
+    // knockout override column for it.
+    playAllGames: pool.playAllGames,
   };
 }
 

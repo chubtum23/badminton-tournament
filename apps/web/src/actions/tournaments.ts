@@ -45,6 +45,8 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
       win_by_two: v.pool.winByTwo,
       max_points: v.pool.maxPoints,
       time_cap_minutes: v.pool.timeCapMinutes,
+      play_all_games: v.pool.playAllGames,
+      game_labels: v.labels,
       // null across the ko_* columns means "the knockout uses the pool rules"; 0 in
       // ko_time_cap_minutes is the sentinel for "the knockout has no clock".
       ko_games_per_match: v.knockout ? v.knockout.gamesPerMatch : null,
