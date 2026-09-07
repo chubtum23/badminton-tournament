@@ -25,6 +25,9 @@ player accounts, singles or mixed events in the same tournament.
 The team token is a random 24-character string generated when the team is created.
 Admins can regenerate it if a link leaks.
 
+Opening the private link sets an httpOnly cookie scoped to the tournament and redirects
+to `/t/[slug]/team`; the token itself is never stored in the browser URL after that.
+
 ## 3. Architecture
 
 - **Frontend and server**: Next.js (App Router, TypeScript), Tailwind. Deployed on Vercel.
@@ -184,11 +187,12 @@ lowest-slot `ready` match per round, earliest round first.
   live, an "unconfirmed" tag when submitted.
 - **Announcements**: newest first, pinned on top.
 
-### Participant `/t/[slug]/team/[token]`
-Same tabs plus a **My team** panel: edit name, tagline, colour; next match and court;
-an **Enter scores** form for the team's current match with one row per game, a running
-"you win / they win" indicator, and a clear note that the result needs the other team
-or an admin to confirm.
+### Participant `/t/[slug]/team` (after the token handshake)
+The "My team" tab appears in the public layout when the private-link cookie is present,
+alongside the same public tabs, and shows a panel: edit name, tagline, colour; next
+match and court; an **Enter scores** form for the team's current match with one row per
+game, a running "you win / they win" indicator, and a clear note that the result needs
+the other team or an admin to confirm.
 
 ### Admin `/admin/[slug]` (login required)
 - **Setup**: settings (games per match, points per game, win by two, max points, courts,

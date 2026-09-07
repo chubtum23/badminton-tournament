@@ -9,15 +9,33 @@ Next.js app for running and following a tournament. Rules come from `@tournament
 3. `npm run seed:admin -w @tournament/web` creates `admin@local.test` / `local-admin-pass`.
 4. `npm run dev -w @tournament/web`, sign in at `/login`, create a tournament at `/admin`.
 
+## Participants
+
+Each team gets a private link, `/t/<slug>/team/<token>`, shown (and regeneratable) next
+to the team on the admin Setup page. Opening it sets an httpOnly cookie scoped to the
+tournament and redirects to `/t/<slug>/team`, so the token itself never sits in the
+browser URL after the first visit. From there a participant can rename their team, set
+a tagline and colour, and submit game scores for their own current match; a matching
+opponent submission confirms the result automatically, a mismatch is flagged
+"unconfirmed" until an admin resolves it. Visits to a token link are rate limited to 30
+per minute per IP (in-memory, so this only holds on a single server instance). Public
+pages, including the participant's, refresh via a Supabase realtime channel per
+tournament; the `games` and `score_submissions` subscriptions are unfiltered by
+tournament, which is acceptable for v1 since they only trigger a refetch.
+
 ## Tests
 
 - `npm test -w @tournament/web`: unit tests, plus RLS integration tests when `.env.local` exists.
-- `npm run e2e -w @tournament/web`: Playwright drives an 8-team tournament through the admin UI on port 3100.
+- `npm run e2e -w @tournament/web`: Playwright runs two specs against port 3100 — an
+  8-team tournament through the admin UI, and a participant flow covering private
+  links, profile edits, a player-submitted match, a disputed match resolved by an
+  admin, and announcements.
 
 ## Routes
 
 Public: `/t/[slug]` (live board), `/t/[slug]/pools`, `/t/[slug]/bracket`.
-Admin: `/login`, `/admin`, `/admin/[slug]` (setup), `/admin/[slug]/pools`, `/admin/[slug]/matches`, `/admin/[slug]/bracket`.
+Participant: `/t/[slug]/team/[token]` (one-time link), `/t/[slug]/team` (after the cookie is set).
+Admin: `/login`, `/admin`, `/admin/[slug]` (setup), `/admin/[slug]/pools`, `/admin/[slug]/matches`, `/admin/[slug]/bracket`, `/admin/[slug]/announcements`.
 
 ## Deploying
 
