@@ -22,7 +22,8 @@ export interface HubTile { key: 'event' | 'rules' | 'teams' | 'draw'; title: str
 export function hubTiles(i: HubInput): HubTile[] {
   const locked = i.status !== 'setup';
   const eventDone = i.startsAt !== null && i.venue !== null && i.venue !== '';
-  const teamsDone = i.teamCount >= 4 && i.completeCount === i.teamCount;
+  // lockPools only needs two teams in a pool, so a small club night must be able to reach Done.
+  const teamsDone = i.teamCount >= 2 && i.completeCount === i.teamCount;
   return [
     { key: 'event', title: '1. Event details', href: '/event', summary: eventDone ? 'date and venue set' : 'Not set', pill: eventDone ? 'Done' : 'To do' },
     { key: 'rules', title: '2. Rules', href: '/rules', summary: i.rules, pill: locked ? 'Locked' : 'Done' },

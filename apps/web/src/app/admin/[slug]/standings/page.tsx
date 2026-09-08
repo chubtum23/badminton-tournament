@@ -32,6 +32,9 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   const played = (id: string) => (slots[id] ?? []).filter((g) => g.score_a !== null);
   const here = `/admin/${slug}/standings`;
   const nameOf = (id: string) => teams.find((x) => x.id === id)?.name ?? '?';
+  // Each pool's table is wanted twice — in its own section and in the overall leaderboard below —
+  // so it is computed once here and read from both places.
+  const poolResults = pools.map((pool) => ({ pool, ...computePool({ pool, teams, matches, games, advancePerPool: t.advance_per_pool }) }));
 
   async function generate(formData: FormData) {
     'use server';
@@ -55,7 +58,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
     }
     // The action checks that every team appears; only the positions can collide here.
     if (new Set(entries.map((e) => e.rank)).size !== entries.length) {
-      redirectWithMsg(here, fail('invalid_input', 'Give every team a different position'), 'Order set');
+      return redirectWithMsg(here, fail('invalid_input', 'Give every team a different position'), 'Order set');
     }
     const ordered = entries.sort((a, b) => a.rank - b.rank).map((e) => e.teamId);
     redirectWithMsg(here, await setManualOrder(slug, poolId, ordered), 'Order set');
@@ -78,9 +81,8 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
         </form>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        {pools.map((p) => {
+        {poolResults.map(({ pool: p, rows, ties, manual, playoffs, complete, fixtures }) => {
           const poolTeams = teams.filter((x) => x.pool_id === p.id);
-          const { rows, ties, manual, playoffs, complete, fixtures } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
           const tiedPair = ties[0]?.teamIds ?? [];
           // A half-played pool has no finishing order worth arguing about, so the organiser's
           // tie-breaking tools stay out of the way until the pool is done (or already decided).
@@ -183,7 +185,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
           shows the tables. Once the draw is locked every pool has a table worth totalling. */}
       {!editable && pools.length > 0 && (() => {
         const table = overallLeaderboard(
-          pools.map((p) => ({ poolName: p.name, rows: computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool }).rows })),
+          poolResults.map((r) => ({ poolName: r.pool.name, rows: r.rows })),
           teams.filter((x) => x.withdrawn).map((x) => x.id),
         );
         return (

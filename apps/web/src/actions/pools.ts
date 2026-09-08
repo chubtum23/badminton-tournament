@@ -110,7 +110,9 @@ export async function unlockPools(slug: string): Promise<ActionResult> {
   if (cleared.error) return fail('invalid_input', cleared.error.message);
   const unlocked = await ctx.sb.from('pools').update({ locked: false }).eq('tournament_id', ctx.tournament.id);
   if (unlocked.error) return fail('invalid_input', unlocked.error.message);
-  const back = await ctx.sb.from('tournaments').update({ status: 'setup' }).eq('id', ctx.tournament.id).eq('status', 'pools');
+  // lockPools closed sign-ups; unlocking puts the tournament back in setup, which is exactly when
+  // teams may join, so the public Join tab comes back with it rather than silently staying hidden.
+  const back = await ctx.sb.from('tournaments').update({ status: 'setup', signup_open: true }).eq('id', ctx.tournament.id).eq('status', 'pools');
   if (back.error) return fail('invalid_input', back.error.message);
   revalidateTournament(slug);
   return ok(undefined);

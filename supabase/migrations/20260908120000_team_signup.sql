@@ -114,7 +114,12 @@ begin
   return tok;
 end; $$;
 
-grant execute on function public.sign_up_team(text, text, text, text, text, text, text, text, text) to anon, authenticated, service_role;
+-- The only rate limiter for sign-ups lives in the app tier (the server action), and the anon key
+-- ships in the browser bundle, so a function anon could execute directly would be a free loop for
+-- unbounded team creation and join-code guessing. The server action calls this with the service
+-- role after rate limiting and validating; the function still re-checks everything itself.
+revoke execute on function public.sign_up_team(text, text, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function public.sign_up_team(text, text, text, text, text, text, text, text, text) to service_role;
 
 -- The join form has to know whether to show the code box. This answers that without leaking the code.
 create or replace function public.signup_needs_code(p_slug text) returns boolean
@@ -175,3 +180,9 @@ grant execute on function public.admin_set_roster(uuid, text, text, text) to aut
 
 -- The free-text importer is replaced by the three-box form.
 drop function if exists public.add_teams(uuid, jsonb);
+
+-- ---------- close sign-ups on everything that already exists ----------
+-- signup_open defaults to true so a newly created tournament is joinable straight away, but a
+-- tournament that was created before self sign-up existed must not silently open itself to the
+-- public the moment this migration lands. The organiser opens it deliberately from the Teams page.
+update public.tournaments set signup_open = false;

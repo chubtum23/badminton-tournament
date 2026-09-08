@@ -19,8 +19,12 @@ describe('hubTiles', () => {
     expect(hubTiles({ ...base, venue: null })[0]!.pill).toBe('To do');
     expect(hubTiles({ ...base, venue: null })[0]!.summary).toBe('Not set');
   });
-  it('teams is To do with fewer than 4 or an incomplete roster', () => {
-    expect(hubTiles({ ...base, teamCount: 3, completeCount: 3 })[2]!.pill).toBe('To do');
+  it('teams is Done from two complete teams, and To do below that or with an incomplete roster', () => {
+    // lockPools needs two teams in a pool, so a three-team club night has to be able to lock.
+    expect(hubTiles({ ...base, teamCount: 3, completeCount: 3 })[2]!.pill).toBe('Done');
+    expect(hubTiles({ ...base, teamCount: 2, completeCount: 2 })[2]!.pill).toBe('Done');
+    expect(hubTiles({ ...base, teamCount: 1, completeCount: 1 })[2]!.pill).toBe('To do');
+    expect(hubTiles({ ...base, teamCount: 0, completeCount: 0 })[2]!.pill).toBe('To do');
     expect(hubTiles({ ...base, completeCount: 5 })[2]!.pill).toBe('To do');
   });
   it('rules and draw show Locked / Done once the pools are locked', () => {

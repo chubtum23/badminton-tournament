@@ -28,7 +28,11 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   const teamsTile = tiles.find((x) => x.key === 'teams')!;
   // lockPools does its own checking and names the offending team; this only decides whether the
   // button is worth offering, and says which of the two things is still missing.
-  const canLock = t.status === 'setup' && teamsTile.pill === 'Done' && pools.length > 0;
+  // A team that signs up after the draw has no pool, so Lock would fail with "1 team(s) not in a
+  // pool". Catch that here and say what to do about it.
+  const unpooled = teams.filter((x) => !x.withdrawn && x.pool_id === null);
+  const strandedByLateSignup = pools.length > 0 && unpooled.length > 0;
+  const canLock = t.status === 'setup' && teamsTile.pill === 'Done' && pools.length > 0 && !strandedByLateSignup;
   const resultCount = matches.filter((m) => m.status === 'done').length;
   const pill = (p: string) => (p === 'Done' ? ui.pillDone : p === 'Locked' ? ui.pillLocked : ui.pillTodo);
 
@@ -52,7 +56,11 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
       {t.status === 'setup' && (
         <form action={lock} className="space-y-1">
           <SubmitButton disabled={!canLock} className={`${ui.primary} disabled:opacity-50`}>Lock pools and create matches</SubmitButton>
-          {!canLock && <p className={ui.help}>{pools.length === 0 ? 'Draw the pools first (tile 4).' : 'Every team needs two men and one woman, and you need at least 4 teams.'}</p>}
+          {!canLock && <p className={ui.help}>{pools.length === 0
+            ? 'Draw the pools first (tile 4).'
+            : strandedByLateSignup
+              ? 'A team signed up after the draw. Re-deal the pools, or move them into one on the Standings page.'
+              : 'Every team needs two men and one woman, and you need at least 2 teams.'}</p>}
         </form>
       )}
       {t.status === 'pools' && (

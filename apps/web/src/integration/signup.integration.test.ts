@@ -38,8 +38,10 @@ describe.skipIf(!enabled)('team sign-up', () => {
     tournamentId = t.data as string;
   });
 
+  // The server action rate-limits and then calls the function with the service role; anon has no
+  // execute grant on it at all (see the test below), so the tests take the same route the app does.
   const signUp = (name: string, extra: Record<string, unknown> = {}) =>
-    anon.rpc('sign_up_team', { p_slug: slug, p_join_code: null, p_name: name, ...profile, ...roster, ...extra });
+    service.rpc('sign_up_team', { p_slug: slug, p_join_code: null, p_name: name, ...profile, ...roster, ...extra });
 
   it('creates the team, three players with genders and roles, and returns the token once', async () => {
     const res = await signUp('Smashers');
@@ -52,6 +54,16 @@ describe.skipIf(!enabled)('team sign-up', () => {
     const got = (links.data as unknown as Array<{ role: string; players: { name: string; gender: string } }>)
       .map((l) => `${l.role}:${l.players.name}:${l.players.gender}`).sort();
     expect(got).toEqual(['mixed1:Alex:male', 'mixed2:Ben:male', 'woman:Priya:female']);
+  });
+
+  // The anon key is public (it ships in the browser bundle), and the 10/min sign-up limiter lives
+  // only in the server action, so a direct RPC with that key would bypass it entirely.
+  it('anon and a signed-in user cannot execute sign_up_team directly', async () => {
+    const args = { p_slug: slug, p_join_code: null, p_name: 'Bypass', ...profile, ...roster };
+    expect((await anon.rpc('sign_up_team', args)).error?.message ?? '').toMatch(/permission denied/i);
+    expect((await outsider.rpc('sign_up_team', args)).error?.message ?? '').toMatch(/permission denied/i);
+    const leaked = await service.from('teams').select('id').eq('tournament_id', tournamentId).eq('name', 'Bypass');
+    expect(leaked.data).toHaveLength(0);
   });
 
   it('anon still cannot read the token afterwards', async () => {

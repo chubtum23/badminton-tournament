@@ -14,6 +14,8 @@ import { CopyButton } from '@/components/CopyButton';
 import { RosterFields } from '@/components/RosterFields';
 import { ui } from '@/components/ui';
 import { siteOrigin } from '@/lib/siteUrl';
+import { validateRoster } from '@tournament/core';
+import { rosterOf } from '@/lib/teams/roster';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +64,9 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   const myTeam = teams.find((x) => x.id === me.team.id);
   const byRole = (r: 'mixed1' | 'mixed2' | 'woman') => myTeam?.players.find((p) => p.role === r)?.name ?? '';
   const rosterLocked = me.tournament.status !== 'setup';
+  // A team entered before roles existed has no mixed1/mixed2/woman, so the three pair lines would
+  // read "Mixed #1:  &". Say so plainly instead; only the organiser can repair it once locked.
+  const rosterComplete = myTeam !== undefined && validateRoster(rosterOf(myTeam)).ok;
 
   async function save(formData: FormData) {
     'use server';
@@ -107,11 +112,15 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
         {rosterLocked ? (
           <>
             <p className={ui.help}>The draw is locked, so players can&apos;t change. Ask the organiser if someone is injured.</p>
-            <ul className="mt-3 space-y-1 text-base">
-              <li><span className="text-slate-500">Mixed #1:</span> {byRole('mixed1')} &amp; {byRole('woman')}</li>
-              <li><span className="text-slate-500">Mixed #2:</span> {byRole('mixed2')} &amp; {byRole('woman')}</li>
-              <li><span className="text-slate-500">Men&apos;s doubles:</span> {byRole('mixed1')} &amp; {byRole('mixed2')}</li>
-            </ul>
+            {rosterComplete ? (
+              <ul className="mt-3 space-y-1 text-base">
+                <li><span className="text-slate-500">Mixed #1:</span> {byRole('mixed1')} &amp; {byRole('woman')}</li>
+                <li><span className="text-slate-500">Mixed #2:</span> {byRole('mixed2')} &amp; {byRole('woman')}</li>
+                <li><span className="text-slate-500">Men&apos;s doubles:</span> {byRole('mixed1')} &amp; {byRole('mixed2')}</li>
+              </ul>
+            ) : (
+              <p className="mt-3 text-base">Your team was entered before players were split into mixed and men&apos;s doubles pairs. Ask the organiser to re-enter your three players.</p>
+            )}
           </>
         ) : (
           <>
