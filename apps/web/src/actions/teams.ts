@@ -6,6 +6,57 @@ import { listMatches } from '@/lib/db/queries';
 import type { MatchRow } from '@/lib/db/types';
 import { revalidateTournament } from './revalidate';
 import { awardMatch } from './matches';
+import { parseRosterForm, rosterErrorMessage } from '@/lib/teams/roster';
+
+/** One team with its three players, written atomically by admin_add_team. */
+export async function addTeam(slug: string, formData: FormData): Promise<ActionResult<{ teamId: string }>> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Teams can only be added during setup');
+  const name = String(formData.get('name') ?? '').trim();
+  if (name.length < 1 || name.length > 40) return fail('invalid_input', 'Team name must be 1-40 characters');
+  const roster = parseRosterForm(formData);
+  if (!roster.ok) return fail('invalid_input', roster.problems.join('; '));
+  const res = await ctx.sb.rpc('admin_add_team', { p_tournament: ctx.tournament.id, p_name: name, p_mixed1: roster.value.mixed1, p_mixed2: roster.value.mixed2, p_woman: roster.value.woman });
+  if (res.error) return fail(res.error.code === '42501' ? 'not_admin' : 'invalid_input', rosterErrorMessage(res.error.message));
+  revalidateTournament(slug);
+  return ok({ teamId: String(res.data) });
+}
+
+/** Rewrites a team's three players (organiser). */
+export async function setRoster(slug: string, teamId: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Rosters are locked once the pools are');
+  const roster = parseRosterForm(formData);
+  if (!roster.ok) return fail('invalid_input', roster.problems.join('; '));
+  const res = await ctx.sb.rpc('admin_set_roster', { p_team: teamId, p_mixed1: roster.value.mixed1, p_mixed2: roster.value.mixed2, p_woman: roster.value.woman });
+  if (res.error) return fail(res.error.code === '42501' ? 'not_admin' : 'invalid_input', rosterErrorMessage(res.error.message));
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+export async function setSignupOpen(slug: string, open: boolean): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (open && ctx.tournament.status !== 'setup') return fail('stale_state', 'Sign-ups can only be open during setup');
+  const upd = await ctx.sb.from('tournaments').update({ signup_open: open }).eq('id', ctx.tournament.id);
+  if (upd.error) return fail('invalid_input', upd.error.message);
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/** Blank clears the code. */
+export async function setJoinCode(slug: string, code: string): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  const trimmed = code.trim();
+  if (trimmed !== '' && (trimmed.length < 3 || trimmed.length > 30)) return fail('invalid_input', 'Join code must be 3-30 characters, or blank for none');
+  const upd = await ctx.sb.from('tournaments').update({ join_code: trimmed === '' ? null : trimmed }).eq('id', ctx.tournament.id);
+  if (upd.error) return fail('invalid_input', upd.error.message);
+  revalidateTournament(slug);
+  return ok(undefined);
+}
 
 export async function setSeed(slug: string, teamId: string, seed: number | null): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);

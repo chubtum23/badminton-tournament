@@ -7,6 +7,8 @@ import { revalidateTournament } from './revalidate';
 import { settingsFor } from '@/lib/db/mappers';
 import { gamesFromForm } from '@/lib/results/form';
 import { applySubmission, type SubmissionOutcome } from '@/lib/submissions/applySubmission';
+import { parseRosterForm, rosterErrorMessage, rosterOf } from '@/lib/teams/roster';
+import { listTeamsWithPlayers } from '@/lib/db/queries';
 
 export async function updateMyTeam(slug: string, formData: FormData): Promise<ActionResult> {
   const me = await currentParticipant(slug);
@@ -22,6 +24,36 @@ export async function updateMyTeam(slug: string, formData: FormData): Promise<Ac
     return fail('stale_state', 'Could not save; try again');
   }
   if ((upd.data ?? []).length === 0) return fail('stale_state', 'Team not found');
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/** A team edits its own three players until the pools lock. */
+export async function updateMyRoster(slug: string, formData: FormData): Promise<ActionResult> {
+  const me = await currentParticipant(slug);
+  if (!me) return fail('not_participant', 'Open your team link again to edit your team');
+  if (me.tournament.status !== 'setup') return fail('stale_state', 'The draw is locked, so players cannot change. Ask the organiser if someone is injured.');
+  const roster = parseRosterForm(formData);
+  if (!roster.ok) return fail('invalid_input', roster.problems.join('; '));
+  const sb = createServiceSupabase();
+  const res = await sb.rpc('write_roster', { p_team: me.team.id, p_mixed1: roster.value.mixed1, p_mixed2: roster.value.mixed2, p_woman: roster.value.woman });
+  if (res.error) return fail('invalid_input', rosterErrorMessage(res.error.message));
+  revalidateTournament(slug);
+  return ok(undefined);
+}
+
+/** Swaps which man plays Mixed #1; the men's doubles pair is unchanged. */
+export async function swapMixed(slug: string): Promise<ActionResult> {
+  const me = await currentParticipant(slug);
+  if (!me) return fail('not_participant', 'Open your team link again to edit your team');
+  if (me.tournament.status !== 'setup') return fail('stale_state', 'The draw is locked, so players cannot change. Ask the organiser if someone is injured.');
+  const sb = createServiceSupabase();
+  const team = (await listTeamsWithPlayers(sb, me.tournament.id)).find((t) => t.id === me.team.id);
+  const players = team ? rosterOf(team) : [];
+  const by = (role: 'mixed1' | 'mixed2' | 'woman') => players.find((p) => p.role === role)?.name;
+  if (!by('mixed1') || !by('mixed2') || !by('woman')) return fail('invalid_input', 'Fill in all three players first');
+  const res = await sb.rpc('write_roster', { p_team: me.team.id, p_mixed1: by('mixed2'), p_mixed2: by('mixed1'), p_woman: by('woman') });
+  if (res.error) return fail('invalid_input', rosterErrorMessage(res.error.message));
   revalidateTournament(slug);
   return ok(undefined);
 }

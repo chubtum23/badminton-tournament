@@ -1,11 +1,17 @@
 import { redirect } from 'next/navigation';
-import { deleteTeam, regenerateToken, reinstateTeam, setSeed, withdrawTeam } from '@/actions/teams';
+import { addTeam, deleteTeam, regenerateToken, reinstateTeam, setSeed, withdrawTeam } from '@/actions/teams';
 import type { TeamWithPlayers } from '@/lib/db/queries';
 import { SubmitButton } from './SubmitButton';
 
 export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
   slug: string; teams: TeamWithPlayers[]; tokens: Record<string, string>; locked: boolean; baseUrl: string;
 }) {
+  // Temporary form: Task 7 rewrites this component with the real add-team UI.
+  async function add(formData: FormData) {
+    'use server';
+    const r = await addTeam(slug, formData);
+    redirect(`/admin/${slug}?msg=${encodeURIComponent(r.ok ? 'Team added' : r.message ?? r.error)}`);
+  }
   async function seed(formData: FormData) {
     'use server';
     const raw = String(formData.get('seed') ?? '').trim();
@@ -36,6 +42,15 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
   return (
     <section className="rounded border bg-white p-4 space-y-4">
       <h2 className="font-semibold">Teams ({teams.length})</h2>
+      {!locked && (
+        <form action={add} className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="flex flex-col">Name<input name="name" className="rounded border p-1" /></label>
+          <label className="flex flex-col">Mixed #1<input name="mixed1" className="rounded border p-1" /></label>
+          <label className="flex flex-col">Mixed #2<input name="mixed2" className="rounded border p-1" /></label>
+          <label className="flex flex-col">Woman<input name="woman" className="rounded border p-1" /></label>
+          <SubmitButton className="rounded border px-2 py-1">Add team</SubmitButton>
+        </form>
+      )}
       <table className="w-full text-sm">
         <thead><tr className="text-left text-slate-500"><th>Team</th><th>Players</th><th>Seed</th><th>Private link</th><th></th></tr></thead>
         <tbody>

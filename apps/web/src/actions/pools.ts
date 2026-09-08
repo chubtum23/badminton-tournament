@@ -4,10 +4,12 @@ import { randomUUID } from 'node:crypto';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { planLock, planPools } from '@/lib/pools/plan';
-import { listMatches, listPools, listTeams } from '@/lib/db/queries';
+import { listMatches, listPools, listTeams, listTeamsWithPlayers } from '@/lib/db/queries';
 import type { MatchRow } from '@/lib/db/types';
 import { matchToRow, settingsFor, slotRowsFor } from '@/lib/db/mappers';
 import { revalidateTournament } from './revalidate';
+import { validateRoster } from '@tournament/core';
+import { rosterOf } from '@/lib/teams/roster';
 
 export async function generatePools(slug: string, poolCount: number): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
@@ -55,7 +57,7 @@ export async function lockPools(slug: string): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Already locked');
-  const [pools, teams] = await Promise.all([listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id)]);
+  const [pools, teams] = await Promise.all([listPools(ctx.sb, ctx.tournament.id), listTeamsWithPlayers(ctx.sb, ctx.tournament.id)]);
   if (pools.length === 0) return fail('invalid_input', 'Generate pools first');
   const unassigned = teams.filter((t) => t.pool_id === null);
   if (unassigned.length) return fail('invalid_input', `${unassigned.length} team(s) not in a pool`);
@@ -64,13 +66,16 @@ export async function lockPools(slug: string): Promise<ActionResult> {
   if (tooSmall.length) return fail('invalid_input', 'Every pool needs at least 2 teams');
   const fewerThanAdvance = grouped.filter((g) => g.teamIds.length < ctx.tournament.advance_per_pool);
   if (fewerThanAdvance.length) return fail('invalid_input', `Every pool needs at least ${ctx.tournament.advance_per_pool} teams because ${ctx.tournament.advance_per_pool} advance from each pool`);
+  // Every meeting names the pair on court, so a team without its three players cannot be drawn.
+  const incomplete = teams.filter((t) => !t.withdrawn && !validateRoster(rosterOf(t)).ok).map((t) => t.name);
+  if (incomplete.length) return fail('incomplete_roster', `These teams do not have two men and one woman yet: ${incomplete.join(', ')}`);
   if (pools.every((p) => p.locked === true)) return fail('stale_state', 'Pools were already locked');
 
   // Claim the setup -> pools transition first (and verify a row was actually
   // affected) so a racing or retried lock request can't pass the earlier
   // `status === 'setup'` guard twice and insert a second set of matches:
   // Supabase returns no error when an update's filter matches zero rows.
-  const claim = await ctx.sb.from('tournaments').update({ status: 'pools' })
+  const claim = await ctx.sb.from('tournaments').update({ status: 'pools', signup_open: false })
     .eq('id', ctx.tournament.id).eq('status', 'setup').select('id');
   if (claim.error) return fail('invalid_input', claim.error.message);
   if ((claim.data ?? []).length === 0) return fail('stale_state', 'Pools were already locked');
