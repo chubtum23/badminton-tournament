@@ -24,4 +24,11 @@ describe('overallLeaderboard', () => {
     expect(out.map((r) => r.teamId)).toEqual(['v', 'w']);
     expect(out[1]!.points).toBe(3);
   });
+  it('never lets a withdrawn team share a rank with an active one, but two withdrawn teams can tie', () => {
+    const out = overallLeaderboard([{ poolName: 'A', rows: [row('a', 2, 4, 1), row('w1', 2, 4, 1), row('w2', 2, 4, 1)] }], ['w1', 'w2']);
+    expect(out.map((r) => [r.teamId, r.overallRank])).toEqual([['a', 1], ['w1', 2], ['w2', 2]]);
+  });
+  it('returns an empty table for no pools', () => {
+    expect(overallLeaderboard([])).toEqual([]);
+  });
 });

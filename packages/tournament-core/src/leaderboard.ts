@@ -27,13 +27,14 @@ export function overallLeaderboard(
   const active = all.filter((r) => !withdrawn.has(r.teamId)).sort(compare);
   const out = all.filter((r) => withdrawn.has(r.teamId)).sort(compare);
   // Dense ranks compare the numeric keys only: two teams level on everything share a number even
-  // though `compare` breaks their order by name. A withdrawn team never shares a rank.
+  // though `compare` breaks their order by name. A withdrawn team can only share one with another
+  // withdrawn team: the active/withdrawn boundary always starts a new rank.
   const sameKey = (p: StandingRow, q: StandingRow) => key(p).every((v, n) => v === key(q)[n]);
   const ranked: LeaderboardRow[] = [];
   let rank = 0;
   for (const [i, r] of [...active, ...out].entries()) {
     const prev = ranked[i - 1];
-    const same = prev !== undefined && sameKey(prev, r) && !withdrawn.has(r.teamId) && !withdrawn.has(prev.teamId);
+    const same = prev !== undefined && sameKey(prev, r) && withdrawn.has(r.teamId) === withdrawn.has(prev.teamId);
     if (!same) rank += 1;
     ranked.push({ ...r, overallRank: rank });
   }
