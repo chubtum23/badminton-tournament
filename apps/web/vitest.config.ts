@@ -18,6 +18,11 @@ export default defineConfig({
     testTimeout: 20000,
   },
   resolve: {
-    alias: { '@': path.resolve(__dirname, 'src') },
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+      // `server-only` throws unless it is resolved under the react-server condition, which Vitest
+      // does not set. Point it at the package's own empty module so server helpers stay testable.
+      'server-only': path.resolve(__dirname, '../../node_modules/server-only/empty.js'),
+    },
   },
 });

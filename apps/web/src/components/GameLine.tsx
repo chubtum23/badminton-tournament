@@ -113,11 +113,11 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
             className="flex items-center gap-1 text-xs"
           >
             <label className="sr-only" htmlFor={`court-${match.id}-${slot.game_no}`}>Court for {label}</label>
-            <select id={`court-${match.id}-${slot.game_no}`} name="court" defaultValue="" className="rounded border p-1">
+            <select id={`court-${match.id}-${slot.game_no}`} name="court" defaultValue="" className="rounded border p-2">
               <option value="">first free</option>
               {Array.from({ length: tournament.court_count }, (_, i) => i + 1).map((c) => <option key={c} value={c}>Court {c}</option>)}
             </select>
-            <SubmitButton className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">Start now</SubmitButton>
+            <SubmitButton className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Start now</SubmitButton>
           </form>
         )}
       </div>

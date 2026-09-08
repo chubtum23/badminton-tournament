@@ -9,18 +9,33 @@ function must<T>(res: { data: T | null; error: { message: string } | null }, wha
   return res.data;
 }
 
-// Cached per request: `createServerSupabase` is itself request-cached, so the admin layout and the
-// page rendered inside it pass the same client instance and share one round trip per query.
+/**
+ * The caching rule for this file.
+ *
+ * `cache()` memoises per request. `createServerSupabase` is itself request-cached, so the admin
+ * layout and the page rendered inside it pass the same client instance and share one round trip —
+ * that is the win, and it is safe for a table nothing writes before reading it again.
+ *
+ * It is NOT safe for anything a server action re-reads after writing: within one request the
+ * memoised call returns the pre-write rows, so the action decides against state that no longer
+ * exists. `games`, `matches` and `score_submissions` are all read again after a write (see
+ * `syncMatchStatus`, `saveGameScore` and `applySubmission`'s retry), so those three queries are
+ * deliberately uncached. Do not wrap them without re-checking every caller in `src/actions`.
+ */
+
+// Cached: nothing writes `tournaments` and then re-reads it through this in the same request.
 export const getTournamentBySlug = cache(async (sb: SupabaseClient, slug: string): Promise<TournamentRow | null> => {
   const res = await sb.from('tournaments').select(TOURNAMENT_PUBLIC_COLUMNS).eq('slug', slug).maybeSingle();
   if (res.error) throw new Error(`tournament: ${res.error.message}`);
   return (res.data as TournamentRow | null) ?? null;
 });
 
+// Cached: `pools` is written by generatePools/lockPools/unlockPools, none of which read it back.
 export const listPools = cache(async (sb: SupabaseClient, tournamentId: string): Promise<PoolRow[]> => {
   return must(await sb.from('pools').select('*').eq('tournament_id', tournamentId).order('position'), 'pools') as PoolRow[];
 });
 
+// Cached: every action that writes `teams` reads it first and never again in the same request.
 export const listTeams = cache(async (sb: SupabaseClient, tournamentId: string): Promise<TeamRow[]> => {
   return must(
     await sb.from('teams').select(TEAM_PUBLIC_COLUMNS).eq('tournament_id', tournamentId).order('pool_order').order('name'),
@@ -28,7 +43,9 @@ export const listTeams = cache(async (sb: SupabaseClient, tournamentId: string):
   ) as TeamRow[];
 });
 
-export const listMatches = cache(async (sb: SupabaseClient, tournamentId: string): Promise<MatchRow[]> => {
+// NOT cached: `withdrawTeam` forfeits one match after another through `awardMatch`, and
+// `applySubmission` re-reads after losing a race — both would see pre-write rows.
+export async function listMatches(sb: SupabaseClient, tournamentId: string): Promise<MatchRow[]> {
   return must(
     // stage descending because 'pool' > 'knockout' alphabetically and pool matches come first
     // chronologically; pool rows have a null round, so nullsFirst keeps them ahead of round 1.
@@ -36,9 +53,12 @@ export const listMatches = cache(async (sb: SupabaseClient, tournamentId: string
       .order('stage', { ascending: false }).order('round', { nullsFirst: true }).order('slot'),
     'matches',
   ) as MatchRow[];
-});
+}
 
-export const listGames = cache(async (sb: SupabaseClient, tournamentId: string): Promise<GameRow[]> => {
+// NOT cached: `startGame`, `takeGameOffCourt`, `saveGameScore` and `clearGameScore` all write a
+// game row and then read the meeting's games back (directly or through `syncMatchStatus`) to decide
+// the match status. Memoising this makes them decide from the rows as they were before the write.
+export async function listGames(sb: SupabaseClient, tournamentId: string): Promise<GameRow[]> {
   // games has no tournament_id; join through matches
   const res = await sb
     .from('games')
@@ -48,7 +68,7 @@ export const listGames = cache(async (sb: SupabaseClient, tournamentId: string):
   return rows.map(({ match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms }) => ({
     match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms,
   }));
-});
+}
 
 /**
  * Every game row of a match in game order, unplayed slots included — this is what the schedule and
@@ -65,6 +85,7 @@ export interface TeamWithPlayers extends TeamRow {
   players: RosterPlayerRow[];
 }
 
+// Cached: rosters are written by rpc and never read back in the same request.
 export const listTeamsWithPlayers = cache(async (sb: SupabaseClient, tournamentId: string): Promise<TeamWithPlayers[]> => {
   const teams = await listTeams(sb, tournamentId);
   if (teams.length === 0) return [];
@@ -77,7 +98,8 @@ export const listTeamsWithPlayers = cache(async (sb: SupabaseClient, tournamentI
   return teams.map((t) => ({ ...t, players: byTeam.get(t.id) ?? [] }));
 });
 
-export const listSubmissions = cache(async (sb: SupabaseClient, tournamentId: string): Promise<SubmissionRow[]> => {
+// NOT cached: `applySubmission` inserts a submission and, on a lost race, re-reads to judge again.
+export async function listSubmissions(sb: SupabaseClient, tournamentId: string): Promise<SubmissionRow[]> {
   const res = await sb
     .from('score_submissions')
     .select('id, match_id, submitted_by, games, created_at, matches!inner(tournament_id)')
@@ -85,7 +107,7 @@ export const listSubmissions = cache(async (sb: SupabaseClient, tournamentId: st
     .order('created_at', { ascending: false });
   const rows = must(res, 'submissions') as unknown as Array<SubmissionRow & { matches: unknown }>;
   return rows.map(({ id, match_id, submitted_by, games, created_at }) => ({ id, match_id, submitted_by, games, created_at }));
-});
+}
 
 export type LatestSubmissions = Record<string, { a?: SubmissionRow; b?: SubmissionRow }>;
 
@@ -100,6 +122,7 @@ export function latestByMatch(rows: readonly SubmissionRow[]): LatestSubmissions
   return out;
 }
 
+// Cached: announcements are only ever written and then revalidated, never re-read in the request.
 export const listAnnouncements = cache(async (sb: SupabaseClient, tournamentId: string): Promise<AnnouncementRow[]> => {
   return must(
     await sb.from('announcements').select('*').eq('tournament_id', tournamentId)

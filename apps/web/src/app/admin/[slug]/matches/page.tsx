@@ -103,9 +103,9 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
           ))}
         </section>
       )}
-      <nav className="flex flex-wrap gap-2">
+      <nav aria-label="Filter by pool" className="flex flex-wrap gap-2">
         {tabsList.map(([key, name]) => (
-          <a key={key} href={`/admin/${slug}/matches?pool=${key}`} className={`rounded-lg px-4 py-2 text-base font-medium ${key === poolFilter ? 'bg-slate-900 text-white' : 'border bg-white'}`}>{name}</a>
+          <a key={key} href={`/admin/${slug}/matches?pool=${key}`} aria-current={key === poolFilter ? 'page' : undefined} className={`rounded-lg px-4 py-2 text-base font-medium ${key === poolFilter ? 'bg-slate-900 text-white' : 'border bg-white'}`}>{name}</a>
         ))}
       </nav>
       <section>

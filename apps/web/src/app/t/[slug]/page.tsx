@@ -64,13 +64,16 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
         <h2 className="mb-2 font-semibold">Up next</h2>
         {board.upNext.length === 0 ? <p className="text-sm text-slate-500">Nothing queued.</p> : (
           <ul className="space-y-1 rounded border bg-white p-3 text-sm">
-            {board.upNext.map((g) => (
-              <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="flex flex-wrap items-baseline gap-2">
-                <span className="text-xs text-slate-500">{label(g.match)} · {g.label}</span>
-                <span>{nameOf(g.match.teamAId)} v {nameOf(g.match.teamBId)}</span>
-                {pairLine(g.match, g.slot.game_no) && <span className="block w-full text-xs text-slate-500">{pairLine(g.match, g.slot.game_no)}</span>}
-              </li>
-            ))}
+            {board.upNext.map((g) => {
+              const pairs = pairLine(g.match, g.slot.game_no);
+              return (
+                <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-xs text-slate-500">{label(g.match)} · {g.label}</span>
+                  <span>{nameOf(g.match.teamAId)} v {nameOf(g.match.teamBId)}</span>
+                  {pairs && <span className="block w-full text-xs text-slate-500">{pairs}</span>}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
