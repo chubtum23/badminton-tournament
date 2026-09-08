@@ -71,7 +71,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     <div className="space-y-4">
       <FlashMessage />
       {t.status === 'setup' && <p className="text-sm text-slate-500">Lock the pools first.</p>}
-      <Bracket matches={matches} teams={teams} games={games} slots={gameSlotsByMatch(gameRows)} hrefFor={() => `/admin/${slug}/matches?filter=all`} />
+      <Bracket matches={matches} teams={teams} games={games} slots={gameSlotsByMatch(gameRows)} hrefFor={() => `/admin/${slug}/matches?pool=all`} />
       {t.status === 'finished' && <p className="rounded bg-amber-50 p-3 text-sm">Tournament finished. Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}</p>}
       {replaceable.length > 0 && (
         <section className="rounded border bg-white p-4 text-sm">

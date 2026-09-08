@@ -2,13 +2,17 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Match, Settings } from '@tournament/core';
-import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
+import type { GameRow, RosterPlayerRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import { gameLabel } from '@/lib/db/mappers';
+import { pairNames } from '@/lib/teams/roster';
 import type { ActionResult } from '@/actions/errors';
 import { clearGameScore, pauseGame, resumeGame, saveGameScore, startGame, takeGameOffCourt } from '@/actions/games';
 import { CourtClock } from './CourtClock';
 import { GameScoreForm } from './GameScoreForm';
 import { SubmitButton } from './SubmitButton';
+
+/** A team as the schedule screens have it: the roster is present on the pages that loaded it. */
+export type TeamMaybeRoster = TeamRow & { players?: RosterPlayerRow[] };
 
 /**
  * One game of a meeting: its label and, once it has been played, its score — otherwise the court
@@ -23,7 +27,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   match: Match;
   slot: GameRow;
   settings: Settings;
-  teams: readonly TeamRow[];
+  teams: readonly TeamMaybeRoster[];
   /** Render the organiser's controls. False on every public page. */
   admin: boolean;
   /** Also print the meeting's two team names, for the Now playing box. */
@@ -35,6 +39,12 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   const label = gameLabel(tournament, slot.game_no);
   const nameOf = (id: string | null) => (id ? teams.find((x) => x.id === id)?.name ?? '?' : 'TBD');
   const a = nameOf(match.teamAId), b = nameOf(match.teamBId);
+  // The two players of that team who play this game number, once the roster is loaded and complete.
+  const pairOf = (id: string | null) => {
+    const team = id ? teams.find((x) => x.id === id) : undefined;
+    return team?.players ? pairNames({ players: team.players }, slot.game_no) : null;
+  };
+  const pairA = pairOf(match.teamAId), pairB = pairOf(match.teamBId);
   const scored = slot.score_a !== null && slot.score_b !== null;
   const running = slot.started_at !== null && !scored;
 
@@ -49,7 +59,10 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   return (
     <div className="border-t py-1 text-sm first:border-t-0">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-slate-600">{label}</span>
+        <span className="min-w-[9rem]">
+          <span className="block text-sm font-semibold text-slate-800">{label}</span>
+          {(pairA || pairB) && <span data-testid="pair-names" className="block text-xs text-slate-500">{pairA ?? '—'} · {pairB ?? '—'}</span>}
+        </span>
         {showTeams && <span className="truncate">{a} v {b}</span>}
         {scored && (
           <>
@@ -104,7 +117,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               <option value="">first free</option>
               {Array.from({ length: tournament.court_count }, (_, i) => i + 1).map((c) => <option key={c} value={c}>Court {c}</option>)}
             </select>
-            <SubmitButton className="rounded border px-2 py-0.5">Start now</SubmitButton>
+            <SubmitButton className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">Start now</SubmitButton>
           </form>
         )}
       </div>

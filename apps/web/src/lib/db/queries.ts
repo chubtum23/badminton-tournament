@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AnnouncementRow, GameRow, MatchRow, PoolRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
 import { TEAM_PUBLIC_COLUMNS, TOURNAMENT_PUBLIC_COLUMNS } from './types';
@@ -8,24 +9,26 @@ function must<T>(res: { data: T | null; error: { message: string } | null }, wha
   return res.data;
 }
 
-export async function getTournamentBySlug(sb: SupabaseClient, slug: string): Promise<TournamentRow | null> {
+// Cached per request: `createServerSupabase` is itself request-cached, so the admin layout and the
+// page rendered inside it pass the same client instance and share one round trip per query.
+export const getTournamentBySlug = cache(async (sb: SupabaseClient, slug: string): Promise<TournamentRow | null> => {
   const res = await sb.from('tournaments').select(TOURNAMENT_PUBLIC_COLUMNS).eq('slug', slug).maybeSingle();
   if (res.error) throw new Error(`tournament: ${res.error.message}`);
   return (res.data as TournamentRow | null) ?? null;
-}
+});
 
-export async function listPools(sb: SupabaseClient, tournamentId: string): Promise<PoolRow[]> {
+export const listPools = cache(async (sb: SupabaseClient, tournamentId: string): Promise<PoolRow[]> => {
   return must(await sb.from('pools').select('*').eq('tournament_id', tournamentId).order('position'), 'pools') as PoolRow[];
-}
+});
 
-export async function listTeams(sb: SupabaseClient, tournamentId: string): Promise<TeamRow[]> {
+export const listTeams = cache(async (sb: SupabaseClient, tournamentId: string): Promise<TeamRow[]> => {
   return must(
     await sb.from('teams').select(TEAM_PUBLIC_COLUMNS).eq('tournament_id', tournamentId).order('pool_order').order('name'),
     'teams',
   ) as TeamRow[];
-}
+});
 
-export async function listMatches(sb: SupabaseClient, tournamentId: string): Promise<MatchRow[]> {
+export const listMatches = cache(async (sb: SupabaseClient, tournamentId: string): Promise<MatchRow[]> => {
   return must(
     // stage descending because 'pool' > 'knockout' alphabetically and pool matches come first
     // chronologically; pool rows have a null round, so nullsFirst keeps them ahead of round 1.
@@ -33,9 +36,9 @@ export async function listMatches(sb: SupabaseClient, tournamentId: string): Pro
       .order('stage', { ascending: false }).order('round', { nullsFirst: true }).order('slot'),
     'matches',
   ) as MatchRow[];
-}
+});
 
-export async function listGames(sb: SupabaseClient, tournamentId: string): Promise<GameRow[]> {
+export const listGames = cache(async (sb: SupabaseClient, tournamentId: string): Promise<GameRow[]> => {
   // games has no tournament_id; join through matches
   const res = await sb
     .from('games')
@@ -45,7 +48,7 @@ export async function listGames(sb: SupabaseClient, tournamentId: string): Promi
   return rows.map(({ match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms }) => ({
     match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms,
   }));
-}
+});
 
 /**
  * Every game row of a match in game order, unplayed slots included — this is what the schedule and
@@ -62,7 +65,7 @@ export interface TeamWithPlayers extends TeamRow {
   players: RosterPlayerRow[];
 }
 
-export async function listTeamsWithPlayers(sb: SupabaseClient, tournamentId: string): Promise<TeamWithPlayers[]> {
+export const listTeamsWithPlayers = cache(async (sb: SupabaseClient, tournamentId: string): Promise<TeamWithPlayers[]> => {
   const teams = await listTeams(sb, tournamentId);
   if (teams.length === 0) return [];
   const links = must(
@@ -72,9 +75,9 @@ export async function listTeamsWithPlayers(sb: SupabaseClient, tournamentId: str
   const byTeam = new Map<string, RosterPlayerRow[]>();
   for (const l of links) if (l.players) (byTeam.get(l.team_id) ?? byTeam.set(l.team_id, []).get(l.team_id)!).push({ ...l.players, role: l.role });
   return teams.map((t) => ({ ...t, players: byTeam.get(t.id) ?? [] }));
-}
+});
 
-export async function listSubmissions(sb: SupabaseClient, tournamentId: string): Promise<SubmissionRow[]> {
+export const listSubmissions = cache(async (sb: SupabaseClient, tournamentId: string): Promise<SubmissionRow[]> => {
   const res = await sb
     .from('score_submissions')
     .select('id, match_id, submitted_by, games, created_at, matches!inner(tournament_id)')
@@ -82,7 +85,7 @@ export async function listSubmissions(sb: SupabaseClient, tournamentId: string):
     .order('created_at', { ascending: false });
   const rows = must(res, 'submissions') as unknown as Array<SubmissionRow & { matches: unknown }>;
   return rows.map(({ id, match_id, submitted_by, games, created_at }) => ({ id, match_id, submitted_by, games, created_at }));
-}
+});
 
 export type LatestSubmissions = Record<string, { a?: SubmissionRow; b?: SubmissionRow }>;
 
@@ -97,13 +100,13 @@ export function latestByMatch(rows: readonly SubmissionRow[]): LatestSubmissions
   return out;
 }
 
-export async function listAnnouncements(sb: SupabaseClient, tournamentId: string): Promise<AnnouncementRow[]> {
+export const listAnnouncements = cache(async (sb: SupabaseClient, tournamentId: string): Promise<AnnouncementRow[]> => {
   return must(
     await sb.from('announcements').select('*').eq('tournament_id', tournamentId)
       .order('pinned', { ascending: false }).order('created_at', { ascending: false }),
     'announcements',
   ) as AnnouncementRow[];
-}
+});
 
 export interface TournamentBundle {
   tournament: TournamentRow;

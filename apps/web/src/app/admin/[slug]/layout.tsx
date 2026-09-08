@@ -19,8 +19,9 @@ export default async function AdminLayout({ children, params }: { children: Reac
   const [teams, matches, games] = await Promise.all([listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id)]);
   const final = matches.find((m) => m.stage === 'knockout' && m.next_match_id === null);
   const line = statusLine({
-    status: t.status, startsAt: t.starts_at, venue: t.venue, rules: '', teamCount: teams.length, completeCount: 0, signupOpen: t.signup_open,
-    poolCount: 0, meetingCount: 0, liveCount: games.filter((g) => g.started_at !== null && g.score_a === null).length,
+    status: t.status,
+    teamCount: teams.length,
+    liveCount: games.filter((g) => g.started_at !== null && g.score_a === null).length,
     championName: teams.find((x) => x.id === final?.winner_id)?.name ?? null,
   });
   return (

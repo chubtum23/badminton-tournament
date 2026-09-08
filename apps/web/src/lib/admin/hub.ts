@@ -35,7 +35,7 @@ export function hubTiles(i: HubInput): HubTile[] {
   ];
 }
 
-export function statusLine(i: HubInput): string {
+export function statusLine(i: Pick<HubInput, 'status' | 'teamCount' | 'liveCount' | 'championName'>): string {
   const onCourt = i.liveCount === 0 ? 'no game on court' : `${i.liveCount} game${i.liveCount === 1 ? '' : 's'} on court`;
   switch (i.status) {
     case 'setup': return `Setup · ${i.teamCount} team${i.teamCount === 1 ? '' : 's'} signed up`;

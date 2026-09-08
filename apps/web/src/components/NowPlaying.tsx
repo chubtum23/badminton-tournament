@@ -1,7 +1,7 @@
 import type { Match, Settings } from '@tournament/core';
-import type { TeamRow, TournamentRow } from '@/lib/db/types';
+import type { TournamentRow } from '@/lib/db/types';
 import type { ScheduledGame } from '@/lib/schedule/board';
-import { GameLine } from './GameLine';
+import { GameLine, type TeamMaybeRoster } from './GameLine';
 
 /**
  * The games on court right now, at the top of the organiser's Matches screen and of the public
@@ -11,7 +11,7 @@ import { GameLine } from './GameLine';
 export function NowPlaying({ tournament, games, teams, settings, admin = false }: {
   tournament: TournamentRow;
   games: readonly ScheduledGame[];
-  teams: readonly TeamRow[];
+  teams: readonly TeamMaybeRoster[];
   /** The rules for one game's stage; a resolver because the board can mix stages. */
   settings: (match: Match) => Settings;
   /** Render the organiser's court, clock and score controls. */

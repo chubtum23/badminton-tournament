@@ -3,6 +3,7 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { gameSlotsByMatch, loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { scheduleBoard } from '@/lib/schedule/board';
+import { pairNames } from '@/lib/teams/roster';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
 import { NowPlaying } from '@/components/NowPlaying';
 
@@ -39,6 +40,12 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
     .slice(0, 6)
     .map(rowToMatch);
   const nameOf = (id: string | null) => (id ? teams.find((x) => x.id === id)?.name ?? '?' : 'TBD');
+  // "Alex & Priya · Sam & Jo" for the pair each side fields in that game; null until both rosters are set.
+  const pairLine = (m: typeof matches[number], gameNo: number) => {
+    const a = teams.find((x) => x.id === m.teamAId), b = teams.find((x) => x.id === m.teamBId);
+    const pa = a ? pairNames(a, gameNo) : null, pb = b ? pairNames(b, gameNo) : null;
+    return pa || pb ? `${pa ?? '—'} · ${pb ?? '—'}` : null;
+  };
 
   return (
     <div className="space-y-6">
@@ -61,6 +68,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
               <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="flex flex-wrap items-baseline gap-2">
                 <span className="text-xs text-slate-500">{label(g.match)} · {g.label}</span>
                 <span>{nameOf(g.match.teamAId)} v {nameOf(g.match.teamBId)}</span>
+                {pairLine(g.match, g.slot.game_no) && <span className="block w-full text-xs text-slate-500">{pairLine(g.match, g.slot.game_no)}</span>}
               </li>
             ))}
           </ul>
