@@ -19,3 +19,32 @@ body { @apply bg-slate-50 text-slate-900; }
 .bk-round:not(:first-child) .bk-box::before {
   content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
 }
+
+/* Draw tree: the whole event on one screen, pools on the outside feeding a knockout in the
+   middle. Same trick as the bracket above — every slot is flex:1, so sibling centres are one
+   slot-height apart and a single border draws the join — but the right half is its mirror,
+   with the lines leaving each box's left edge instead of its right. */
+.dt-round { display: flex; flex-direction: column; min-width: 12rem; }
+.dt-slots { display: flex; flex-direction: column; flex: 1; }
+.dt-slot { position: relative; flex: 1; display: flex; align-items: center; padding: 0.5rem 0; }
+.dt-box { position: relative; width: 100%; }
+
+.dt-l .dt-round:not(:last-child) .dt-slot::after {
+  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+}
+.dt-l .dt-round:not(:last-child) .dt-slot:nth-child(odd)::before {
+  content: ''; position: absolute; right: -1rem; top: 50%; height: 100%; border-right: 2px solid #1e3a8a;
+}
+.dt-l .dt-round:not(:first-child) .dt-box::before {
+  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+}
+
+.dt-r .dt-round:not(:first-child) .dt-slot::after {
+  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+}
+.dt-r .dt-round:not(:first-child) .dt-slot:nth-child(odd)::before {
+  content: ''; position: absolute; left: -1rem; top: 50%; height: 100%; border-left: 2px solid #1e3a8a;
+}
+.dt-r .dt-round:not(:last-child) .dt-box::before {
+  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+}

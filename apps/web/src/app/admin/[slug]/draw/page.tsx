@@ -3,10 +3,12 @@ import { requireAdmin } from '@/actions/guard';
 import { replaceTeamInMatch, startKnockout } from '@/actions/bracket';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { gameSlotsByMatch, listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
 import { knockoutInput } from '@/lib/bracket/input';
 import { Bracket } from '@/components/Bracket';
+import { DrawTree } from '@/components/DrawTree';
+import { computePool } from '@/lib/standings/compute';
 import { teamName } from '@/components/MatchCard';
 import { FlashMessage } from '@/components/FlashMessage';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -21,6 +23,11 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
   ]);
   const matches = matchRows.map(rowToMatch);
   const games = gamesByMatch(gameRows);
+  const slots = gameSlotsByMatch(gameRows);
+  // The same tables the Standings page shows, so the tree can never disagree with them.
+  const standings = Object.fromEntries(pools.map((p) => [
+    p.id, computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool }).rows,
+  ]));
   const here = `/admin/${slug}/draw`;
 
   async function start() {
@@ -71,7 +78,11 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     <div className="space-y-4">
       <FlashMessage />
       {t.status === 'setup' && <p className="text-sm text-slate-500">Lock the pools first.</p>}
-      <Bracket matches={matches} teams={teams} games={games} slots={gameSlotsByMatch(gameRows)} hrefFor={() => `/admin/${slug}/matches?pool=all`} />
+      {pools.length > 0 && (
+        <DrawTree tournament={t} pools={pools} teams={teams} matches={matches} games={games} slots={slots}
+          standings={standings} settings={settingsFor(t, 'knockout')} />
+      )}
+      <Bracket matches={matches} teams={teams} games={games} slots={slots} hrefFor={() => `/admin/${slug}/matches?pool=all`} />
       {t.status === 'finished' && <p className="rounded bg-amber-50 p-3 text-sm">Tournament finished. Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}</p>}
       {replaceable.length > 0 && (
         <section className="rounded border bg-white p-4 text-sm">
