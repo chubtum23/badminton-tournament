@@ -49,8 +49,12 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     return (
       <div className="space-y-4">
         <FlashMessage />
+        {/* The tree comes first at every stage: through the pool round it is the live picture of
+            the draw, and the knockout half of it fills in as the qualifiers are decided. */}
+        <DrawTree tournament={t} pools={pools} teams={teams} matches={matches} games={games} slots={slots}
+          standings={standings} settings={settingsFor(t, 'knockout')} />
         {'error' in preview ? (
-          <p className="rounded border bg-white p-4 text-sm">Not ready: {preview.error}</p>
+          <p className="rounded border bg-white p-4 text-sm">Not ready to start the knockout: {preview.error}</p>
         ) : (
           <>
             <section className="rounded border bg-white p-4 text-sm">
@@ -61,7 +65,10 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
                 ))}
               </ul>
             </section>
-            <Bracket matches={preview.matches} teams={teams} games={{}} />
+            <details className="rounded border bg-white p-3">
+              <summary className="cursor-pointer text-sm font-semibold">The bracket this would create</summary>
+              <div className="mt-3"><Bracket matches={preview.matches} teams={teams} games={{}} /></div>
+            </details>
             <form action={start}><SubmitButton className="rounded bg-emerald-700 px-4 py-2 text-white">Start knockout with this bracket</SubmitButton></form>
           </>
         )}
