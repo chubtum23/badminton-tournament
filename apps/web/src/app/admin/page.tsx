@@ -5,7 +5,7 @@ import { createTournament } from '@/actions/tournaments';
 import { signOut } from '@/app/login/actions';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
 import { SubmitButton } from '@/components/SubmitButton';
-import type { TournamentRow } from '@/lib/db/types';
+import { TOURNAMENT_PUBLIC_COLUMNS, type TournamentRow } from '@/lib/db/types';
 
 export default async function AdminHome({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -15,7 +15,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const { data: adminRows } = await sb.from('tournament_admins').select('tournament_id');
   const ids = (adminRows ?? []).map((r) => r.tournament_id as string);
   const { data: tournaments } = ids.length
-    ? await sb.from('tournaments').select('*').in('id', ids).order('created_at', { ascending: false })
+    ? await sb.from('tournaments').select(TOURNAMENT_PUBLIC_COLUMNS).in('id', ids).order('created_at', { ascending: false })
     : { data: [] as TournamentRow[] };
 
   return (

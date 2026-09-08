@@ -7,7 +7,7 @@ const pool: PoolRow = { id: 'pA', tournament_id: 't1', name: 'Pool A', position:
 const otherPool: PoolRow = { ...pool, id: 'pB', name: 'Pool B', position: 1 };
 
 const team = (id: string, name: string, over: Partial<TeamRow> = {}): TeamRow => ({
-  id, tournament_id: 't1', name, tagline: '', colour: '#000', seed: null,
+  id, tournament_id: 't1', name, tagline: '', colour: '#000', description: '', seed: null,
   pool_id: 'pA', pool_order: 0, withdrawn: false, pool_rank_override: null, ...over,
 });
 

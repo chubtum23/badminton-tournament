@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AnnouncementRow, GameRow, MatchRow, PlayerRow, PoolRow, SubmissionRow, TeamRow, TournamentRow } from './types';
-import { TEAM_PUBLIC_COLUMNS } from './types';
+import { TEAM_PUBLIC_COLUMNS, TOURNAMENT_PUBLIC_COLUMNS } from './types';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
   if (res.error) throw new Error(`${what}: ${res.error.message}`);
@@ -9,7 +9,7 @@ function must<T>(res: { data: T | null; error: { message: string } | null }, wha
 }
 
 export async function getTournamentBySlug(sb: SupabaseClient, slug: string): Promise<TournamentRow | null> {
-  const res = await sb.from('tournaments').select('*').eq('slug', slug).maybeSingle();
+  const res = await sb.from('tournaments').select(TOURNAMENT_PUBLIC_COLUMNS).eq('slug', slug).maybeSingle();
   if (res.error) throw new Error(`tournament: ${res.error.message}`);
   return (res.data as TournamentRow | null) ?? null;
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { TOURNAMENT_PUBLIC_COLUMNS } from '@/lib/db/types';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -13,18 +14,25 @@ describe.skipIf(!enabled)('team sign-up', () => {
   let anon: SupabaseClient;
   let service: SupabaseClient;
   let admin: SupabaseClient;
+  let outsider: SupabaseClient;
   let tournamentId: string;
   const slug = `signup-${Date.now().toString(36)}`;
+
+  async function signedInClient(email: string): Promise<SupabaseClient> {
+    const password = 'Passw0rd!Passw0rd!';
+    const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
+    if (created.error) throw created.error;
+    const c = createClient(url!, anonKey!, { auth: { persistSession: false } });
+    const signed = await c.auth.signInWithPassword({ email, password });
+    if (signed.error) throw signed.error;
+    return c;
+  }
 
   beforeAll(async () => {
     anon = createClient(url!, anonKey!, { auth: { persistSession: false } });
     service = createClient(url!, serviceKey!, { auth: { persistSession: false } });
-    const email = `admin-${slug}@example.com`, password = 'Passw0rd!Passw0rd!';
-    const created = await service.auth.admin.createUser({ email, password, email_confirm: true });
-    if (created.error) throw created.error;
-    admin = createClient(url!, anonKey!, { auth: { persistSession: false } });
-    const signed = await admin.auth.signInWithPassword({ email, password });
-    if (signed.error) throw signed.error;
+    admin = await signedInClient(`admin-${slug}@example.com`);
+    outsider = await signedInClient(`outsider-${slug}@example.com`);
     const t = await admin.rpc('create_tournament', { p_slug: slug, p_name: 'Sign-up test' });
     if (t.error) throw t.error;
     tournamentId = t.data as string;
@@ -96,6 +104,32 @@ describe.skipIf(!enabled)('team sign-up', () => {
     const players = await service.from('players').select('id').eq('tournament_id', tournamentId);
     // 3 teams signed up here (Smashers, Late Birds, Organiser Made) → 9 players; a re-set must not leak the old three.
     expect(players.data).toHaveLength(9);
+  });
+
+  it('anon cannot read join_code but can read every other tournament column', async () => {
+    const leak = await anon.from('tournaments').select('id, join_code').eq('id', tournamentId);
+    expect(leak.error?.message ?? '').toMatch(/permission denied/i);
+    const ok = await anon.from('tournaments').select(TOURNAMENT_PUBLIC_COLUMNS).eq('id', tournamentId);
+    expect(ok.error).toBeNull();
+    expect(ok.data).toHaveLength(1);
+  });
+
+  it('signup_needs_code tells anon whether a code is set, without revealing it', async () => {
+    expect((await anon.rpc('signup_needs_code', { p_slug: slug })).data).toBe(false);
+    await service.from('tournaments').update({ join_code: 'Club2026' }).eq('id', tournamentId);
+    expect((await anon.rpc('signup_needs_code', { p_slug: slug })).data).toBe(true);
+    await service.from('tournaments').update({ join_code: null }).eq('id', tournamentId);
+    expect((await anon.rpc('signup_needs_code', { p_slug: slug })).data).toBe(false);
+  });
+
+  it('only the tournament admin can read the join code back', async () => {
+    await service.from('tournaments').update({ join_code: 'Club2026' }).eq('id', tournamentId);
+    const mine = await admin.rpc('tournament_join_code', { t: tournamentId });
+    expect(mine.error).toBeNull();
+    expect(mine.data).toBe('Club2026');
+    expect((await outsider.rpc('tournament_join_code', { t: tournamentId })).error).not.toBeNull();
+    expect((await anon.rpc('tournament_join_code', { t: tournamentId })).error).not.toBeNull();
+    await service.from('tournaments').update({ join_code: null }).eq('id', tournamentId);
   });
 
   it('the old add_teams function is gone', async () => {

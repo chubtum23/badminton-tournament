@@ -1,5 +1,10 @@
 export type TournamentStatus = 'setup' | 'pools' | 'knockout' | 'finished';
 
+/**
+ * Public columns only. `join_code` is deliberately absent: anon and authenticated have no select
+ * grant on it, so it never reaches the browser. Read it through `tournament_join_code(t)` (admins
+ * only), and ask whether one is set through `signup_needs_code(slug)`.
+ */
 export interface TournamentRow {
   id: string;
   slug: string;
@@ -29,10 +34,12 @@ export interface TournamentRow {
   advance_per_pool: number;
   /** Teams may still sign themselves up through /t/[slug]/join. lockPools turns this off. */
   signup_open: boolean;
-  /** Optional code the sign-up form must present; null = none. Never sent to the browser. */
-  join_code: string | null;
   created_at: string;
 }
+
+/** Every tournament column except `join_code`, which anon and authenticated cannot select. */
+export const TOURNAMENT_PUBLIC_COLUMNS =
+  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, court_count, advance_per_pool, signup_open, created_at';
 
 /** Public columns only. edit_token is never selected through this type. */
 export interface TeamRow {

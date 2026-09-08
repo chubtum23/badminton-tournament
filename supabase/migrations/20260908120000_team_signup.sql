@@ -19,6 +19,18 @@ alter table public.tournaments
 -- The public column grant is an explicit list, so the new column has to be added to it.
 grant select (description) on public.teams to anon, authenticated;
 
+-- ---------- hide join_code from anon and authenticated ----------
+-- Same treatment as teams.edit_token: the code is a secret the sign-up form presents but never sees,
+-- so the table-level select grant is replaced by an explicit column list that omits it. The
+-- tournaments_read RLS policy is unchanged; this is a column privilege, not a row one.
+revoke select on public.tournaments from anon, authenticated;
+grant select (
+  id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two,
+  max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game,
+  ko_win_by_two, ko_max_points, ko_time_cap_minutes, court_count, advance_per_pool, signup_open,
+  created_at
+) on public.tournaments to anon, authenticated;
+
 -- ---------- backfill (local/test data only; hosted has no real teams yet) ----------
 -- Teams that already have exactly three unrolled players get mixed1, mixed2, woman in name order,
 -- and the third player becomes female so the roster validates.
@@ -92,6 +104,27 @@ begin
 end; $$;
 
 grant execute on function public.sign_up_team(text, text, text, text, text, text, text, text, text) to anon, authenticated, service_role;
+
+-- The join form has to know whether to show the code box. This answers that without leaking the code.
+create or replace function public.signup_needs_code(p_slug text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select join_code is not null from public.tournaments where slug = p_slug), false);
+$$;
+
+grant execute on function public.signup_needs_code(text) to anon, authenticated, service_role;
+
+-- Organisers need to read the code back to share it. Like team_edit_tokens, this is the only way out.
+create or replace function public.tournament_join_code(t uuid) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare code text;
+begin
+  if not public.is_tournament_admin(t) then raise exception 'not_admin' using errcode = '42501'; end if;
+  select join_code into code from public.tournaments where id = t;
+  return code;
+end; $$;
+
+revoke execute on function public.tournament_join_code(uuid) from public, anon;
+grant execute on function public.tournament_join_code(uuid) to authenticated, service_role;
 
 -- ---------- organiser: add a team with its roster, or rewrite a roster ----------
 create or replace function public.admin_add_team(p_tournament uuid, p_name text, p_mixed1 text, p_mixed2 text, p_woman text) returns uuid
