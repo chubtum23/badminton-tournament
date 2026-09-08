@@ -20,10 +20,11 @@ export function SubmitButton({ children, className, confirmMessage, onClick, ...
   onClick?: ComponentPropsWithoutRef<'button'>['onClick'];
 }) {
   const { pending } = useFormStatus();
+  // `disabled` sits after the spread so a caller's own reason to disable the button (a hub action
+  // whose preconditions are not met) survives, and combines with the form's pending state.
   return (
     <button
       type="submit"
-      disabled={pending}
       aria-busy={pending}
       onClick={(e) => {
         if (confirmMessage && !window.confirm(confirmMessage)) { e.preventDefault(); return; }
@@ -31,6 +32,7 @@ export function SubmitButton({ children, className, confirmMessage, onClick, ...
       }}
       className={`inline-flex items-center justify-center gap-1.5 disabled:cursor-wait disabled:opacity-60 ${className ?? ''}`}
       {...rest}
+      disabled={pending || rest.disabled}
     >
       {pending && (
         <span

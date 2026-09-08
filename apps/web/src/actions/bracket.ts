@@ -46,7 +46,7 @@ export async function startKnockout(slug: string): Promise<ActionResult> {
     const insSlots = await ctx.sb.from('games').insert(roundMatches.flatMap((m) => slotRowsFor(m.id, gamesPerMatch)));
     if (insSlots.error) return fail('invalid_input', insSlots.error.message);
   }
-  for (const p of [`/admin/${slug}`, `/admin/${slug}/bracket`, `/admin/${slug}/matches`, `/t/${slug}`, `/t/${slug}/bracket`]) revalidatePath(p);
+  for (const p of [`/admin/${slug}`, `/admin/${slug}/draw`, `/admin/${slug}/matches`, `/t/${slug}`, `/t/${slug}/bracket`]) revalidatePath(p);
   return ok(undefined);
 }
 

@@ -64,3 +64,18 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
   revalidatePath(`/t/${slug}`);
   return ok(undefined);
 }
+
+/** Date and venue only; editable at every stage. */
+export async function updateEvent(slug: string, formData: FormData): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  const rawStart = String(formData.get('startsAt') ?? '').trim();
+  if (rawStart !== '' && Number.isNaN(Date.parse(rawStart))) return fail('invalid_input', 'Start date/time is not valid');
+  const venue = String(formData.get('venue') ?? '').trim();
+  if (venue.length > 120) return fail('invalid_input', 'Venue must be at most 120 characters');
+  const upd = await ctx.sb.from('tournaments').update({ starts_at: rawStart === '' ? null : new Date(rawStart).toISOString(), venue: venue === '' ? null : venue }).eq('id', ctx.tournament.id);
+  if (upd.error) return fail('invalid_input', upd.error.message);
+  revalidatePath(`/admin/${slug}`);
+  revalidatePath(`/t/${slug}`);
+  return ok(undefined);
+}

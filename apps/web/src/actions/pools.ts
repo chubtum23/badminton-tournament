@@ -31,7 +31,7 @@ export async function generatePools(slug: string, poolCount: number): Promise<Ac
       if (upd.error) return fail('invalid_input', upd.error.message);
     }
   }
-  revalidatePath(`/admin/${slug}/pools`);
+  revalidatePath(`/admin/${slug}/standings`);
   return ok(undefined);
 }
 
@@ -49,7 +49,7 @@ export async function moveTeam(slug: string, teamId: string, poolId: string): Pr
   const pool_order = (last.data?.pool_order ?? -1) + 1;
   const upd = await ctx.sb.from('teams').update({ pool_id: poolId, pool_order }).eq('id', teamId).eq('tournament_id', ctx.tournament.id);
   if (upd.error) return fail('invalid_input', upd.error.message);
-  revalidatePath(`/admin/${slug}/pools`);
+  revalidatePath(`/admin/${slug}/standings`);
   return ok(undefined);
 }
 
