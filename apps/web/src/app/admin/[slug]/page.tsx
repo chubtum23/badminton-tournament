@@ -1,15 +1,11 @@
 import { requireAdmin } from '@/actions/guard';
 import { updateSettings } from '@/actions/tournaments';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-import { TeamsAdmin } from '@/components/TeamsAdmin';
-import { listTeamsWithPlayers } from '@/lib/db/queries';
-import { siteOrigin } from '@/lib/siteUrl';
-import { getEditTokens } from '@/actions/teams';
 import { FlashMessage } from '@/components/FlashMessage';
 import { gameLabel, settingsFor } from '@/lib/db/mappers';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
 import { SubmitButton } from '@/components/SubmitButton';
+import { ui } from '@/components/ui';
 
 export default async function SetupPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -17,8 +13,6 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
   const locked = t.status !== 'setup';
-  const [teams, tokens, hdrs] = await Promise.all([listTeamsWithPlayers(ctx.sb, t.id), getEditTokens(slug), headers()]);
-  const baseUrl = siteOrigin(hdrs);
 
   const pool = settingsFor(t, 'pool');
   const knockout = settingsFor(t, 'knockout');
@@ -120,10 +114,12 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
               <input type="hidden" name="advancePerPool" value={t.advance_per_pool} />
             </>
           )}
-          <div><SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">{locked ? 'Save date and venue' : 'Save settings'}</SubmitButton></div>
+          <div className="flex items-center gap-3">
+            <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">{locked ? 'Save date and venue' : 'Save settings'}</SubmitButton>
+            <a href={`/admin/${slug}/teams`} className={ui.secondary}>Manage teams</a>
+          </div>
         </form>
       </section>
-      <TeamsAdmin slug={slug} teams={teams} tokens={tokens} locked={locked} baseUrl={baseUrl} />
     </div>
   );
 }
