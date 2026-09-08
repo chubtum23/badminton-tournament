@@ -88,9 +88,9 @@ describe.skipIf(!enabled)('team sign-up', () => {
 
   it('anon cannot call write_roster or the admin functions', async () => {
     const team = await service.from('teams').select('id').eq('tournament_id', tournamentId).limit(1).single();
-    expect((await anon.rpc('write_roster', { p_team: team.data!.id, ...roster })).error).not.toBeNull();
-    expect((await anon.rpc('admin_set_roster', { p_team: team.data!.id, ...roster })).error).not.toBeNull();
-    expect((await anon.rpc('admin_add_team', { p_tournament: tournamentId, p_name: 'Nope', ...roster })).error).not.toBeNull();
+    expect((await anon.rpc('write_roster', { p_team: team.data!.id, ...roster })).error?.message ?? '').toMatch(/permission denied/i);
+    expect((await anon.rpc('admin_set_roster', { p_team: team.data!.id, ...roster })).error?.message ?? '').toMatch(/permission denied/i);
+    expect((await anon.rpc('admin_add_team', { p_tournament: tournamentId, p_name: 'Nope', ...roster })).error?.message ?? '').toMatch(/permission denied/i);
   });
 
   it('admin_add_team and admin_set_roster write a complete roster in one go', async () => {
@@ -127,9 +127,17 @@ describe.skipIf(!enabled)('team sign-up', () => {
     const mine = await admin.rpc('tournament_join_code', { t: tournamentId });
     expect(mine.error).toBeNull();
     expect(mine.data).toBe('Club2026');
-    expect((await outsider.rpc('tournament_join_code', { t: tournamentId })).error).not.toBeNull();
-    expect((await anon.rpc('tournament_join_code', { t: tournamentId })).error).not.toBeNull();
+    expect((await outsider.rpc('tournament_join_code', { t: tournamentId })).error?.message).toBe('not_admin');
+    expect((await anon.rpc('tournament_join_code', { t: tournamentId })).error?.message ?? '').toMatch(/permission denied/i);
     await service.from('tournaments').update({ join_code: null }).eq('id', tournamentId);
+  });
+
+  it('a case-insensitive duplicate is refused by the function and by the index behind it', async () => {
+    const seeded = await service.from('teams').insert({ tournament_id: tournamentId, name: 'Race' }).select('id').single();
+    expect(seeded.error).toBeNull();
+    expect((await signUp('race')).error?.message).toBe('duplicate_name');
+    const direct = await service.from('teams').insert({ tournament_id: tournamentId, name: 'RACE' }).select('id');
+    expect(direct.error?.code).toBe('23505');
   });
 
   it('the old add_teams function is gone', async () => {

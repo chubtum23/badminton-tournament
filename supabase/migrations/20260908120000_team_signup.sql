@@ -12,9 +12,13 @@ create unique index team_players_role_unique on public.team_players (team_id, ro
 alter table public.teams add column description text not null default ''
   check (length(description) <= 400);
 
+-- Team names are compared case-insensitively everywhere, so the database enforces that too. The
+-- `exists` checks in the sign-up functions stay for the friendly error; this closes the race.
+create unique index teams_name_ci_unique on public.teams (tournament_id, lower(name));
+
 alter table public.tournaments
   add column signup_open boolean not null default true,
-  add column join_code text check (join_code is null or length(join_code) between 3 and 30);
+  add column join_code text check (join_code is null or length(btrim(join_code)) between 3 and 30);
 
 -- The public column grant is an explicit list, so the new column has to be added to it.
 grant select (description) on public.teams to anon, authenticated;
@@ -96,9 +100,16 @@ begin
   if exists (select 1 from public.teams where tournament_id = tr.id and lower(name) = lower(nm)) then
     raise exception using errcode = 'P0001', message = 'duplicate_name';
   end if;
-  insert into public.teams (tournament_id, name, tagline, colour, description)
-    values (tr.id, nm, coalesce(p_tagline, ''), p_colour, coalesce(p_description, ''))
-    returning id, edit_token into team_id, tok;
+  -- teams_name_ci_unique catches a concurrent sign-up that slipped past the check above. The only
+  -- other unique constraint here is (tournament_id, edit_token), and those are 24 random
+  -- characters, so any unique_violation on this insert is the name.
+  begin
+    insert into public.teams (tournament_id, name, tagline, colour, description)
+      values (tr.id, nm, coalesce(p_tagline, ''), p_colour, coalesce(p_description, ''))
+      returning id, edit_token into team_id, tok;
+  exception when unique_violation then
+    raise exception using errcode = 'P0001', message = 'duplicate_name';
+  end;
   perform public.write_roster(team_id, p_mixed1, p_mixed2, p_woman);
   return tok;
 end; $$;
@@ -137,7 +148,12 @@ begin
   if exists (select 1 from public.teams where tournament_id = p_tournament and lower(name) = lower(nm)) then
     raise exception using errcode = 'P0001', message = 'duplicate_name';
   end if;
-  insert into public.teams (tournament_id, name) values (p_tournament, nm) returning id into team_id;
+  -- Same race as in sign_up_team; see the note there on why unique_violation means the name.
+  begin
+    insert into public.teams (tournament_id, name) values (p_tournament, nm) returning id into team_id;
+  exception when unique_violation then
+    raise exception using errcode = 'P0001', message = 'duplicate_name';
+  end;
   perform public.write_roster(team_id, p_mixed1, p_mixed2, p_woman);
   return team_id;
 end; $$;
