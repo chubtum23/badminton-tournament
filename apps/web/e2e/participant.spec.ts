@@ -1,7 +1,6 @@
 import { test, expect, type Page, type Browser } from '@playwright/test';
+import { addTeams, drawAndLock, openTeamRow, signIn } from './helpers';
 
-const email = process.env.E2E_ADMIN_EMAIL ?? 'admin@local.test';
-const password = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-pass';
 const slug = `p2p-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal'];
 
@@ -42,30 +41,24 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
   page.on('dialog', (d) => d.accept());
 
   // admin: sign in, create, add 4 teams, one pool, lock
-  await page.goto('/login');
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await signIn(page);
   await page.fill('input[name="name"]', 'Participant Night');
   await page.fill('input[name="slug"]', slug);
   await page.getByRole('button', { name: 'Create' }).click();
-  await page.fill('textarea[name="lines"]', teams.join('\n'));
-  await page.getByRole('button', { name: 'Add teams' }).click();
-  await expect(page.getByText('Added 4 team(s)')).toBeVisible();
+  // The next step navigates straight to Teams, so the create has to have landed first: leaving
+  // early cancels it, and Teams then bounces to /login for a tournament that never existed.
+  await expect(page).toHaveURL(new RegExp(`/admin/${slug}$`));
+  await addTeams(page, slug, teams);
 
-  // collect the private links from the Setup page (each row: team name + <code>link</code>)
+  // collect the private links from the Teams page: each row expands to its own <code>link</code>
   const links: Record<string, string> = {};
   for (const name of teams) {
-    const code = page.locator('tr', { hasText: name }).locator('code').first();
-    links[name] = (await code.textContent())!.trim();
+    const row = await openTeamRow(page, name);
+    links[name] = ((await row.locator('code').first().textContent()) ?? '').trim();
     expect(links[name]).toMatch(new RegExp(`/t/${slug}/team/[A-Za-z0-9_-]{24}$`));
   }
 
-  await page.goto(`/admin/${slug}/pools`);
-  await page.fill('input[name="poolCount"]', '1');
-  await page.getByRole('button', { name: /Generate pools|Re-deal/ }).click();
-  await page.getByRole('button', { name: 'Lock pools and create matches' }).click();
-  await expect(page.getByText('Pools locked and matches created')).toBeVisible();
+  await drawAndLock(page, slug, 1);
 
   // admin posts a pinned announcement
   await page.goto(`/admin/${slug}/announcements`);
@@ -124,7 +117,7 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
   await submitScores(teamD, [15, 5], /Scores differ from the other team/);
 
   // admin sees it in Needs attention and confirms teamC's version
-  await page.goto(`/admin/${slug}/matches?filter=open`);
+  await page.goto(`/admin/${slug}/matches?pool=all`);
   await expect(page.getByText('Needs attention (1)')).toBeVisible();
   // Scope to the SubmissionCompare cell itself (class "rounded border p-2"): the surrounding
   // MatchCard wrapper also matches "div.rounded.border" and contains the same text and button,

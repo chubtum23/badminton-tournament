@@ -25,6 +25,24 @@ Each plan merges on its own; the live site keeps working between them.
 | Meeting card | One row per game: label, the two pairs, score, one next-step button |
 | Roster storage | Extend player rows (gender) and the team↔player link (role). No JSON blob, no captain accounts. |
 
+### Changed during implementation
+
+Three decisions were made after this spec was written and are reflected in the code:
+
+1. **No `update_team_roster` token function.** A participant's roster edits go through the
+   service-role client *after* `currentParticipant` has validated the cookie, calling the
+   internal `write_roster` — the same path profile edits already used. `sign_up_team` is
+   therefore the **only** anonymous write in the system. See §2.4.
+2. **Organisers write rosters through checked functions**, `admin_add_team` and
+   `admin_set_roster`, rather than the ordinary authenticated RLS path: writing three players
+   and three links row by row can leave a half-written roster. Both wrap `write_roster`.
+3. **`join_code` is hidden from clients.** `select` on `tournaments` is revoked from `anon` and
+   `authenticated` and re-granted column by column without it, so the code cannot be read or
+   used as a filter oracle. The join page asks `signup_needs_code(p_slug)` whether one is set;
+   an organiser reads its value through `tournament_join_code(t)`. A unique index on
+   `(tournament_id, lower(name))` backs the case-insensitive team-name rule, since the
+   `exists` check alone races once sign-up is anonymous.
+
 ## 1. Data model
 
 ### 1.1 Players and roles
@@ -143,13 +161,22 @@ tournament; lengths. Inserts team, three players (`male`,`male`,`female`), three
 maps them to messages. Grant execute to `anon` and `authenticated`.
 
 ```sql
-update_team_roster(p_token text, p_slug text, p_mixed1 text, p_mixed2 text, p_woman text)
-  returns void
+write_roster(p_team uuid, p_mixed1 text, p_mixed2 text, p_woman text) returns void
+admin_add_team(p_tournament uuid, p_name text, p_mixed1 text, p_mixed2 text, p_woman text) returns uuid
+admin_set_roster(p_team uuid, p_mixed1 text, p_mixed2 text, p_woman text) returns void
+signup_needs_code(p_slug text) returns boolean
+tournament_join_code(t uuid) returns text
 ```
 
-Participant roster edit by token; refuses unless `status = 'setup'`. Also used by the swap
-button (the app passes the names swapped). Admin edits use the ordinary authenticated RLS
-path through a server action that performs the same validation in the app.
+**As built** (superseding the `update_team_roster` originally specified here):
+`write_roster` replaces a team's three players atomically and is the single place the roster
+rule lives; it is executable by `service_role` only. A participant's edit and the mixed-pair
+swap call it through the service-role client *after* `currentParticipant` has validated the
+cookie and the status is `setup`, so no second anonymous write path exists. Organisers use
+`admin_add_team` / `admin_set_roster`, which re-check `is_tournament_admin` and the stage
+before delegating to `write_roster`. `signup_needs_code` is anon-callable and answers only
+yes or no; `tournament_join_code` returns the code to an admin and raises `not_admin`
+(errcode 42501) to anyone else.
 
 ### 2.5 Organiser controls
 

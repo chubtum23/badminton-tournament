@@ -1,36 +1,8 @@
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { addTeams, drawAndLock, fillScores, openMeetings, playGames, signIn } from './helpers';
 
-const email = process.env.E2E_ADMIN_EMAIL ?? 'admin@local.test';
-const password = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-pass';
 const slug = `e2e-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal', 'Ivy & Jo', 'Kim & Lu', 'Mo & Ned', 'Oz & Pia'];
-
-/** The three games of a meeting, in the order the organiser scores them. */
-type Rounds = readonly (readonly [number, number])[];
-
-/**
- * Scores games of one meeting, oldest unscored game first.
- *
- * `card` must be a locator that identifies *this* meeting and nothing else: a scored game unmounts
- * its own form, so the count of forms still inside the card is what tells us the save landed.
- * Waiting on the word "Saved" would not: the page-top <RecentOutcome/> banner keeps the previous
- * game's message on screen for eight seconds, so the assertion would pass before the click.
- *
- * A running game deliberately renders its form twice — once in the Now playing box and once on its
- * own meeting card — so every locator here is scoped to the card.
- */
-async function playGames(card: Locator, rounds: Rounds, timeUp = false): Promise<void> {
-  const forms = card.getByTestId('game-score-form');
-  for (const [a, b] of rounds) {
-    const before = await forms.count();
-    const form = forms.first();
-    await form.locator('input[name="scoreA"]').fill(String(a));
-    await form.locator('input[name="scoreB"]').fill(String(b));
-    if (timeUp) await form.locator('input[name="timeExpired"]').check();
-    await form.getByRole('button', { name: 'Save' }).click();
-    await expect(forms).toHaveCount(before - 1);
-  }
-}
 
 /**
  * Plays every open meeting on the Matches screen until none remain, one meeting at a time.
@@ -48,8 +20,8 @@ async function playGames(card: Locator, rounds: Rounds, timeUp = false): Promise
  */
 async function playAllOpen(page: Page, slugName: string, max: number): Promise<number> {
   for (let i = 0; i < max; i++) {
-    await page.goto(`/admin/${slugName}/matches?filter=open`);
-    const open = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') });
+    await page.goto(`/admin/${slugName}/matches?pool=all`);
+    const open = openMeetings(page);
     if ((await open.count()) === 0) return i;
     // The card label is "Pool A · #3" (or "Round 2 · #1" in the knockout); #n is the slot.
     const label = ((await open.first().locator('span').first().textContent()) ?? '').trim();
@@ -67,12 +39,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   // Destructive admin actions (re-entering a done result, removing a team) ask for confirmation.
   page.on('dialog', (d) => d.accept());
 
-  // sign in
-  await page.goto('/login');
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await signIn(page);
 
   // create tournament
   await page.fill('input[name="name"]', 'E2E Night');
@@ -80,27 +47,27 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/${slug}$`));
 
-  // settings: club defaults (three games to 15, 13-minute clock) — just save to prove the form works
-  await page.getByRole('button', { name: 'Save settings' }).click();
-  await expect(page.getByText('Settings saved')).toBeVisible();
+  // the hub opens on its four-step checklist, with nothing done but the rules defaults
+  await expect(page.getByTestId('tile-teams')).toContainText('0 signed up');
+  await expect(page.getByTestId('tile-draw')).toContainText('Not drawn');
 
-  // teams
-  await page.fill('textarea[name="lines"]', teams.join('\n'));
-  await page.getByRole('button', { name: 'Add teams' }).click();
-  await expect(page.getByText('Added 8 team(s)')).toBeVisible();
+  // rules: club defaults (three games to 15, 13-minute clock) — just save to prove the form works
+  await page.goto(`/admin/${slug}/rules`);
+  await page.getByRole('button', { name: 'Save rules' }).click();
+  await expect(page.getByText('Rules saved')).toBeVisible();
 
-  // pools: 2 pools of 4, lock
-  await page.goto(`/admin/${slug}/pools`);
-  await page.fill('input[name="poolCount"]', '2');
-  await page.getByRole('button', { name: /Generate pools|Re-deal/ }).click();
-  await expect(page.getByText('Pools generated')).toBeVisible();
-  await page.getByRole('button', { name: 'Lock pools and create matches' }).click();
-  await expect(page.getByText('Pools locked and matches created')).toBeVisible();
+  // teams: eight of them, each with two men and one woman
+  await addTeams(page, slug, teams);
+  await page.goto(`/admin/${slug}`);
+  await expect(page.getByTestId('tile-teams')).toContainText('8 signed up · 8 complete');
+
+  // pools: 2 pools of 4, locked from the hub
+  await drawAndLock(page, slug, 2);
 
   // Put the first ready game on court: "Start now" with the court left on auto takes court 1. A
   // court holds one game now rather than a whole meeting, so what goes out is a single game, and
   // it appears in the Now playing box at the top of the organiser's screen.
-  await page.goto(`/admin/${slug}/matches?filter=open`);
+  await page.goto(`/admin/${slug}/matches?pool=all`);
   await page.getByRole('button', { name: 'Start now' }).first().click();
   await expect(page.getByTestId('now-playing').getByText('Court 1')).toBeVisible();
   await page.goto(`/t/${slug}`);
@@ -112,26 +79,29 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   // Invalid score is rejected: the club format wins by one, so an unfinished 14-12 is the rejection
   // to look for rather than a two-point-lead complaint. This is scoped to one meeting card because
   // the game on court renders its form here *and* in the Now playing box.
-  await page.goto(`/admin/${slug}/matches?filter=open`);
-  const firstCard = page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') }).first();
-  const form = firstCard.getByTestId('game-score-form').first();
-  await form.locator('input[name="scoreA"]').fill('14');
-  await form.locator('input[name="scoreB"]').fill('12');
+  await page.goto(`/admin/${slug}/matches?pool=all`);
+  const form = openMeetings(page).first().getByTestId('game-score-form').first();
+  await fillScores(form, 14, 12);
   await expect(form.getByText('winner must reach 15', { exact: true })).toBeVisible();
   // an unfinished score cannot be saved
   await expect(form.getByRole('button', { name: 'Save' })).toBeDisabled();
 
   // play all 12 pool meetings — three games each
   expect(await playAllOpen(page, slug, 12)).toBe(12);
-  await page.goto(`/admin/${slug}/matches?filter=open`);
-  await expect(page.getByText('Nothing here.')).toBeVisible();
+  await page.goto(`/admin/${slug}/matches?pool=all`);
+  await expect(page.getByText('Nothing waiting.')).toBeVisible();
+  await expect(page.getByText('Finished (12)')).toBeVisible();
 
   // public standings show two highlighted qualifiers per pool
   await page.goto(`/t/${slug}/pools`);
   await expect(page.locator('tr.bg-emerald-50')).toHaveCount(4);
 
+  // the organiser's Standings page ranks all eight teams in one table across both pools
+  await page.goto(`/admin/${slug}/standings`);
+  await expect(page.getByTestId('leaderboard').locator('tbody tr')).toHaveCount(8);
+
   // start knockout (4 teams: two semis and a final)
-  await page.goto(`/admin/${slug}/bracket`);
+  await page.goto(`/admin/${slug}/draw`);
   await page.getByRole('button', { name: 'Start knockout with this bracket' }).click();
   await expect(page.getByText('Knockout started')).toBeVisible();
   await expect(page.getByText('Semi-finals')).toBeVisible();

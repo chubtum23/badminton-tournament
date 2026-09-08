@@ -36,7 +36,7 @@ export function JoinForm({ slug, needsCode, action }: {
         });
       }}
     >
-      {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {error && <p role="alert" data-testid="signup-error" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       <div className="grid gap-4 md:grid-cols-2">
         <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} /></label>
         <label className={ui.label}>Tagline <span className="font-normal text-slate-500">(optional)</span><input name="tagline" maxLength={80} className={ui.field} /></label>
