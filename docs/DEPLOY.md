@@ -101,6 +101,9 @@ server, to resolve a team's private link.
    install the whole workspace and build `apps/web`.
 4. Add the three environment variables from step 5, ticking Production, Preview and Development
    for each.
+   Optional but recommended: also add `NEXT_PUBLIC_SITE_URL` set to your deployment's address
+   (for example `https://badminton-tournament.vercel.app`), so the private team links are always
+   built from the real origin rather than from a forwarded host header.
 5. **Deploy**.
 
 You get an address like `badminton-tournament.vercel.app`. Open `/login`, sign in with the user

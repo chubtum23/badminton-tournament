@@ -13,19 +13,24 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
   const t = await getTournamentBySlug(sb, slug);
   if (!t) notFound();
   const open = t.status === 'setup' && t.signup_open;
-  // The join code column is hidden from clients, so ask the database whether one is set.
+  if (!open) {
+    return (
+      <section className={ui.card}>
+        <h2 className="text-2xl font-bold">Sign your team up</h2>
+        <p className="mt-2 text-base">Sign-ups are closed. Ask the organiser to add your team.</p>
+      </section>
+    );
+  }
+  // The join code column is hidden from clients, so ask the database whether one is set. A failure
+  // here has to be loud: rendering the form without the code field would look like an open sign-up
+  // and every attempt would then be rejected by the database.
   const needs = await sb.rpc('signup_needs_code', { p_slug: slug });
+  if (needs.error) throw new Error(`signup_needs_code: ${needs.error.message}`);
   return (
     <section className={ui.card}>
       <h2 className="text-2xl font-bold">Sign your team up</h2>
-      {open ? (
-        <>
-          <p className={`${ui.help} mb-6`}>One person signs the whole team up: a team name and your three players. You get a private team link at the end.</p>
-          <JoinForm slug={slug} needsCode={Boolean(needs.data)} action={signUpTeam.bind(null, slug)} />
-        </>
-      ) : (
-        <p className="mt-2 text-base">Sign-ups are closed. Ask the organiser to add your team.</p>
-      )}
+      <p className={`${ui.help} mb-6`}>One person signs the whole team up: a team name and your three players. You get a private team link at the end.</p>
+      <JoinForm slug={slug} needsCode={Boolean(needs.data)} action={signUpTeam.bind(null, slug)} />
     </section>
   );
 }

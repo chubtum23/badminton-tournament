@@ -22,7 +22,15 @@ export function JoinForm({ slug, needsCode, action }: {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
         start(async () => {
-          const r = await action(fd);
+          // A dropped connection or a server error rejects the promise rather than returning a
+          // result, and without this the form would just sit there looking like nothing happened.
+          let r;
+          try {
+            r = await action(fd);
+          } catch {
+            setError('Could not sign up; please try again.');
+            return;
+          }
           if (!r.ok) { setError(r.message ?? r.error); return; }
           window.location.assign(`/t/${slug}/team/${r.data.token}?welcome=1`);
         });

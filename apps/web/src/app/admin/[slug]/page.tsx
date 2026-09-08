@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { TeamsAdmin } from '@/components/TeamsAdmin';
 import { listTeamsWithPlayers } from '@/lib/db/queries';
+import { siteOrigin } from '@/lib/siteUrl';
 import { getEditTokens } from '@/actions/teams';
 import { FlashMessage } from '@/components/FlashMessage';
 import { gameLabel, settingsFor } from '@/lib/db/mappers';
@@ -17,8 +18,7 @@ export default async function SetupPage({ params }: { params: Promise<{ slug: st
   const t = ctx.tournament;
   const locked = t.status !== 'setup';
   const [teams, tokens, hdrs] = await Promise.all([listTeamsWithPlayers(ctx.sb, t.id), getEditTokens(slug), headers()]);
-  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
-  const baseUrl = `${host.startsWith('localhost') ? 'http' : 'https'}://${host}`;
+  const baseUrl = siteOrigin(hdrs);
 
   const pool = settingsFor(t, 'pool');
   const knockout = settingsFor(t, 'knockout');

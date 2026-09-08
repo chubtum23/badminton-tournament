@@ -13,6 +13,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { RosterFields } from '@/components/RosterFields';
 import { ui } from '@/components/ui';
+import { siteOrigin } from '@/lib/siteUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,10 +57,8 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
 
   // The private link is rebuilt from this request's own cookie, so it is only ever rendered for
   // the team that already holds the token.
-  const hdrs = await headers();
-  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
   const token = (await cookies()).get(cookieName(slug))?.value ?? '';
-  const privateLink = `${host.startsWith('localhost') ? 'http' : 'https'}://${host}/t/${slug}/team/${token}`;
+  const privateLink = `${siteOrigin(await headers())}/t/${slug}/team/${token}`;
   const myTeam = teams.find((x) => x.id === me.team.id);
   const byRole = (r: 'mixed1' | 'mixed2' | 'woman') => myTeam?.players.find((p) => p.role === r)?.name ?? '';
   const rosterLocked = me.tournament.status !== 'setup';
