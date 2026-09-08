@@ -2,26 +2,10 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
-import { parseTeamLines } from '@/lib/teams/parse';
 import { listMatches } from '@/lib/db/queries';
 import type { MatchRow } from '@/lib/db/types';
 import { revalidateTournament } from './revalidate';
 import { awardMatch } from './matches';
-
-export async function addTeams(slug: string, formData: FormData): Promise<ActionResult<{ added: number }>> {
-  const ctx = await requireAdmin(slug);
-  if ('error' in ctx) return fail('not_admin');
-  if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Teams can only be added during setup');
-  const { teams, problems } = parseTeamLines(String(formData.get('lines') ?? ''));
-  if (problems.length) return fail('invalid_input', problems.join('; '));
-  if (teams.length === 0) return fail('invalid_input', 'No teams entered');
-
-  // One transaction: a failure part-way through must not leave half-imported teams behind.
-  const res = await ctx.sb.rpc('add_teams', { p_tournament: ctx.tournament.id, p_teams: teams });
-  if (res.error) return fail(res.error.code === '42501' ? 'not_admin' : 'invalid_input', res.error.message);
-  revalidatePath(`/admin/${slug}`);
-  return ok({ added: Number(res.data ?? teams.length) });
-}
 
 export async function setSeed(slug: string, teamId: string, seed: number | null): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);

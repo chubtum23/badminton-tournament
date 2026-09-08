@@ -1,16 +1,11 @@
 import { redirect } from 'next/navigation';
-import { addTeams, deleteTeam, regenerateToken, reinstateTeam, setSeed, withdrawTeam } from '@/actions/teams';
+import { deleteTeam, regenerateToken, reinstateTeam, setSeed, withdrawTeam } from '@/actions/teams';
 import type { TeamWithPlayers } from '@/lib/db/queries';
 import { SubmitButton } from './SubmitButton';
 
 export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
   slug: string; teams: TeamWithPlayers[]; tokens: Record<string, string>; locked: boolean; baseUrl: string;
 }) {
-  async function add(formData: FormData) {
-    'use server';
-    const r = await addTeams(slug, formData);
-    redirect(`/admin/${slug}?msg=${encodeURIComponent(r.ok ? `Added ${r.data.added} team(s)` : r.message ?? r.error)}`);
-  }
   async function seed(formData: FormData) {
     'use server';
     const raw = String(formData.get('seed') ?? '').trim();
@@ -91,14 +86,6 @@ export function TeamsAdmin({ slug, teams, tokens, locked, baseUrl }: {
           ))}
         </tbody>
       </table>
-      {!locked && (
-        <form action={add} className="space-y-2">
-          <label className="block text-sm">Add teams, one per line (<code>Alice &amp; Bob</code>, or <code>Alice &amp; Bob = Team Name</code>)
-            <textarea name="lines" rows={5} className="mt-1 w-full rounded border p-2 font-mono text-xs" />
-          </label>
-          <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">Add teams</SubmitButton>
-        </form>
-      )}
     </section>
   );
 }
