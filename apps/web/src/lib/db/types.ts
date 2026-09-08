@@ -27,6 +27,10 @@ export interface TournamentRow {
   ko_time_cap_minutes: number | null;
   court_count: number;
   advance_per_pool: number;
+  /** Teams may still sign themselves up through /t/[slug]/join. lockPools turns this off. */
+  signup_open: boolean;
+  /** Optional code the sign-up form must present; null = none. Never sent to the browser. */
+  join_code: string | null;
   created_at: string;
 }
 
@@ -37,6 +41,7 @@ export interface TeamRow {
   name: string;
   tagline: string;
   colour: string;
+  description: string;
   seed: number | null;
   pool_id: string | null;
   pool_order: number;
@@ -45,7 +50,7 @@ export interface TeamRow {
   pool_rank_override: number | null;
 }
 
-export const TEAM_PUBLIC_COLUMNS = 'id, tournament_id, name, tagline, colour, seed, pool_id, pool_order, withdrawn, pool_rank_override';
+export const TEAM_PUBLIC_COLUMNS = 'id, tournament_id, name, tagline, colour, description, seed, pool_id, pool_order, withdrawn, pool_rank_override';
 
 export interface PoolRow {
   id: string;
@@ -59,6 +64,12 @@ export interface PlayerRow {
   id: string;
   tournament_id: string;
   name: string;
+  gender: 'male' | 'female';
+}
+
+/** A player as linked to a team, with the role the link carries. */
+export interface RosterPlayerRow extends PlayerRow {
+  role: 'mixed1' | 'mixed2' | 'woman' | null;
 }
 
 export interface MatchRow {
