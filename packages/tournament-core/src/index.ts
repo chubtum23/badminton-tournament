@@ -6,3 +6,4 @@ export * from './pools';
 export * from './standings';
 export * from './bracket';
 export * from './advance';
+export * from './roster';
