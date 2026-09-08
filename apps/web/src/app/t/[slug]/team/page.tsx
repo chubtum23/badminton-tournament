@@ -1,19 +1,24 @@
-import { currentParticipant } from '@/lib/participant/token';
-import { updateMyTeam, submitScoresForm } from '@/actions/participant';
+import { cookies, headers } from 'next/headers';
+import { currentParticipant, cookieName } from '@/lib/participant/token';
+import { updateMyTeam, updateMyRoster, swapMixed, submitScoresForm } from '@/actions/participant';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { gameSlotsByMatch, listGames, listMatches, listPools, listSubmissions, listTeams, latestByMatch } from '@/lib/db/queries';
+import { gameSlotsByMatch, listGames, listMatches, listPools, listSubmissions, listTeamsWithPlayers, latestByMatch } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
 import { SubmitScoresForm } from '@/components/SubmitScoresForm';
 import { FlashMessage } from '@/components/FlashMessage';
 import { RecentOutcome } from '@/components/RecentOutcome';
 import { SubmitButton } from '@/components/SubmitButton';
+import { CopyButton } from '@/components/CopyButton';
+import { RosterFields } from '@/components/RosterFields';
+import { ui } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MyTeamPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function MyTeamPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ welcome?: string }> }) {
   const { slug } = await params;
+  const { welcome } = await searchParams;
   const me = await currentParticipant(slug);
   if (!me) {
     return (
@@ -25,7 +30,7 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   }
   const sb = await createServerSupabase();
   const [teams, pools, matchRows, gameRows, subs] = await Promise.all([
-    listTeams(sb, me.tournament.id), listPools(sb, me.tournament.id), listMatches(sb, me.tournament.id),
+    listTeamsWithPlayers(sb, me.tournament.id), listPools(sb, me.tournament.id), listMatches(sb, me.tournament.id),
     listGames(sb, me.tournament.id), listSubmissions(sb, me.tournament.id),
   ]);
   const games = gamesByMatch(gameRows);
@@ -49,9 +54,27 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
   const canSubmit = (m: typeof mine[number]) =>
     !me.team.withdrawn && (m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed');
 
+  // The private link is rebuilt from this request's own cookie, so it is only ever rendered for
+  // the team that already holds the token.
+  const hdrs = await headers();
+  const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3000';
+  const token = (await cookies()).get(cookieName(slug))?.value ?? '';
+  const privateLink = `${host.startsWith('localhost') ? 'http' : 'https'}://${host}/t/${slug}/team/${token}`;
+  const myTeam = teams.find((x) => x.id === me.team.id);
+  const byRole = (r: 'mixed1' | 'mixed2' | 'woman') => myTeam?.players.find((p) => p.role === r)?.name ?? '';
+  const rosterLocked = me.tournament.status !== 'setup';
+
   async function save(formData: FormData) {
     'use server';
     redirectWithMsg(`/t/${slug}/team`, await updateMyTeam(slug, formData), 'Team updated');
+  }
+  async function saveRoster(formData: FormData) {
+    'use server';
+    redirectWithMsg(`/t/${slug}/team`, await updateMyRoster(slug, formData), 'Players saved');
+  }
+  async function swap() {
+    'use server';
+    redirectWithMsg(`/t/${slug}/team`, await swapMixed(slug), 'Mixed pairs swapped');
   }
 
   return (
@@ -61,14 +84,47 @@ export default async function MyTeamPage({ params }: { params: Promise<{ slug: s
       {me.team.withdrawn && (
         <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">Your team has been withdrawn by the organiser</p>
       )}
-      <section className="rounded border bg-white p-4">
-        <h2 className="mb-3 flex items-center gap-2 font-semibold"><span className="inline-block h-3 w-3 rounded-full" style={{ background: me.team.colour }} />{me.team.name}</h2>
-        <form action={save} className="grid gap-3 text-sm md:grid-cols-3">
-          <label>Team name<input name="name" defaultValue={me.team.name} maxLength={40} required className="mt-1 w-full rounded border p-2" /></label>
-          <label>Tagline<input name="tagline" defaultValue={me.team.tagline} maxLength={80} className="mt-1 w-full rounded border p-2" /></label>
-          <label>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1 h-10 w-full rounded border" /></label>
-          <div className="md:col-span-3"><SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">Save team</SubmitButton></div>
+      {welcome === '1' && (
+        <div data-testid="welcome" className="rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-sm">
+          <p className="font-semibold">You&apos;re in. Save this private link, it is the only way back to your team page:</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <code className="break-all rounded bg-white px-2 py-1 text-xs">{privateLink}</code>
+            <CopyButton text={privateLink} className={ui.secondary} />
+          </div>
+        </div>
+      )}
+      <section className={ui.card}>
+        <h2 className={`${ui.h2} mb-4 flex items-center gap-2`}><span className="inline-block h-4 w-4 rounded-full" style={{ background: me.team.colour }} />{me.team.name}</h2>
+        <form action={save} className="grid gap-4 md:grid-cols-2">
+          <label className={ui.label}>Team name<input name="name" defaultValue={me.team.name} maxLength={40} required className={ui.field} /></label>
+          <label className={ui.label}>Tagline<input name="tagline" defaultValue={me.team.tagline} maxLength={80} className={ui.field} /></label>
+          <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1 h-12 w-full rounded-lg border" /></label>
+          <label className={`${ui.label} md:col-span-2`}>About your team<textarea name="description" defaultValue={me.team.description} maxLength={400} rows={2} className={ui.field} /></label>
+          <div className="md:col-span-2"><SubmitButton className={ui.primary}>Save team</SubmitButton></div>
         </form>
+      </section>
+      <section className={ui.card}>
+        <h2 className={`${ui.h2} mb-1`}>Players</h2>
+        {rosterLocked ? (
+          <>
+            <p className={ui.help}>The draw is locked, so players can&apos;t change. Ask the organiser if someone is injured.</p>
+            <ul className="mt-3 space-y-1 text-base">
+              <li><span className="text-slate-500">Mixed #1:</span> {byRole('mixed1')} &amp; {byRole('woman')}</li>
+              <li><span className="text-slate-500">Mixed #2:</span> {byRole('mixed2')} &amp; {byRole('woman')}</li>
+              <li><span className="text-slate-500">Men&apos;s doubles:</span> {byRole('mixed1')} &amp; {byRole('mixed2')}</li>
+            </ul>
+          </>
+        ) : (
+          <>
+            <form action={saveRoster} className="space-y-4">
+              <RosterFields defaults={{ mixed1: byRole('mixed1'), mixed2: byRole('mixed2'), woman: byRole('woman') }} />
+              <SubmitButton className={ui.primary}>Save players</SubmitButton>
+            </form>
+            <form action={swap} className="mt-3">
+              <SubmitButton className={ui.secondary}>Swap which man plays Mixed #1</SubmitButton>
+            </form>
+          </>
+        )}
       </section>
       <section className="space-y-2">
         <h2 className="font-semibold">Your next match</h2>

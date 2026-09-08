@@ -7,8 +7,8 @@ import { parseSignupForm, rosterErrorMessage } from '@/lib/teams/roster';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 
-export const SIGNUP_LIMIT = 10;
-export const SIGNUP_WINDOW_MS = 60_000;
+const SIGNUP_LIMIT = 10;
+const SIGNUP_WINDOW_MS = 60_000;
 
 /**
  * The public sign-up. Every check that matters (open, code, unique name, roster rule) is repeated

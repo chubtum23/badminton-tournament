@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: strin
     return new NextResponse('Too many attempts. Try again in a minute.', { status: 429 });
   }
   if (!participant) return new NextResponse('This team link is not valid.', { status: 404 });
-  const res = NextResponse.redirect(new URL(`/t/${slug}/team`, req.url), 303);
+  const res = NextResponse.redirect(new URL(`/t/${slug}/team${req.nextUrl.search}`, req.url), 303);
   res.cookies.set(cookieName(slug), token, {
     httpOnly: true, sameSite: 'lax', path: `/t/${slug}`, maxAge: 60 * 60 * 24 * 30, secure: req.nextUrl.protocol === 'https:',
   });
