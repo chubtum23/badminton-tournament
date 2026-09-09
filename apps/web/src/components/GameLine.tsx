@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import type { Match, Settings } from '@tournament/core';
 import type { GameRow, RosterPlayerRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import { gameLabel } from '@/lib/db/mappers';
+import { ratingSlots } from '@/lib/results/ratings';
 import { pairNames } from '@/lib/teams/roster';
 import type { ActionResult } from '@/actions/errors';
 import { clearGameScore, pauseGame, resumeGame, saveGameScore, startGame, takeGameOffCourt } from '@/actions/games';
@@ -191,6 +192,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               matchId={match.id} gameNo={slot.game_no} settings={settings} label={label} teamA={a} teamB={b}
               existing={scored ? { scoreA: slot.score_a!, scoreB: slot.score_b!, timeExpired: slot.time_expired } : undefined}
               action={saveGameScore.bind(null, tournament.slug, match.id, slot.game_no)}
+              slots={ratingSlots(teams.find((t) => t.id === match.teamAId), teams.find((t) => t.id === match.teamBId), slot.game_no)}
               confirmMessage={match.status === 'done' ? 'This meeting already has a result. Changing this score may reset every later match that depended on it. Continue?' : undefined}
             />
           )}
