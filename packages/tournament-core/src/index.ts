@@ -8,3 +8,4 @@ export * from './bracket';
 export * from './advance';
 export * from './roster';
 export * from './leaderboard';
+export * from './ratings';
