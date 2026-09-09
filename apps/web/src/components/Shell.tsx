@@ -1,11 +1,13 @@
 import Link from 'next/link';
+import { ClubLogo } from './ClubLogo';
 import { ShellTabs } from './ShellTabs';
 
 /**
  * The navy band at the top of every screen, and the page column under it.
  *
- * The band carries the tournament's name, one line of live status, whatever links belong to the
- * viewer (the organiser gets "sign out", a player gets the public page), and the tab strip. Its
+ * The band carries the club crest, the tournament's name, one line of live status, whatever links
+ * belong to the viewer (the organiser gets "sign out", a player gets the public page), and the
+ * tab strip. Its
  * faint vertical rules are court sidelines — the only ornament in the design, and the thing that
  * makes a hall screen recognisable from across the room.
  */
@@ -23,9 +25,12 @@ export function Shell({ title, status, links, tabs, children }: {
       <div className="on-navy court-lines relative bg-navy text-bone">
         <div className="relative mx-auto max-w-shell px-6 pt-8 sm:px-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="font-display text-3xl font-black uppercase leading-tight tracking-tight sm:text-[42px]">{title}</h1>
-              {status && <p className="mt-1.5 text-sm font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
+            <div className="flex min-w-0 items-center gap-5">
+              <ClubLogo />
+              <div className="min-w-0">
+                <h1 className="font-display text-3xl font-black uppercase leading-tight tracking-tight sm:text-[42px]">{title}</h1>
+                {status && <p className="mt-1.5 text-sm font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
+              </div>
             </div>
             {links && <div className="flex flex-wrap items-center gap-6 pb-2 text-sm font-semibold uppercase tracking-label">{links}</div>}
           </div>
@@ -53,9 +58,12 @@ export function PlainShell({ title, status, links, children }: {
     <>
       <div className="on-navy court-lines relative bg-navy text-bone">
         <div className="relative mx-auto flex max-w-shell flex-wrap items-end justify-between gap-5 px-6 py-9 sm:px-10">
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl font-black uppercase leading-tight tracking-tight sm:text-[42px]">{title}</h1>
-            {status && <p className="mt-1.5 text-sm font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
+          <div className="flex min-w-0 items-center gap-5">
+            <ClubLogo />
+            <div className="min-w-0">
+              <h1 className="font-display text-3xl font-black uppercase leading-tight tracking-tight sm:text-[42px]">{title}</h1>
+              {status && <p className="mt-1.5 text-sm font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
+            </div>
           </div>
           {links && <div className="flex flex-wrap items-center gap-6 text-sm font-semibold uppercase tracking-label">{links}</div>}
         </div>
