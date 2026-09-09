@@ -8,8 +8,8 @@ import { gameLabel, settingsFor } from '@/lib/db/mappers';
 import { SubmitButton } from '@/components/SubmitButton';
 import { ui } from '@/components/ui';
 
-const fieldset = 'space-y-4 rounded-lg border p-4';
-const legend = 'px-1 text-base font-semibold';
+const fieldset = 'space-y-4 border-hair border-line p-5';
+const legend = 'px-2 text-xs font-bold uppercase tracking-eyebrow text-navy';
 
 export default async function RulesPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -35,11 +35,14 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
   }
 
   return (
-    <section className={ui.card}>
+    <div className="space-y-5">
       <FlashMessage />
-      <h2 className="text-2xl font-bold">Rules</h2>
-      <p className={`${ui.help} mb-6`}>Locked once the pools are drawn.</p>
-      <form action={save} className="space-y-5">
+      <section className={ui.card}>
+      <div className={`${ui.head} ${ui.headOrange}`}>
+        <h2 className={ui.eyebrow}>Rules</h2>
+        <span className={ui.eyebrow}>{locked ? 'Locked — pools are drawn' : 'Step 2'}</span>
+      </div>
+      <form action={save} className={`${ui.body} space-y-5`}>
         <fieldset className={fieldset}>
           <legend className={legend}>Pool stage</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -47,8 +50,8 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
             <label className={ui.label}>Points per game<input name="pool_pointsPerGame" type="number" defaultValue={pool.pointsPerGame} disabled={locked} className={ui.field} /></label>
             <label className={ui.label}>Points cap<input name="pool_maxPoints" type="number" defaultValue={pool.maxPoints ?? ''} disabled={locked} className={ui.field} /><span className={ui.help}>Blank for none.</span></label>
             <label className={ui.label}>Clock minutes per game<input name="pool_timeCap" type="number" defaultValue={pool.timeCapMinutes ?? ''} disabled={locked} className={ui.field} /><span className={ui.help}>Blank for no clock.</span></label>
-            <label className="flex items-center gap-2 text-base font-medium text-slate-800"><input name="pool_winByTwo" type="checkbox" defaultChecked={pool.winByTwo} disabled={locked} /> Win by two</label>
-            <label className="flex items-center gap-2 text-base font-medium text-slate-800"><input name="pool_playAllGames" type="checkbox" defaultChecked={pool.playAllGames} disabled={locked} /> Play every game</label>
+            <label className={ui.check}><input name="pool_winByTwo" type="checkbox" className={ui.checkbox} defaultChecked={pool.winByTwo} disabled={locked} /> Win by two</label>
+            <label className={ui.check}><input name="pool_playAllGames" type="checkbox" className={ui.checkbox} defaultChecked={pool.playAllGames} disabled={locked} /> Play every game</label>
           </div>
         </fieldset>
 
@@ -66,13 +69,13 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
 
         <fieldset className={fieldset}>
           <legend className={legend}>Knockout stage</legend>
-          <label className="flex items-center gap-2 text-base font-medium text-slate-800"><input name="ko_same" type="checkbox" defaultChecked={koSame} disabled={locked} /> Same as the pool stage</label>
+          <label className={ui.check}><input name="ko_same" type="checkbox" className={ui.checkbox} defaultChecked={koSame} disabled={locked} /> Same as the pool stage</label>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <label className={ui.label}>Games per match<input name="ko_gamesPerMatch" type="number" defaultValue={knockout.gamesPerMatch} disabled={locked} className={ui.field} /></label>
             <label className={ui.label}>Points per game<input name="ko_pointsPerGame" type="number" defaultValue={knockout.pointsPerGame} disabled={locked} className={ui.field} /></label>
             <label className={ui.label}>Points cap<input name="ko_maxPoints" type="number" defaultValue={knockout.maxPoints ?? ''} disabled={locked} className={ui.field} /><span className={ui.help}>Blank for none.</span></label>
             <label className={ui.label}>Clock minutes per game<input name="ko_timeCap" type="number" defaultValue={knockout.timeCapMinutes ?? ''} disabled={locked} className={ui.field} /><span className={ui.help}>Blank for no clock.</span></label>
-            <label className="flex items-center gap-2 text-base font-medium text-slate-800"><input name="ko_winByTwo" type="checkbox" defaultChecked={knockout.winByTwo} disabled={locked} /> Win by two</label>
+            <label className={ui.check}><input name="ko_winByTwo" type="checkbox" className={ui.checkbox} defaultChecked={knockout.winByTwo} disabled={locked} /> Win by two</label>
           </div>
           <p className={ui.help}>These are ignored while &ldquo;same as the pool stage&rdquo; is ticked.</p>
         </fieldset>
@@ -117,6 +120,7 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
 
         {!locked && <SubmitButton className={ui.primary}>Save rules</SubmitButton>}
       </form>
-    </section>
+      </section>
+    </div>
   );
 }

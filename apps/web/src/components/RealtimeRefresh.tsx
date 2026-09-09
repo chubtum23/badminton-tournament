@@ -3,8 +3,14 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserSupabase } from '@/lib/supabase/browser';
 
+/**
+ * The connection light on the header band. A dot plus a word rather than a filled pill, because
+ * on the navy the pill would compete with the active tab; the dot is the only thing on the band
+ * that moves, so a live page is obvious without reading anything.
+ */
 const pill = (status: 'connecting' | 'live' | 'reconnecting') => (
-  <span data-testid="realtime-status" className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${status === 'live' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+  <span data-testid="realtime-status" className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-label text-onnavy-soft">
+    <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${status === 'live' ? 'bg-orange' : 'bg-onnavy-soft'}`} />
     {status}
   </span>
 );

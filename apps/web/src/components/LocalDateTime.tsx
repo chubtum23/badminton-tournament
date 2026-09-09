@@ -16,12 +16,16 @@ function utcFallback(iso: string): string {
  * start would display as a morning time for everyone. Formatting after mount uses the
  * browser's zone instead.
  */
-export function LocalDateTime({ iso }: { iso: string }) {
+export function LocalDateTime({ iso, compact = false }: {
+  iso: string;
+  /** "9 Sept 2026, 19:00" rather than the full weekday-and-month form. For the header band. */
+  compact?: boolean;
+}) {
   const [text, setText] = useState('');
   useEffect(() => {
     const d = new Date(iso);
-    if (!Number.isNaN(d.getTime())) setText(d.toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' }));
-  }, [iso]);
+    if (!Number.isNaN(d.getTime())) setText(d.toLocaleString(undefined, { dateStyle: compact ? 'medium' : 'full', timeStyle: 'short' }));
+  }, [iso, compact]);
   return <time dateTime={iso}>{text || utcFallback(iso)}</time>;
 }
 

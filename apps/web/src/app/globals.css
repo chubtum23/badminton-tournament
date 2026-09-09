@@ -3,7 +3,31 @@
 @tailwind utilities;
 
 :root { color-scheme: light; }
-body { @apply bg-slate-50 text-slate-900; }
+body { @apply bg-bone font-sans text-ink; }
+
+/* The design has no rounded corners, so a focus ring is the only thing that outlines a control.
+   Keyboard focus has to stay visible on both grounds: navy on the bone page, orange on the band. */
+:focus-visible { @apply outline outline-2 outline-offset-2 outline-navy; }
+.on-navy :focus-visible { @apply outline-orange; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* A <summary> laid out with flex loses the browser's disclosure triangle, so this puts one back
+   as a pseudo-element. Keeping it out of the DOM text means a section's heading and its count stay
+   the only things in textContent, which is what the end-to-end specs read. */
+.disclosure { list-style: none; cursor: pointer; }
+.disclosure::-webkit-details-marker { display: none; }
+.disclosure::after { content: '▾'; @apply text-muted transition-transform; }
+details[open] > .disclosure::after { transform: rotate(180deg); }
+
+/* The header band's court markings: faint sidelines every 120px, the one piece of ornament in
+   the design. Purely decorative, so it sits behind the content and is never announced. */
+.court-lines::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 118px, rgba(59, 169, 220, 0.16) 118px 120px);
+}
 
 /* Bracket connectors: each .bk-round is a flex column; each .bk-slot is flex:1 so
    centres of sibling slots are exactly one slot-height apart. */
@@ -11,13 +35,13 @@ body { @apply bg-slate-50 text-slate-900; }
 .bk-slots { display: flex; flex-direction: column; flex: 1; }
 .bk-slot { position: relative; flex: 1; display: flex; align-items: center; padding: 0.5rem 0; }
 .bk-round:not(:last-child) .bk-slots .bk-slot::after {
-  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }
 .bk-round:not(:last-child) .bk-slots .bk-slot:nth-child(odd)::before {
-  content: ''; position: absolute; right: -1rem; top: 50%; height: 100%; border-right: 2px solid #1e3a8a;
+  content: ''; position: absolute; right: -1rem; top: 50%; height: 100%; border-right: 2px solid #2B3390;
 }
 .bk-round:not(:first-child) .bk-box::before {
-  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }
 
 /* Draw tree: the whole event on one screen, pools on the outside feeding a knockout in the
@@ -30,21 +54,21 @@ body { @apply bg-slate-50 text-slate-900; }
 .dt-box { position: relative; width: 100%; }
 
 .dt-l .dt-round:not(:last-child) .dt-slot::after {
-  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }
 .dt-l .dt-round:not(:last-child) .dt-slot:nth-child(odd)::before {
-  content: ''; position: absolute; right: -1rem; top: 50%; height: 100%; border-right: 2px solid #1e3a8a;
+  content: ''; position: absolute; right: -1rem; top: 50%; height: 100%; border-right: 2px solid #2B3390;
 }
 .dt-l .dt-round:not(:first-child) .dt-box::before {
-  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }
 
 .dt-r .dt-round:not(:first-child) .dt-slot::after {
-  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+  content: ''; position: absolute; left: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }
 .dt-r .dt-round:not(:first-child) .dt-slot:nth-child(odd)::before {
-  content: ''; position: absolute; left: -1rem; top: 50%; height: 100%; border-left: 2px solid #1e3a8a;
+  content: ''; position: absolute; left: -1rem; top: 50%; height: 100%; border-left: 2px solid #2B3390;
 }
 .dt-r .dt-round:not(:last-child) .dt-box::before {
-  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #1e3a8a;
+  content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }

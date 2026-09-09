@@ -14,15 +14,22 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
   const t = ctx.tournament;
   async function save(fd: FormData) { 'use server'; redirectWithMsg(`/admin/${slug}/event`, await updateEvent(slug, fd), 'Event details saved'); }
   return (
-    <section className={ui.card}>
+    <div className="max-w-2xl space-y-5">
       <FlashMessage />
-      <h2 className="text-2xl font-bold">Event details</h2>
-      <p className={`${ui.help} mb-6`}>Shown under the tournament name on every public page. You can change these at any time.</p>
-      <form action={save} className="max-w-xl space-y-5">
-        <label className={ui.label}>Date and time<LocalDateTimeInput name="startsAt" defaultIso={t.starts_at} className={ui.field} /><span className={ui.help}>In your own timezone.</span></label>
-        <label className={ui.label}>Venue<input name="venue" maxLength={120} defaultValue={t.venue ?? ''} className={ui.field} /><span className={ui.help}>Hall or club name, as players know it.</span></label>
-        <SubmitButton className={ui.primary}>Save event details</SubmitButton>
-      </form>
-    </section>
+      <section className={ui.card}>
+        <div className={`${ui.head} ${ui.headOrange}`}>
+          <h2 className={ui.eyebrow}>Event details</h2>
+          <span className={ui.eyebrow}>Step 1</span>
+        </div>
+        <div className={ui.body}>
+          <p className="mb-6 text-[13px] text-muted">Shown under the tournament name on every public page. You can change these at any time.</p>
+          <form action={save} className="space-y-5">
+            <label className={ui.label}>Date and time<LocalDateTimeInput name="startsAt" defaultIso={t.starts_at} className={ui.field} /><span className={ui.help}>In your own timezone.</span></label>
+            <label className={ui.label}>Venue<input name="venue" maxLength={120} defaultValue={t.venue ?? ''} className={ui.field} /><span className={ui.help}>Hall or club name, as players know it.</span></label>
+            <SubmitButton className={ui.primary}>Save event details</SubmitButton>
+          </form>
+        </div>
+      </section>
+    </div>
   );
 }

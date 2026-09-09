@@ -10,7 +10,9 @@ import { computePool } from '@/lib/standings/compute';
 import { StandingsTable } from '@/components/StandingsTable';
 import { SubmitButton } from '@/components/SubmitButton';
 import { FlashMessage } from '@/components/FlashMessage';
-import { ui } from '@/components/ui';
+import { poolTag, poolTone, ui } from '@/components/ui';
+
+const th = 'pb-2 pt-1 text-[11px] font-bold uppercase tracking-label text-muted';
 
 export default async function PoolsAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -32,6 +34,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   const played = (id: string) => (slots[id] ?? []).filter((g) => g.score_a !== null);
   const here = `/admin/${slug}/standings`;
   const nameOf = (id: string) => teams.find((x) => x.id === id)?.name ?? '?';
+  const poolIndexOf = (id: string | null) => pools.findIndex((p) => p.id === id);
   // Each pool's table is wanted twice — in its own section and in the overall leaderboard below —
   // so it is computed once here and read from both places.
   const poolResults = pools.map((pool) => ({ pool, ...computePool({ pool, teams, matches, games, advancePerPool: t.advance_per_pool }) }));
@@ -69,19 +72,20 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <FlashMessage />
       {editable && (
-        <form action={generate} className="flex items-end gap-2 rounded border bg-white p-4 text-sm">
-          <label>Number of pools
-            <input name="poolCount" type="number" min={1} max={teams.length} defaultValue={Math.max(1, Math.round(teams.length / 4))} className="mt-1 w-24 rounded border p-2" />
+        <form action={generate} className={`${ui.card} flex flex-wrap items-end gap-4 px-5 py-4`}>
+          <label className={ui.label}>Number of pools
+            <input name="poolCount" type="number" min={1} max={teams.length} defaultValue={Math.max(1, Math.round(teams.length / 4))} className={`${ui.field} w-24`} />
           </label>
-          <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">{pools.length ? 'Re-deal randomly' : 'Generate pools'}</SubmitButton>
-          <span className="text-slate-500">{teams.length} teams. Placement is random; seeds are labels only.</span>
+          <SubmitButton className={ui.solid}>{pools.length ? 'Re-deal randomly' : 'Generate pools'}</SubmitButton>
+          <span className="text-[13px] text-muted">{teams.length} teams. Placement is random; seeds are labels only.</span>
         </form>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
-        {poolResults.map(({ pool: p, rows, ties, manual, playoffs, complete, fixtures }) => {
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        {poolResults.map(({ pool: p, rows, ties, manual, playoffs, complete, fixtures }, pi) => {
           const poolTeams = teams.filter((x) => x.pool_id === p.id);
           const tiedPair = ties[0]?.teamIds ?? [];
           // A half-played pool has no finishing order worth arguing about, so the organiser's
@@ -90,97 +94,113 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
           // The rank selects live inside the standings rows, so they reach the form by id.
           const formId = `order-${p.id}`;
           return (
-            <section key={p.id} className="rounded border bg-white p-4">
-              <h2 className="mb-2 font-semibold">{p.name}</h2>
-              {editable ? (
-                <ul className="space-y-1 text-sm">
-                  {poolTeams.map((x) => (
-                    <li key={x.id} className="flex items-center justify-between gap-2">
-                      <span>{x.seed && <span className="mr-1 rounded bg-amber-100 px-1 text-xs">#{x.seed}</span>}{x.name}</span>
-                      <form action={move} className="flex gap-1">
-                        <input type="hidden" name="teamId" value={x.id} />
-                        <select name="poolId" defaultValue={p.id} className="rounded border p-1 text-xs">
-                          {pools.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                        </select>
-                        <SubmitButton className="rounded border px-2 text-xs">Move</SubmitButton>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <>
-                  {ties.map((tie) => (
-                    <p key={tie.teamIds.join('-')} className="mb-2 rounded border border-red-300 bg-red-50 p-2 text-sm text-red-800">
-                      {tie.teamIds.map(nameOf).join(' and ')} are {tie.affects === 'qualification' ? 'tied for the last qualifying place' : 'tied at the top of the pool'}.
-                      {' '}Record a playoff or set the finishing order below.
-                    </p>
-                  ))}
-                  <StandingsTable
-                    rows={rows}
-                    teams={teams}
-                    advance={t.advance_per_pool}
-                    manual={manual}
-                    actionHeader={showTieTools ? 'Place' : undefined}
-                    rowAction={showTieTools ? (r, i) => (
-                      <select name={`rank_${r.teamId}`} form={formId} defaultValue={i + 1} className="rounded border p-1 text-xs">
-                        {rows.map((_, n) => <option key={n} value={n + 1}>{n + 1}</option>)}
-                      </select>
-                    ) : undefined}
-                  />
-                  {fixtures.length > 0 && (
-                    <div className="mt-3 border-t pt-3">
-                      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fixtures</h3>
-                      <ul className="space-y-0.5 text-xs">
-                        {fixtures.map((m) => (
-                          <li key={m.id} className="flex items-baseline justify-between gap-2">
-                            <span>{m.teamAId ? nameOf(m.teamAId) : '?'} v {m.teamBId ? nameOf(m.teamBId) : '?'}</span>
-                            <span className="shrink-0 font-mono text-slate-500">
-                              {m.status === 'done'
-                                ? (games[m.id] ?? []).map((x) => `${x.scoreA}-${x.scoreB}`).join(', ') || m.decidedBy
-                                : `${played(m.id).length}/${(slots[m.id] ?? []).length} games`}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {showTieTools && (
-                    <div className="mt-3 space-y-3 border-t pt-3 text-sm">
-                      <form id={formId} action={order} className="flex flex-wrap items-center gap-2">
-                        <input type="hidden" name="poolId" value={p.id} />
-                        <SubmitButton className="rounded border px-2 py-1 text-xs">Set finishing order</SubmitButton>
-                        <span className="text-xs text-slate-500">Pick a place for every team above.</span>
-                      </form>
-                      {manual && (
-                        <form action={clearOrder}>
-                          <input type="hidden" name="poolId" value={p.id} />
-                          <SubmitButton className="rounded border px-2 py-1 text-xs">Clear manual order</SubmitButton>
+            <section key={p.id} className={ui.card}>
+              <div className={`${ui.head} ${poolTone(pi).head}`}>
+                <h2 className={ui.eyebrow}>{p.name}</h2>
+                <span className={ui.eyebrow}>Top {t.advance_per_pool} qualify</span>
+              </div>
+              <div className="px-5 py-4">
+                {editable ? (
+                  <ul className="divide-y divide-line-soft">
+                    {poolTeams.map((x) => (
+                      <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                        <span className="flex items-center gap-2 text-sm font-bold">
+                          {x.seed && <span className="bg-orange-tint px-1.5 text-[10px] font-bold text-orange-ink">#{x.seed}</span>}
+                          {x.name}
+                        </span>
+                        <form action={move} className="flex gap-1.5">
+                          <input type="hidden" name="teamId" value={x.id} />
+                          <label className="sr-only" htmlFor={`move-${x.id}`}>Pool for {x.name}</label>
+                          <select id={`move-${x.id}`} name="poolId" defaultValue={p.id} className={ui.fieldSm}>
+                            {pools.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                          </select>
+                          <SubmitButton className={ui.tiny}>Move</SubmitButton>
                         </form>
-                      )}
-                      <form action={playoff} className="flex flex-wrap items-center gap-2">
-                        <input type="hidden" name="poolId" value={p.id} />
-                        <select name="teamX" defaultValue={tiedPair[0] ?? poolTeams[0]?.id} className="rounded border p-1 text-xs">
-                          {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                        </select>
-                        <span className="text-xs text-slate-500">v</span>
-                        <select name="teamY" defaultValue={tiedPair[1] ?? poolTeams[1]?.id} className="rounded border p-1 text-xs">
-                          {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                        </select>
-                        <SubmitButton confirmMessage="Create a playoff match between these two teams?" className="rounded border px-2 py-1 text-xs">Record men&apos;s doubles playoff</SubmitButton>
-                      </form>
-                      {playoffs.length > 0 && (
-                        <p className="text-xs text-slate-500">
-                          {playoffs.length} playoff{playoffs.length === 1 ? '' : 's'} in this pool; enter the result on the Matches page.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+                      </li>
+                    ))}
+                    {poolTeams.length === 0 && <li className="py-2 text-[13px] text-muted">No teams in this pool yet.</li>}
+                  </ul>
+                ) : (
+                  <>
+                    {ties.map((tie) => (
+                      <p key={tie.teamIds.join('-')} className={`${ui.alarm} mb-3`}>
+                        {tie.teamIds.map(nameOf).join(' and ')} are {tie.affects === 'qualification' ? 'tied for the last qualifying place' : 'tied at the top of the pool'}.
+                        {' '}Record a playoff or set the finishing order below.
+                      </p>
+                    ))}
+                    <StandingsTable
+                      rows={rows}
+                      teams={teams}
+                      advance={t.advance_per_pool}
+                      manual={manual}
+                      actionHeader={showTieTools ? 'Place' : undefined}
+                      rowAction={showTieTools ? (r, i) => (
+                        <>
+                          <label className="sr-only" htmlFor={`rank-${r.teamId}`}>Finishing place for {r.name}</label>
+                          <select id={`rank-${r.teamId}`} name={`rank_${r.teamId}`} form={formId} defaultValue={i + 1} className={ui.fieldSm}>
+                            {rows.map((_, n) => <option key={n} value={n + 1}>{n + 1}</option>)}
+                          </select>
+                        </>
+                      ) : undefined}
+                    />
+                    {fixtures.length > 0 && (
+                      <div className="mt-5 border-t-hair border-line pt-4">
+                        <h3 className={`${ui.eyebrow} mb-2 text-muted`}>Fixtures</h3>
+                        <ul className="space-y-1">
+                          {fixtures.map((m) => (
+                            <li key={m.id} className="flex items-baseline justify-between gap-3 text-[13px]">
+                              <span className="font-semibold">{m.teamAId ? nameOf(m.teamAId) : '?'} v {m.teamBId ? nameOf(m.teamBId) : '?'}</span>
+                              <span className="shrink-0 tabular-nums text-muted">
+                                {m.status === 'done'
+                                  ? (games[m.id] ?? []).map((x) => `${x.scoreA}–${x.scoreB}`).join(', ') || m.decidedBy
+                                  : `${played(m.id).length}/${(slots[m.id] ?? []).length} games`}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {showTieTools && (
+                      <div className="mt-5 space-y-4 border-t-hair border-line pt-4">
+                        <form id={formId} action={order} className="flex flex-wrap items-center gap-3">
+                          <input type="hidden" name="poolId" value={p.id} />
+                          <SubmitButton className={ui.secondary}>Set finishing order</SubmitButton>
+                          <span className="text-xs text-muted">Pick a place for every team above.</span>
+                        </form>
+                        {manual && (
+                          <form action={clearOrder}>
+                            <input type="hidden" name="poolId" value={p.id} />
+                            <SubmitButton className={ui.tiny}>Clear manual order</SubmitButton>
+                          </form>
+                        )}
+                        <form action={playoff} className="flex flex-wrap items-center gap-2">
+                          <input type="hidden" name="poolId" value={p.id} />
+                          <label className="sr-only" htmlFor={`x-${p.id}`}>First team in the playoff</label>
+                          <select id={`x-${p.id}`} name="teamX" defaultValue={tiedPair[0] ?? poolTeams[0]?.id} className={ui.fieldSm}>
+                            {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                          </select>
+                          <span className="text-xs font-bold uppercase tracking-label text-muted">v</span>
+                          <label className="sr-only" htmlFor={`y-${p.id}`}>Second team in the playoff</label>
+                          <select id={`y-${p.id}`} name="teamY" defaultValue={tiedPair[1] ?? poolTeams[1]?.id} className={ui.fieldSm}>
+                            {poolTeams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                          </select>
+                          <SubmitButton confirmMessage="Create a playoff match between these two teams?" className={ui.secondary}>Record men&apos;s doubles playoff</SubmitButton>
+                        </form>
+                        {playoffs.length > 0 && (
+                          <p className={ui.help}>
+                            {playoffs.length} playoff{playoffs.length === 1 ? '' : 's'} in this pool; enter the result on the Matches page.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </section>
           );
         })}
       </div>
+
       {/* Locking and unlocking the pools are the organiser's home-page decisions now; this page
           shows the tables. Once the draw is locked every pool has a table worth totalling. */}
       {!editable && pools.length > 0 && (() => {
@@ -190,13 +210,32 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
         );
         return (
           <section className={ui.card} data-testid="leaderboard">
-            <h2 className={`${ui.h2} mb-2`}>Overall points</h2>
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-slate-500"><th className="py-1">Rank</th><th>Team</th><th>Pool</th><th className="text-right">P</th><th className="text-right">W</th><th className="text-right">Pts</th><th className="text-right">±</th></tr></thead>
-              <tbody>{table.map((r) => (
-                <tr key={r.teamId} className="border-t"><td className="py-1 text-slate-500">{r.overallRank}</td><td>{r.name}</td><td className="text-slate-500">{r.poolName}</td><td className="text-right">{r.played}</td><td className="text-right">{r.won}</td><td className="text-right font-semibold">{r.points}</td><td className="text-right font-mono">{r.pointDiff > 0 ? `+${r.pointDiff}` : r.pointDiff}</td></tr>
-              ))}</tbody>
-            </table>
+            <div className={ui.head}><h2 className={ui.eyebrow}>Overall points</h2></div>
+            <div className="px-5 py-3">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-hair border-line text-left">
+                    <th className={`${th} w-12`}>Rank</th><th className={th}>Team</th><th className={`${th} w-24`}>Pool</th>
+                    <th className={`${th} w-10 text-center`}>P</th><th className={`${th} w-10 text-center`}>W</th>
+                    <th className={`${th} w-12 text-center`}>Pts</th><th className={`${th} w-10 text-center`}>±</th>
+                  </tr>
+                </thead>
+                <tbody>{table.map((r) => {
+                  const pi = poolIndexOf(teams.find((x) => x.id === r.teamId)?.pool_id ?? null);
+                  return (
+                    <tr key={r.teamId} className="border-b-hair border-line-soft">
+                      <td className="py-2.5 font-display font-extrabold">{r.overallRank}</td>
+                      <td className="py-2.5 font-bold">{r.name}</td>
+                      <td className="py-2.5"><span className={poolTag(pi < 0 ? 0 : pi)}>{r.poolName}</span></td>
+                      <td className="px-1 text-center tabular-nums text-muted-strong">{r.played}</td>
+                      <td className="px-1 text-center tabular-nums text-muted-strong">{r.won}</td>
+                      <td className="px-1 text-center font-bold tabular-nums">{r.points}</td>
+                      <td className="px-1 text-center tabular-nums text-muted-strong">{r.pointDiff > 0 ? `+${r.pointDiff}` : r.pointDiff}</td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
           </section>
         );
       })()}

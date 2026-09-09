@@ -72,7 +72,7 @@ export async function drawAndLock(page: Page, slug: string, poolCount: number): 
 
 /** Every meeting card with at least one game still to score, on the Matches screen. */
 export function openMeetings(page: Page): Locator {
-  return page.locator('div.rounded.border', { has: page.getByTestId('game-score-form') });
+  return page.getByTestId('match-card').filter({ has: page.getByTestId('game-score-form') });
 }
 
 /** The open meeting between two named teams. */

@@ -10,7 +10,7 @@ import { useSearchParams } from 'next/navigation';
 function Banner() {
   const msg = useSearchParams().get('msg');
   if (!msg) return null;
-  return <p className="rounded bg-slate-100 p-2 text-sm">{msg}</p>;
+  return <p className="border-l-4 border-navy bg-white px-4 py-3 text-[13px] font-semibold text-ink">{msg}</p>;
 }
 
 export function FlashMessage() {

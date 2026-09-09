@@ -5,6 +5,10 @@ import { gamesNeeded, matchResult, validateGame, type Settings, type Game } from
 import type { ActionResult } from '@/actions/errors';
 import { OUTCOME_EVENT, OUTCOME_PREFIX } from './RecentOutcome';
 
+/** Scores are the numbers on this screen that matter, so they are set in the display face. */
+const scoreBox = 'w-16 border-hair border-line bg-white px-2 py-1.5 text-center font-display text-lg font-black tabular-nums text-ink outline-none focus:border-navy';
+const header = 'truncate text-[11px] font-bold uppercase tracking-label text-muted';
+
 /** Text an action can hand back for the inline outcome line (submitted / confirmed / disputed). */
 const outcomeText = (data: unknown): string | null =>
   typeof data === 'object' && data !== null && 'text' in data && typeof (data as { text: unknown }).text === 'string'
@@ -80,28 +84,28 @@ export function SubmitScoresForm({ matchId, settings, existing, teamA, teamB, ac
       className="space-y-2 text-sm"
     >
       <input type="hidden" name="matchId" value={matchId} />
-      <div className={`grid items-center gap-2 ${clocked ? 'grid-cols-[auto_1fr_1fr_auto_2fr]' : 'grid-cols-[auto_1fr_1fr_2fr]'}`}>
+      <div className={`grid items-center gap-2.5 ${clocked ? 'grid-cols-[auto_1fr_1fr_auto_2fr]' : 'grid-cols-[auto_1fr_1fr_2fr]'}`}>
         <span />
-        <span className="truncate font-medium">{teamA}</span>
-        <span className="truncate font-medium">{teamB}</span>
-        {clocked && <span className="text-xs text-slate-500">Time up</span>}
+        <span className={header}>{teamA}</span>
+        <span className={header}>{teamB}</span>
+        {clocked && <span className={header}>Time up</span>}
         <span />
         {rows.map((n, i) => (
           <Fragment key={n}>
-            <span className="text-slate-500">Game {n}</span>
-            <input name={`game${n}a`} inputMode="numeric" value={vals[`game${n}a`] ?? ''} onChange={(e) => setVals({ ...vals, [`game${n}a`]: e.target.value })} className="w-16 rounded border p-1" />
-            <input name={`game${n}b`} inputMode="numeric" value={vals[`game${n}b`] ?? ''} onChange={(e) => setVals({ ...vals, [`game${n}b`]: e.target.value })} className="w-16 rounded border p-1" />
+            <span className="text-[11px] font-bold uppercase tracking-label text-muted">Game {n}</span>
+            <input name={`game${n}a`} inputMode="numeric" value={vals[`game${n}a`] ?? ''} onChange={(e) => setVals({ ...vals, [`game${n}a`]: e.target.value })} className={scoreBox} />
+            <input name={`game${n}b`} inputMode="numeric" value={vals[`game${n}b`] ?? ''} onChange={(e) => setVals({ ...vals, [`game${n}b`]: e.target.value })} className={scoreBox} />
             {clocked && (
-              <input type="checkbox" name={`game${n}x`} checked={vals[`game${n}x`] === 'on'} onChange={(e) => setVals({ ...vals, [`game${n}x`]: e.target.checked ? 'on' : '' })} title="Clock ran out; highest score wins" aria-label={`Game ${n} time up`} />
+              <input type="checkbox" name={`game${n}x`} checked={vals[`game${n}x`] === 'on'} onChange={(e) => setVals({ ...vals, [`game${n}x`]: e.target.checked ? 'on' : '' })} title="Clock ran out; highest score wins" aria-label={`Game ${n} time up`} className="h-4 w-4 accent-navy" />
             )}
-            <span className="text-xs text-slate-500">{hints[i]}</span>
+            <span className="text-[11px] font-semibold text-muted">{hints[i]}</span>
           </Fragment>
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <button disabled={!ready || pending} className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-40">{pending ? 'Saving…' : submitLabel}</button>
-        <span className="text-xs text-slate-600">{status}</span>
-        {outcome && <span data-testid="score-outcome" className={`text-xs ${outcome.ok ? 'text-emerald-700' : 'text-red-700'}`}>{outcome.text}</span>}
+        <button disabled={!ready || pending} className="bg-orange px-6 py-2.5 text-xs font-bold uppercase tracking-label text-ink hover:bg-orange-bright disabled:opacity-40">{pending ? 'Saving…' : submitLabel}</button>
+        <span className="text-[11px] font-bold uppercase tracking-label text-muted-strong">{status}</span>
+        {outcome && <span data-testid="score-outcome" className={`text-[11px] font-bold uppercase tracking-label ${outcome.ok ? 'text-orange-ink' : 'text-red-700'}`}>{outcome.text}</span>}
       </div>
     </form>
   );

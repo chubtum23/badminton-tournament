@@ -12,7 +12,7 @@ import { RecentOutcome } from '@/components/RecentOutcome';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { RosterFields } from '@/components/RosterFields';
-import { ui } from '@/components/ui';
+import { poolTone, ui } from '@/components/ui';
 import { siteOrigin } from '@/lib/siteUrl';
 import { validateRoster } from '@tournament/core';
 import { rosterOf } from '@/lib/teams/roster';
@@ -25,10 +25,10 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   const me = await currentParticipant(slug);
   if (!me) {
     return (
-      <div className="rounded border bg-white p-4 text-sm">
-        <h2 className="mb-1 font-semibold">My team</h2>
-        <p>Open the private link your organiser gave you to unlock this page. It is unique to your team; do not share it.</p>
-      </div>
+      <section className={`${ui.card} max-w-2xl`}>
+        <div className={ui.head}><h2 className={ui.eyebrow}>My team</h2></div>
+        <p className={`${ui.body} text-sm`}>Open the private link your organiser gave you to unlock this page. It is unique to your team; do not share it.</p>
+      </section>
     );
   }
   const sb = await createServerSupabase();
@@ -48,6 +48,11 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
     : `Round ${m.round}`;
   // Rules are per stage, so each match card is rendered against its own settings.
   const settingsOf = (m: typeof mine[number]) => settingsFor(me!.tournament, m.stage);
+  // Pool colour, matching the Pools and Live pages. A knockout meeting has no pool.
+  const tone = (m: typeof mine[number]) => {
+    const i = pools.findIndex((p) => p.id === m.poolId);
+    return i >= 0 ? poolTone(i).head : undefined;
+  };
   const myTeamId = me.team.id;
   const sideOf = (m: typeof mine[number]) => (m.teamAId === myTeamId ? 'a' : 'b');
   const mySide = next ? sideOf(next) : 'a';
@@ -86,72 +91,94 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
       <FlashMessage />
       <RecentOutcome />
       {me.team.withdrawn && (
-        <p className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">Your team has been withdrawn by the organiser</p>
+        <p className={ui.alarm}>Your team has been withdrawn by the organiser.</p>
       )}
       {welcome === '1' && (
-        <div data-testid="welcome" className="rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-sm">
-          <p className="font-semibold">You&apos;re in. Save this private link, it is the only way back to your team page:</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <code className="break-all rounded bg-white px-2 py-1 text-xs">{privateLink}</code>
-            <CopyButton text={privateLink} className={ui.secondary} />
+        <div data-testid="welcome" className={`${ui.card} border-orange`}>
+          <div className={`${ui.head} ${ui.headOrange} border-orange`}><span className={ui.eyebrow}>You&apos;re in</span></div>
+          <div className={ui.body}>
+            <p className="text-sm font-semibold">Save this private link — it is the only way back to your team page.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <code className={ui.code}>{privateLink}</code>
+              <CopyButton text={privateLink} className={ui.primary} label="Copy link" />
+            </div>
           </div>
         </div>
       )}
+
       <section className={ui.card}>
-        <h2 className={`${ui.h2} mb-4 flex items-center gap-2`}><span className="inline-block h-4 w-4 rounded-full" style={{ background: me.team.colour }} />{me.team.name}</h2>
-        <form action={save} className="grid gap-4 md:grid-cols-2">
+        <div className={ui.head}>
+          <h2 className="flex items-center gap-2.5 font-display text-base font-extrabold uppercase tracking-tight">
+            <span className="inline-block h-3.5 w-3.5 rounded-full" style={{ background: me.team.colour }} />{me.team.name}
+          </h2>
+          <span className={`${ui.eyebrow} text-muted`}>Your team</span>
+        </div>
+        <form action={save} className={`${ui.body} grid gap-4 md:grid-cols-2`}>
           <label className={ui.label}>Team name<input name="name" defaultValue={me.team.name} maxLength={40} required className={ui.field} /></label>
           <label className={ui.label}>Tagline<input name="tagline" defaultValue={me.team.tagline} maxLength={80} className={ui.field} /></label>
-          <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1 h-12 w-full rounded-lg border" /></label>
-          <label className={`${ui.label} md:col-span-2`}>About your team<textarea name="description" defaultValue={me.team.description} maxLength={400} rows={2} className={ui.field} /></label>
+          <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1.5 h-12 w-full cursor-pointer border-hair border-line bg-white p-1" /></label>
+          <label className={`${ui.label} md:col-span-2`}>About your team<textarea name="description" defaultValue={me.team.description} maxLength={400} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} /></label>
           <div className="md:col-span-2"><SubmitButton className={ui.primary}>Save team</SubmitButton></div>
         </form>
       </section>
+
       <section className={ui.card}>
-        <h2 className={`${ui.h2} mb-1`}>Players</h2>
-        {rosterLocked ? (
-          <>
-            <p className={ui.help}>The draw is locked, so players can&apos;t change. Ask the organiser if someone is injured.</p>
-            {rosterComplete ? (
-              <ul className="mt-3 space-y-1 text-base">
-                <li><span className="text-slate-500">Mixed #1:</span> {byRole('mixed1')} &amp; {byRole('woman')}</li>
-                <li><span className="text-slate-500">Mixed #2:</span> {byRole('mixed2')} &amp; {byRole('woman')}</li>
-                <li><span className="text-slate-500">Men&apos;s doubles:</span> {byRole('mixed1')} &amp; {byRole('mixed2')}</li>
-              </ul>
-            ) : (
-              <p className="mt-3 text-base">Your team was entered before players were split into mixed and men&apos;s doubles pairs. Ask the organiser to re-enter your three players.</p>
-            )}
-          </>
-        ) : (
-          <>
-            <form action={saveRoster} className="space-y-4">
-              <RosterFields defaults={{ mixed1: byRole('mixed1'), mixed2: byRole('mixed2'), woman: byRole('woman') }} />
-              <SubmitButton className={ui.primary}>Save players</SubmitButton>
-            </form>
-            <form action={swap} className="mt-3">
-              <SubmitButton className={ui.secondary}>Swap which man plays Mixed #1</SubmitButton>
-            </form>
-          </>
-        )}
+        <div className={ui.head}>
+          <h2 className={ui.eyebrow}>Players</h2>
+          {rosterLocked && <span className={ui.pillLocked}>Locked</span>}
+        </div>
+        <div className={ui.body}>
+          {rosterLocked ? (
+            <>
+              <p className="text-[13px] text-muted">The draw is locked, so players can&apos;t change. Ask the organiser if someone is injured.</p>
+              {rosterComplete ? (
+                <ul className="mt-4 divide-y divide-line-soft">
+                  {([['Mixed #1', `${byRole('mixed1')} & ${byRole('woman')}`],
+                     ['Mixed #2', `${byRole('mixed2')} & ${byRole('woman')}`],
+                     ["Men's doubles", `${byRole('mixed1')} & ${byRole('mixed2')}`]] as const).map(([role, pair]) => (
+                    <li key={role} className="flex flex-wrap justify-between gap-3 py-2.5">
+                      <span className={`${ui.eyebrow} text-muted`}>{role}</span>
+                      <span className="text-sm font-bold">{pair}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 text-sm">Your team was entered before players were split into mixed and men&apos;s doubles pairs. Ask the organiser to re-enter your three players.</p>
+              )}
+            </>
+          ) : (
+            <>
+              <form action={saveRoster} className="space-y-4">
+                <RosterFields defaults={{ mixed1: byRole('mixed1'), mixed2: byRole('mixed2'), woman: byRole('woman') }} />
+                <SubmitButton className={ui.primary}>Save players</SubmitButton>
+              </form>
+              <form action={swap} className="mt-4">
+                <SubmitButton className={ui.secondary}>Swap which man plays Mixed #1</SubmitButton>
+              </form>
+            </>
+          )}
+        </div>
       </section>
-      <section className="space-y-2">
-        <h2 className="font-semibold">Your next match</h2>
+
+      <section className="space-y-4">
+        <h2 className={ui.h2}>Your next match</h2>
         {next ? (
           <>
-            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} pending={pending(next)} tournament={me.tournament} slots={slots[next.id]} />
+            <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} tone={tone(next)} pending={pending(next)} tournament={me.tournament} slots={slots[next.id]} />
             {canSubmit(next) && (
-              <>
+              <div className={`${ui.card} ${ui.body} space-y-3`}>
                 <SubmitScoresForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
-                <p className="text-xs text-slate-500">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
-              </>
+                <p className="text-xs text-muted">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
+              </div>
             )}
           </>
-        ) : <p className="text-sm text-slate-500">No upcoming match right now.</p>}
+        ) : <p className={ui.empty}>No upcoming match right now.</p>}
       </section>
-      <section className="space-y-2">
-        <h2 className="font-semibold">Your matches</h2>
-        <div className="grid gap-2 md:grid-cols-2">{mine.map((m) => (
-          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} tournament={me.tournament} slots={slots[m.id]}>
+
+      <section className="space-y-4">
+        <h2 className={ui.h2}>Your matches <span className="text-muted-soft">({mine.length})</span></h2>
+        <div className="grid gap-5 md:grid-cols-2">{mine.map((m) => (
+          <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} pending={pending(m)} tournament={me.tournament} slots={slots[m.id]}>
             {canSubmit(m) && (
               <SubmitScoresForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
                 teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />

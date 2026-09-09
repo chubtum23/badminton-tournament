@@ -10,6 +10,7 @@ import { clearGameScore, pauseGame, resumeGame, saveGameScore, startGame, takeGa
 import { CourtClock } from './CourtClock';
 import { GameScoreForm } from './GameScoreForm';
 import { SubmitButton } from './SubmitButton';
+import { ui } from './ui';
 
 /** A team as the schedule screens have it: the roster is present on the pages that loaded it. */
 export type TeamMaybeRoster = TeamRow & { players?: RosterPlayerRow[] };
@@ -21,6 +22,9 @@ export type TeamMaybeRoster = TeamRow & { players?: RosterPlayerRow[] };
  *
  * `admin` false hides every control, which is what the public pages want; the same component then
  * renders the read-only "Court 2 · 09:41" line.
+ *
+ * "Start" is the only orange button on the organiser's screen for a reason: on the night it is
+ * the action they reach for over and over, and everything around it is reversible admin.
  */
 export function GameLine({ tournament, match, slot, settings, teams, admin, showTeams = false }: {
   tournament: TournamentRow;
@@ -57,22 +61,22 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   };
 
   return (
-    <div className="border-t py-1 text-sm first:border-t-0">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="border-t-hair border-line py-2.5 first:border-t-0">
+      <div className="flex flex-wrap items-center gap-2.5">
         <span className="min-w-[9rem]">
-          <span className="block text-sm font-semibold text-slate-800">{label}</span>
-          {(pairA || pairB) && <span data-testid="pair-names" className="block text-xs text-slate-500">{pairA ?? '—'} · {pairB ?? '—'}</span>}
+          <span className="block text-[13px] font-bold uppercase tracking-wide">{label}</span>
+          {(pairA || pairB) && <span data-testid="pair-names" className="block text-xs text-muted">{pairA ?? '—'} · {pairB ?? '—'}</span>}
         </span>
-        {showTeams && <span className="truncate">{a} v {b}</span>}
+        {showTeams && <span className="truncate font-display text-sm font-extrabold uppercase">{a} v {b}</span>}
         {scored && (
           <>
-            <span className="font-mono">{slot.score_a}-{slot.score_b}</span>
-            {slot.time_expired && <span className="rounded bg-slate-200 px-1 text-[10px] uppercase tracking-wide text-slate-700">time</span>}
+            <span className="font-display text-lg font-black tabular-nums">{slot.score_a}–{slot.score_b}</span>
+            {slot.time_expired && <span className={ui.pillLocked}>time</span>}
           </>
         )}
         {running && (
           <>
-            {slot.court !== null && <span className="text-xs text-emerald-700">Court {slot.court}</span>}
+            {slot.court !== null && <span className={ui.pillLive}>Court {slot.court}</span>}
             {settings.timeCapMinutes !== null && (
               <CourtClock startedAt={slot.started_at!} capMinutes={settings.timeCapMinutes} pausedAt={slot.paused_at} pausedMs={slot.paused_ms} />
             )}
@@ -81,11 +85,11 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
 
         {admin && scored && (
           <>
-            <button type="button" onClick={() => setChanging((v) => !v)} className="rounded border px-2 py-0.5 text-xs">Change</button>
+            <button type="button" onClick={() => setChanging((v) => !v)} className={ui.tiny}>Change</button>
             <form action={() => run(() => clearGameScore(tournament.slug, match.id, slot.game_no))}>
               <SubmitButton
                 confirmMessage={`Clear the ${label} score? Any later match that depended on this meeting is reset.`}
-                className="rounded border px-2 py-0.5 text-xs"
+                className={ui.tiny}
               >Clear</SubmitButton>
             </form>
           </>
@@ -94,13 +98,13 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
           <>
             {settings.timeCapMinutes !== null && (
               <form action={() => run(() => (slot.paused_at ? resumeGame(tournament.slug, match.id, slot.game_no) : pauseGame(tournament.slug, match.id, slot.game_no)))}>
-                <SubmitButton className={`rounded border px-2 py-0.5 text-xs ${slot.paused_at ? 'border-amber-500 text-amber-800' : ''}`}>
+                <SubmitButton className={`${ui.tiny} ${slot.paused_at ? 'border-orange text-orange-ink' : ''}`}>
                   {slot.paused_at ? 'Resume' : 'Pause'}
                 </SubmitButton>
               </form>
             )}
             <form action={() => run(() => takeGameOffCourt(tournament.slug, match.id, slot.game_no))}>
-              <SubmitButton className="rounded border px-2 py-0.5 text-xs">Take off court</SubmitButton>
+              <SubmitButton className={ui.tiny}>Take off court</SubmitButton>
             </form>
           </>
         )}
@@ -110,21 +114,21 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               const raw = String(fd.get('court') ?? '');
               return run(() => startGame(tournament.slug, match.id, slot.game_no, raw === '' ? null : Number(raw)));
             }}
-            className="flex items-center gap-1 text-xs"
+            className="flex items-center gap-2"
           >
             <label className="sr-only" htmlFor={`court-${match.id}-${slot.game_no}`}>Court for {label}</label>
-            <select id={`court-${match.id}-${slot.game_no}`} name="court" defaultValue="" className="rounded border p-2">
+            <select id={`court-${match.id}-${slot.game_no}`} name="court" defaultValue="" className={ui.fieldSm}>
               <option value="">first free</option>
               {Array.from({ length: tournament.court_count }, (_, i) => i + 1).map((c) => <option key={c} value={c}>Court {c}</option>)}
             </select>
-            <SubmitButton className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Start now</SubmitButton>
+            <SubmitButton className="bg-orange px-5 py-2 text-xs font-bold uppercase tracking-label text-ink hover:bg-orange-bright">Start now</SubmitButton>
           </form>
         )}
       </div>
       {/* Every unscored game takes a score, started or not: a game played on a court the organiser
           never assigned still has to be recorded. A scored game only opens on "Change". */}
       {admin && (!scored || changing) && (
-        <div className="mt-1">
+        <div className="mt-2">
           <GameScoreForm
             matchId={match.id} gameNo={slot.game_no} settings={settings} label={label} teamA={a} teamB={b}
             existing={scored ? { scoreA: slot.score_a!, scoreB: slot.score_b!, timeExpired: slot.time_expired } : undefined}
@@ -133,7 +137,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
           />
         </div>
       )}
-      {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+      {error && <p className="mt-1.5 text-xs font-semibold text-red-700">{error}</p>}
     </div>
   );
 }

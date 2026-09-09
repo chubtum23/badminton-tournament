@@ -5,7 +5,11 @@ import { createTournament } from '@/actions/tournaments';
 import { signOut } from '@/app/login/actions';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
 import { SubmitButton } from '@/components/SubmitButton';
+import { PlainShell } from '@/components/Shell';
+import { ui } from '@/components/ui';
 import { TOURNAMENT_PUBLIC_COLUMNS, type TournamentRow } from '@/lib/db/types';
+
+const STAGE: Record<string, string> = { setup: 'Setting up', pools: 'Pool stage', knockout: 'Knockout', finished: 'Finished' };
 
 export default async function AdminHome({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
@@ -17,45 +21,58 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const { data: tournaments } = ids.length
     ? await sb.from('tournaments').select(TOURNAMENT_PUBLIC_COLUMNS).in('id', ids).order('created_at', { ascending: false })
     : { data: [] as TournamentRow[] };
+  const list = tournaments ?? [];
 
   return (
-    <main className="mx-auto max-w-2xl p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">My tournaments</h1>
-        <form action={signOut}><SubmitButton className="text-sm underline">Sign out</SubmitButton></form>
+    <PlainShell
+      title="My tournaments"
+      status={`${list.length} tournament${list.length === 1 ? '' : 's'}`}
+      links={<form action={signOut}><SubmitButton className="uppercase tracking-label text-onnavy-soft hover:text-bone">Sign out</SubmitButton></form>}
+    >
+      <div className="max-w-2xl space-y-5">
+        {error && <p role="alert" className={ui.alarm}>{error}</p>}
+
+        {list.length === 0 ? (
+          <p className={ui.empty}>No tournaments yet. Create your first one below.</p>
+        ) : (
+          <ul className="space-y-4">
+            {list.map((t) => (
+              <li key={t.id} className={ui.card}>
+                <div className={`${ui.head} ${ui.headOrange}`}>
+                  <span className={ui.eyebrow}>{STAGE[t.status] ?? t.status}</span>
+                  <span className={`${ui.eyebrow} text-muted`}>/{t.slug}</span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                  <span className="font-display text-lg font-extrabold uppercase">{t.name}</span>
+                  <span className="flex flex-wrap gap-2">
+                    <Link href={`/t/${t.slug}`} className={ui.secondary}>Public</Link>
+                    <Link href={`/admin/${t.slug}`} className={ui.solid}>Manage</Link>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <section className={ui.card}>
+          <div className={ui.head}><span className={ui.eyebrow}>Create a tournament</span></div>
+          <form action={createTournament} className={`${ui.body} space-y-4`}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={ui.label}>Name<input name="name" required className={ui.field} placeholder="Spring Club Night" /></label>
+              <label className={ui.label}>URL slug <span className="font-normal normal-case tracking-normal text-muted">(optional)</span>
+                <input name="slug" className={ui.field} placeholder="spring-club-night" />
+              </label>
+              <label className={ui.label}>Date and time <span className="font-normal normal-case tracking-normal text-muted">(optional)</span>
+                <LocalDateTimeInput name="startsAt" className={ui.field} />
+              </label>
+              <label className={ui.label}>Venue <span className="font-normal normal-case tracking-normal text-muted">(optional)</span>
+                <input name="venue" maxLength={120} className={ui.field} placeholder="Northcote Leisure Centre" />
+              </label>
+            </div>
+            <SubmitButton className={ui.primary}>Create</SubmitButton>
+          </form>
+        </section>
       </div>
-      {error && <p className="rounded bg-red-50 p-2 text-sm text-red-700">{error}</p>}
-      <ul className="divide-y rounded border bg-white">
-        {(tournaments ?? []).map((t) => (
-          <li key={t.id} className="flex items-center justify-between p-3">
-            <div>
-              <div className="font-medium">{t.name}</div>
-              <div className="text-xs text-slate-500">/{t.slug} · {t.status}</div>
-            </div>
-            <div className="flex gap-3 text-sm">
-              <Link className="underline" href={`/t/${t.slug}`}>Public</Link>
-              <Link className="underline" href={`/admin/${t.slug}`}>Manage</Link>
-            </div>
-          </li>
-        ))}
-        {(tournaments ?? []).length === 0 && <li className="p-3 text-sm text-slate-500">No tournaments yet.</li>}
-      </ul>
-      <form action={createTournament} className="space-y-3 rounded border bg-white p-4">
-        <h2 className="font-semibold">Create a tournament</h2>
-        <label className="block text-sm">Name
-          <input name="name" required className="mt-1 w-full rounded border p-2" placeholder="Spring Club Night" />
-        </label>
-        <label className="block text-sm">URL slug (optional)
-          <input name="slug" className="mt-1 w-full rounded border p-2" placeholder="spring-club-night" />
-        </label>
-        <label className="block text-sm">Date and time (optional)
-          <LocalDateTimeInput name="startsAt" className="mt-1 w-full rounded border p-2" />
-        </label>
-        <label className="block text-sm">Venue (optional)
-          <input name="venue" maxLength={120} className="mt-1 w-full rounded border p-2" placeholder="Northcote Leisure Centre" />
-        </label>
-        <SubmitButton className="rounded bg-slate-900 px-4 py-2 text-white">Create</SubmitButton>
-      </form>
-    </main>
+    </PlainShell>
   );
 }

@@ -4,6 +4,9 @@ import type { ActionResult } from '@/actions/errors';
 import { RosterFields } from './RosterFields';
 import { ui } from './ui';
 
+/** "(optional)" inside an uppercase label reads as shouting, so it drops back to plain case. */
+const optional = 'font-normal normal-case tracking-normal text-muted';
+
 /**
  * Calls the sign-up action itself so a rejected attempt keeps everything typed, then does a full
  * navigation to the one-time link: that route sets the httpOnly team cookie and lands on the team
@@ -36,13 +39,13 @@ export function JoinForm({ slug, needsCode, action }: {
         });
       }}
     >
-      {error && <p role="alert" data-testid="signup-error" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {error && <p role="alert" data-testid="signup-error" className={ui.alarm}>{error}</p>}
       <div className="grid gap-4 md:grid-cols-2">
-        <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} /></label>
-        <label className={ui.label}>Tagline <span className="font-normal text-slate-500">(optional)</span><input name="tagline" maxLength={80} className={ui.field} /></label>
-        <label className={ui.label}>Team colour<input name="colour" type="color" defaultValue="#2563eb" className="mt-1 h-12 w-full rounded-lg border" /></label>
-        <label className={`${ui.label} md:col-span-2`}>About your team <span className="font-normal text-slate-500">(optional)</span>
-          <textarea name="description" maxLength={400} rows={2} className={ui.field} />
+        <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} placeholder="e.g. Net Ninjas" /></label>
+        <label className={ui.label}>Tagline <span className={optional}>(optional)</span><input name="tagline" maxLength={80} className={ui.field} /></label>
+        <label className={ui.label}>Team colour<input name="colour" type="color" defaultValue="#2B3390" className="mt-1.5 h-12 w-full cursor-pointer border-hair border-line bg-white p-1" /></label>
+        <label className={`${ui.label} md:col-span-2`}>About your team <span className={optional}>(optional)</span>
+          <textarea name="description" maxLength={400} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} />
         </label>
       </div>
       <RosterFields />
@@ -51,7 +54,7 @@ export function JoinForm({ slug, needsCode, action }: {
           <span className={ui.help}>The organiser gave this to club members.</span>
         </label>
       )}
-      <button type="submit" disabled={pending} aria-busy={pending} className={`${ui.primary} disabled:opacity-60`}>
+      <button type="submit" disabled={pending} aria-busy={pending} className={`${ui.primary} w-full disabled:opacity-60 sm:w-auto`}>
         {pending ? 'Signing up…' : 'Sign our team up'}
       </button>
     </form>

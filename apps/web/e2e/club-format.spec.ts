@@ -151,7 +151,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await expect(page.getByText('Order set by organiser')).toBeVisible();
   await page.goto(`/t/${slug}/pools`);
   await expect(page.getByText('Order set by organiser')).toBeVisible();
-  await expect(page.locator('tr.bg-emerald-50')).toHaveCount(2);
+  await expect(page.locator('tr[data-qualifies]')).toHaveCount(2);
 
   // start knockout (2 qualifiers -> a single final) and replace Charlie with Bravo in the final
   await page.goto(`/admin/${slug}/draw`);
@@ -179,7 +179,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   // Alpha and Bravo also met in the pool, and pool matches sort first, so the card is pinned by its
   // knockout label ("Round 1 · #1") as well as by the two team names.
   await page.goto(`/admin/${slug}/matches?pool=all`);
-  const finalCard = page.locator('div.rounded.border')
+  const finalCard = page.getByTestId('match-card')
     .filter({ hasText: 'Round 1' }).filter({ hasText: 'Alpha & Ana' }).filter({ hasText: 'Bravo & Bea' }).first();
   await finalCard.getByRole('button', { name: 'Award to Bravo & Bea' }).click();
   await expect(page.getByText('Match awarded')).toBeVisible();

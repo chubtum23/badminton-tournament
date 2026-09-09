@@ -89,7 +89,7 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
   // simultaneously each side's own earliest unplayed match (see decideSubmission/team page.tsx:
   // a team's "next" match is whichever of its own matches has the smallest slot number and is not
   // yet done; round 0 is the one round guaranteed to be that for both participants at once).
-  const nextCard = ann.locator('section', { hasText: 'Your next match' }).locator('div.rounded').first();
+  const nextCard = ann.locator('section', { hasText: 'Your next match' }).getByTestId('match-card').first();
   const cardText = (await nextCard.textContent()) ?? '';
   const opponentName = teams.find((n) => n !== 'Ann & Bo' && cardText.includes(n))!;
   const opp = await openAsTeam(browser, links[opponentName]!);
@@ -118,11 +118,10 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
 
   // admin sees it in Needs attention and confirms teamC's version
   await page.goto(`/admin/${slug}/matches?pool=all`);
-  await expect(page.getByText('Needs attention (1)')).toBeVisible();
-  // Scope to the SubmissionCompare cell itself (class "rounded border p-2"): the surrounding
-  // MatchCard wrapper also matches "div.rounded.border" and contains the same text and button,
-  // which makes the plain selector resolve to two elements (a Playwright strict-mode violation).
-  const cCell = page.locator('div.rounded.border.p-2', { hasText: `${others[0]} says` });
+  await expect(page.getByTestId('attention-count')).toHaveText('1');
+  // Scope to the SubmissionCompare cell itself: the surrounding match card contains the same
+  // text and button, so an unscoped selector resolves to two elements (a strict-mode violation).
+  const cCell = page.getByTestId('submission-cell').filter({ hasText: `${others[0]} says` });
   await cCell.getByRole('button', { name: 'Confirm this' }).click();
   await expect(page.getByText('Result confirmed')).toBeVisible();
   await expect(page.getByText(/Needs attention/)).toHaveCount(0);

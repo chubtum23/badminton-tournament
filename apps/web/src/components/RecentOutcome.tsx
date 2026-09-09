@@ -79,9 +79,9 @@ export function RecentOutcome() {
 
   if (entries.length === 0) return null;
   return (
-    <div data-testid="score-outcome-banner" className="space-y-1">
+    <div data-testid="score-outcome-banner" className="space-y-2">
       {entries.map((e) => (
-        <p key={e.id} className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{e.text}</p>
+        <p key={e.id} className="border-l-4 border-orange bg-orange-wash px-4 py-3 text-[13px] font-semibold text-orange-ink">{e.text}</p>
       ))}
     </div>
   );

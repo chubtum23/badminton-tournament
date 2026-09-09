@@ -29,9 +29,9 @@ export function CourtClock({ startedAt, capMinutes, pausedAt = null, pausedMs = 
   const left = Math.max(0, Math.round((remainingMs(state, now) ?? 0) / 1000));
   const mm = String(Math.floor(left / 60)).padStart(2, '0');
   const ss = String(left % 60).padStart(2, '0');
-  const tone = left === 0 ? 'bg-red-600 text-white' : paused ? 'bg-amber-500 text-white' : 'bg-slate-900 text-white';
+  const tone = left === 0 ? 'bg-red-600 text-white' : paused ? 'bg-orange text-ink' : 'bg-navy text-bone';
   return (
-    <span data-testid="court-clock" className={`rounded px-1.5 font-mono text-xs ${tone}`}>
+    <span data-testid="court-clock" className={`px-2 py-1 font-display text-xs font-black tabular-nums tracking-label ${tone}`}>
       {left === 0 ? 'TIME' : paused ? `${mm}:${ss} paused` : `${mm}:${ss}`}
     </span>
   );

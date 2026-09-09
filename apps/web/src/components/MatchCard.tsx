@@ -3,6 +3,7 @@ import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
 import { gameLabel } from '@/lib/db/mappers';
+import { ui } from './ui';
 
 export function teamName(teams: readonly TeamRow[], id: string | null, fallback = 'TBD'): string {
   return id ? teams.find((t) => t.id === id)?.name ?? '?' : fallback;
@@ -43,8 +44,17 @@ export function pendingFor(
 
 const compact = (games: Game[]) => games.map((g) => `${g.scoreA}-${g.scoreB}`).join(', ');
 
-export function MatchCard({ match, teams, games, label, pending, tournament, slots, taglines = true, children }: {
+/**
+ * One meeting: its two teams, and under them a line per game.
+ *
+ * A played game inverts to navy and prints its score large — that is what someone crossing the
+ * hall is looking for, and it makes a card's progress legible without reading a word. An unplayed
+ * game stays a plain outlined row, and carries the organiser's controls when it has any.
+ */
+export function MatchCard({ match, teams, games, label, tone, pending, tournament, slots, gameList = true, taglines = true, children }: {
   match: Match; teams: readonly TeamRow[]; games: Game[]; label?: string;
+  /** The pool's head tint, from `poolTone(i).head`. Neutral when the meeting has no pool. */
+  tone?: string;
   pending?: Pending;
   /** Supplies the game names when `slots` is given. */
   tournament?: Pick<TournamentRow, 'game_labels'>;
@@ -54,6 +64,12 @@ export function MatchCard({ match, teams, games, label, pending, tournament, slo
    * separately scheduled games. A bye has no slots, and then the old rendering stands.
    */
   slots?: readonly GameRow[];
+  /**
+   * False when the caller renders its own game rows as `children` — the organiser's cards use
+   * GameLine, which carries the court and score controls. The header still counts `slots`, so an
+   * organiser's card reads "1/3 · Court 1" like every other one.
+   */
+  gameList?: boolean;
   /** Render each team's tagline under its name. */
   taglines?: boolean;
   children?: React.ReactNode;
@@ -64,58 +80,91 @@ export function MatchCard({ match, teams, games, label, pending, tournament, slo
   const perGame = slots !== undefined && slots.length > 0;
   // A court belongs to a game now, so a live meeting can be spread over several of them.
   const courts = (slots ?? []).filter((s) => s.started_at !== null && s.score_a === null && s.court !== null).map((s) => s.court!);
+  const playedCount = (slots ?? []).filter((s) => s.score_a !== null).length;
   const tagline = (id: string | null) => (id ? teams.find((t) => t.id === id)?.tagline ?? '' : '');
-  const line = (id: string | null, name: string, side: 'a' | 'b') => (
-    <div className={`flex items-center justify-between gap-2 ${match.winnerId && match.winnerId === id ? 'font-semibold' : ''}`}>
-      <span className="min-w-0">
-        <span className="block truncate">{name}</span>
-        {taglines && tagline(id) && <span className="block truncate text-[11px] font-normal text-slate-500">{tagline(id)}</span>}
-      </span>
-      {!perGame && <span className="font-mono text-xs">{shown.map((g) => (side === 'a' ? g.scoreA : g.scoreB)).join(' ')}</span>}
-    </div>
+  // The loser is dimmed rather than the winner emphasised: both names are already at display
+  // weight, so there is no heavier step left to take, and dimming one is the clearer signal.
+  const lost = (id: string | null) => match.winnerId !== null && id !== null && match.winnerId !== id;
+
+  /**
+   * The right-hand word in the header: how far through the meeting is, and where it is being
+   * played. A meeting counts as 'live' from its first score onward, which is not the same as
+   * having a game on a court right now — so the court is named off `courts` rather than off the
+   * status, and a meeting resting between games reads "1/3" with no court at all.
+   */
+  const progress = perGame
+    ? `${playedCount}/${slots!.length}${courts.length > 0 ? ` · Court ${courts.join(', ')}` : ''}`
+    : courts.length > 0 ? `Court ${courts.join(', ')} · live` : match.status;
+
+  const side = (id: string | null, name: string) => (
+    <span className={`min-w-0 ${lost(id) ? 'text-muted-soft' : ''}`}>
+      <span className="block truncate">{name}</span>
+      {taglines && tagline(id) && <span className="block truncate font-sans text-[11px] font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}
+    </span>
   );
+
   return (
-    <div className={`rounded border bg-white p-3 text-sm ${match.status === 'live' ? 'border-emerald-500 shadow' : ''}`}>
-      <div className="mb-1 flex justify-between gap-2 text-xs text-slate-500">
-        <span>{label}</span>
-        <span className="flex items-center gap-1">
-          {match.decidedBy !== 'played' && (
-            <span className="rounded bg-slate-200 px-1 text-[10px] uppercase tracking-wide text-slate-700">{match.decidedBy}</span>
-          )}
-          <span>{match.status === 'live' && courts.length > 0 ? `Court ${courts.join(', ')} · live` : match.status}</span>
+    // `data-testid` rather than a class hook: the end-to-end specs used to find these cards by
+    // their border and radius, which tied every card selector to the styling.
+    <div data-testid="match-card" className={`${ui.card} ${match.status === 'live' ? 'border-orange' : ''}`}>
+      <div className={`${ui.head} ${tone ?? 'text-muted'}`}>
+        <span className={ui.eyebrow}>{label}</span>
+        <span className="flex items-center gap-2">
+          {match.decidedBy !== 'played' && <span className={ui.pillLocked}>{match.decidedBy}</span>}
+          <span className="text-xs font-bold uppercase tracking-label">{progress}</span>
         </span>
       </div>
+
+      <div className="px-5 pb-2 pt-4 font-display text-lg font-extrabold uppercase leading-snug tracking-tight sm:text-xl">
+        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          {side(match.teamAId, a)}
+          <span className="font-sans text-[15px] font-medium lowercase text-line-strong">vs</span>
+          {side(match.teamBId, b)}
+        </span>
+      </div>
+
       {showPending && (
-        <div className="mb-1">
-          <span className="inline-block rounded bg-amber-100 px-1 text-[10px] uppercase tracking-wide text-amber-800">
+        <div className="px-5 pb-1">
+          <span className={match.status === 'disputed' ? 'bg-red-100 px-3 py-1 text-[11px] font-bold uppercase tracking-label text-red-800' : ui.pillTodo}>
             {match.status === 'disputed' ? 'disputed' : 'unconfirmed'} · {pending.by}
           </span>
           {pending.other && (
-            <div className="mt-1 font-mono text-[10px] text-amber-800">
+            <p className="mt-1.5 text-[11px] tabular-nums text-red-800">
               {pending.by} says {compact(pending.games)} · {pending.other.by} says {compact(pending.other.games)}
-            </div>
+            </p>
           )}
         </div>
       )}
-      {line(match.teamAId, a, 'a')}
-      {line(match.teamBId, b, 'b')}
-      {perGame && (
-        <ul className="mt-1 space-y-0.5 text-xs">
-          {slots!.map((s) => (
-            <li key={s.game_no} className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-slate-500">{tournament ? gameLabel(tournament, s.game_no) : `Game ${s.game_no}`}</span>
-              <span className="shrink-0 font-mono text-slate-700">
-                {s.score_a !== null && s.score_b !== null
-                  ? `${s.score_a}-${s.score_b}${s.time_expired ? ' (time)' : ''}`
-                  : s.started_at !== null
-                    ? `court ${s.court ?? '?'}`
-                    : '–'}
-              </span>
-            </li>
-          ))}
+
+      {perGame && gameList ? (
+        <ul className="flex flex-col gap-2 px-5 pb-5 pt-2.5">
+          {slots!.map((s) => {
+            const scored = s.score_a !== null && s.score_b !== null;
+            const name = tournament ? gameLabel(tournament, s.game_no) : `Game ${s.game_no}`;
+            return (
+              <li
+                key={s.game_no}
+                className={`flex items-center justify-between gap-3 px-3.5 py-2.5 ${scored ? 'bg-navy text-bone' : 'border-hair border-line'}`}
+              >
+                <span className={`min-w-0 text-[13px] font-bold uppercase tracking-wide ${scored ? 'text-orange-bright' : ''}`}>
+                  <span className="block truncate">{name}{s.time_expired ? ' — time' : ''}</span>
+                </span>
+                <span className={`shrink-0 tabular-nums ${scored ? 'font-display text-xl font-black' : 'text-[13px] font-semibold text-muted'}`}>
+                  {scored ? `${s.score_a}–${s.score_b}` : s.started_at !== null ? `Court ${s.court ?? '?'}` : '—'}
+                </span>
+              </li>
+            );
+          })}
         </ul>
+      ) : (
+        shown.length > 0 && (
+          <p className="px-5 pb-5 pt-1 font-display text-xl font-black tabular-nums">
+            {shown.map((g) => `${g.scoreA}–${g.scoreB}`).join('  ')}
+          </p>
+        )
       )}
-      {children && <div className="mt-2 border-t pt-2">{children}</div>}
+
+      {children && <div className="border-t-hair border-line px-5 py-4">{children}</div>}
     </div>
   );
 }

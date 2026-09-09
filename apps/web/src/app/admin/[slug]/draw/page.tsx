@@ -12,6 +12,7 @@ import { computePool } from '@/lib/standings/compute';
 import { teamName } from '@/components/MatchCard';
 import { FlashMessage } from '@/components/FlashMessage';
 import { SubmitButton } from '@/components/SubmitButton';
+import { ui } from '@/components/ui';
 
 export default async function BracketAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -54,22 +55,27 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
         <DrawTree tournament={t} pools={pools} teams={teams} matches={matches} games={games} slots={slots}
           standings={standings} settings={settingsFor(t, 'knockout')} />
         {'error' in preview ? (
-          <p className="rounded border bg-white p-4 text-sm">Not ready to start the knockout: {preview.error}</p>
+          <p className={ui.warn}>Not ready to start the knockout: {preview.error}</p>
         ) : (
           <>
-            <section className="rounded border bg-white p-4 text-sm">
-              <h2 className="mb-2 font-semibold">Qualifiers</h2>
-              <ul className="grid gap-1 md:grid-cols-2">
+            <section className={ui.card}>
+              <div className={`${ui.head} ${ui.headOrange}`}><h2 className={ui.eyebrow}>Qualifiers</h2></div>
+              <ul className="grid gap-2 px-5 py-4 text-sm md:grid-cols-2">
                 {preview.qualifiers.map((q) => (
-                  <li key={q.poolId}><span className="text-slate-500">{pools.find((p) => p.id === q.poolId)?.name}:</span> {q.ranked.slice(0, t.advance_per_pool).map((id) => teams.find((x) => x.id === id)?.name).join(', ')}</li>
+                  <li key={q.poolId}>
+                    <span className={`${ui.eyebrow} text-muted`}>{pools.find((p) => p.id === q.poolId)?.name}</span>
+                    <span className="mt-0.5 block font-bold">{q.ranked.slice(0, t.advance_per_pool).map((id) => teams.find((x) => x.id === id)?.name).join(', ')}</span>
+                  </li>
                 ))}
               </ul>
             </section>
-            <details className="rounded border bg-white p-3">
-              <summary className="cursor-pointer text-sm font-semibold">The bracket this would create</summary>
-              <div className="mt-3"><Bracket matches={preview.matches} teams={teams} games={{}} /></div>
+            <details className={ui.card}>
+              <summary className={`${ui.head} disclosure`}>
+                <span className={ui.eyebrow}>The bracket this would create</span>
+              </summary>
+              <div className="p-5"><Bracket matches={preview.matches} teams={teams} games={{}} /></div>
             </details>
-            <form action={start}><SubmitButton className="rounded bg-emerald-700 px-4 py-2 text-white">Start knockout with this bracket</SubmitButton></form>
+            <form action={start}><SubmitButton className={ui.primary}>Start knockout with this bracket</SubmitButton></form>
           </>
         )}
       </div>
@@ -84,31 +90,40 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
   return (
     <div className="space-y-4">
       <FlashMessage />
-      {t.status === 'setup' && <p className="text-sm text-slate-500">Lock the pools first.</p>}
+      {t.status === 'setup' && <p className={ui.empty}>Lock the pools first.</p>}
       {pools.length > 0 && (
         <DrawTree tournament={t} pools={pools} teams={teams} matches={matches} games={games} slots={slots}
           standings={standings} settings={settingsFor(t, 'knockout')} />
       )}
       <Bracket matches={matches} teams={teams} games={games} slots={slots} hrefFor={() => `/admin/${slug}/matches?pool=all`} />
-      {t.status === 'finished' && <p className="rounded bg-amber-50 p-3 text-sm">Tournament finished. Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}</p>}
+      {t.status === 'finished' && (
+        <p className={`${ui.card} ${ui.headOrange} px-5 py-4 font-display text-lg font-extrabold uppercase`}>
+          Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}
+        </p>
+      )}
       {replaceable.length > 0 && (
-        <section className="rounded border bg-white p-4 text-sm">
-          <h2 className="mb-2 font-semibold">Replace a team</h2>
-          <ul className="space-y-2">
+        <section className={ui.card}>
+          <div className={ui.head}>
+            <h2 className={ui.eyebrow}>Replace a team</h2>
+            <span className={`${ui.eyebrow} text-muted`}>Withdrawals and corrections</span>
+          </div>
+          <ul className="divide-y divide-line-soft px-5">
             {replaceable.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center gap-2 border-t pt-2 first:border-t-0 first:pt-0">
-                <span className="text-slate-500">Round {m.round} · #{m.slot}</span>
-                <span>{teamName(teams, m.teamAId)} v {teamName(teams, m.teamBId)}</span>
-                <form action={replace} className="flex flex-wrap items-center gap-1">
+              <li key={m.id} className="flex flex-wrap items-center gap-3 py-3.5">
+                <span className={`${ui.eyebrow} text-muted`}>Round {m.round} · #{m.slot}</span>
+                <span className="text-sm font-bold">{teamName(teams, m.teamAId)} v {teamName(teams, m.teamBId)}</span>
+                <form action={replace} className="ml-auto flex flex-wrap items-center gap-1.5">
                   <input type="hidden" name="matchId" value={m.id} />
-                  <select name="side" defaultValue="a" className="rounded border p-1 text-xs">
+                  <label className="sr-only" htmlFor={`side-${m.id}`}>Side to replace</label>
+                  <select id={`side-${m.id}`} name="side" defaultValue="a" className={ui.fieldSm}>
                     <option value="a">a</option>
                     <option value="b">b</option>
                   </select>
-                  <select name="teamId" defaultValue={m.teamAId ?? selectable[0]?.id} className="rounded border p-1 text-xs">
+                  <label className="sr-only" htmlFor={`team-${m.id}`}>Replacement team</label>
+                  <select id={`team-${m.id}`} name="teamId" defaultValue={m.teamAId ?? selectable[0]?.id} className={ui.fieldSm}>
                     {selectable.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                   </select>
-                  <SubmitButton className="rounded border px-2 py-1 text-xs">Replace</SubmitButton>
+                  <SubmitButton className={ui.tiny}>Replace</SubmitButton>
                 </form>
               </li>
             ))}

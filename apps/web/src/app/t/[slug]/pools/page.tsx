@@ -5,6 +5,7 @@ import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { computePool } from '@/lib/standings/compute';
 import { StandingsTable } from '@/components/StandingsTable';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
+import { poolTone, ui } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,27 +19,36 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
   const games = gamesByMatch(bundle.games);
   // Each meeting is three labelled games; the cards list them rather than one score column.
   const slots = gameSlotsByMatch(bundle.games);
-  if (pools.length === 0) return <p className="text-sm text-slate-500">Pools have not been drawn yet.</p>;
+  if (pools.length === 0) return <p className={ui.empty}>Pools have not been drawn yet.</p>;
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {pools.map((p) => {
+    <div className="grid gap-5 lg:grid-cols-2">
+      {pools.map((p, pi) => {
         const poolMatches = matches.filter((m) => m.poolId === p.id && m.stage === 'pool');
+        const doneCount = poolMatches.filter((m) => m.status === 'done').length;
         // Same computation the organiser sees: their manual order and any playoff already applied.
         const { rows, ties, manual, playoffs } = computePool({ pool: p, teams, matches, games, advancePerPool: t.advance_per_pool });
         return (
-          <section key={p.id} className="rounded border bg-white p-4">
-            <h2 className="mb-2 font-semibold">{p.name}</h2>
-            <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} manual={manual} ties={ties} />
-            <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-slate-600">Matches ({poolMatches.filter((m) => m.status === 'done').length}/{poolMatches.length} played)</summary>
-              <div className="mt-2 grid gap-2">
-                {poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
+          <section key={p.id} className={ui.card}>
+            <div className={`${ui.head} ${poolTone(pi).head}`}>
+              <h2 className={ui.eyebrow}>{p.name}</h2>
+              <span className={ui.eyebrow}>Top {t.advance_per_pool} qualify</span>
+            </div>
+            <div className="px-5 py-4">
+              <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} manual={manual} ties={ties} />
+            </div>
+            <details className="border-t-hair border-line">
+              <summary className={`${ui.eyebrow} disclosure flex items-center justify-between gap-3 px-5 py-3 text-muted`}>
+                <span>Matches</span>
+                <span className="ml-auto">{doneCount}/{poolMatches.length} played</span>
+              </summary>
+              <div className="grid gap-4 px-5 pb-5">
+                {poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} tone={poolTone(pi).head} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
                 {playoffs.length > 0 && (
                   <>
-                    <h3 className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Playoff</h3>
-                    {playoffs.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label="Playoff" pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
+                    <h3 className={`${ui.eyebrow} text-muted`}>Playoff</h3>
+                    {playoffs.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label="Playoff" tone={poolTone(pi).head} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
                   </>
                 )}
               </div>

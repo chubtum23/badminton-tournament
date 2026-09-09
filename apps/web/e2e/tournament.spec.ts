@@ -90,11 +90,11 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   expect(await playAllOpen(page, slug, 12)).toBe(12);
   await page.goto(`/admin/${slug}/matches?pool=all`);
   await expect(page.getByText('Nothing waiting.')).toBeVisible();
-  await expect(page.getByText('Finished (12)')).toBeVisible();
+  await expect(page.getByTestId('finished-count')).toHaveText('12');
 
   // public standings show two highlighted qualifiers per pool
   await page.goto(`/t/${slug}/pools`);
-  await expect(page.locator('tr.bg-emerald-50')).toHaveCount(4);
+  await expect(page.locator('tr[data-qualifies]')).toHaveCount(4);
 
   // the organiser's Standings page ranks all eight teams in one table across both pools
   await page.goto(`/admin/${slug}/standings`);
@@ -104,8 +104,12 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await page.goto(`/admin/${slug}/draw`);
   await page.getByRole('button', { name: 'Start knockout with this bracket' }).click();
   await expect(page.getByText('Knockout started')).toBeVisible();
-  await expect(page.getByText('Semi-finals')).toBeVisible();
-  await expect(page.getByText('Final', { exact: true })).toBeVisible();
+  // The draw page names each round four times — once in the narrow draw tree (hidden at this
+  // viewport), once in each mirrored half of the wide one, and once in the bracket below — so the
+  // round titles are read off the bracket rather than matched across the whole page.
+  const bracket = page.getByTestId('bracket');
+  await expect(bracket.getByText('Semi-finals')).toBeVisible();
+  await expect(bracket.getByText('Final', { exact: true })).toBeVisible();
 
   // play semis and final
   expect(await playAllOpen(page, slug, 3)).toBe(3);

@@ -6,6 +6,7 @@ import { computePool } from '@/lib/standings/compute';
 import { DrawTree } from '@/components/DrawTree';
 import { Bracket } from '@/components/Bracket';
 import { pendingFor } from '@/components/MatchCard';
+import { ui } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,18 +30,24 @@ export default async function BracketPage({ params }: { params: Promise<{ slug: 
     : undefined;
 
   return (
-    <div className="space-y-4">
-      {champion && <p className="rounded bg-amber-50 p-3 text-sm font-semibold">Champions: {champion.name}</p>}
+    <div className="space-y-5">
+      {champion && (
+        <p className={`${ui.card} ${ui.headOrange} px-5 py-4 font-display text-xl font-black uppercase`}>
+          Champions: {champion.name}
+        </p>
+      )}
       {pools.length === 0 ? (
-        <p className="text-sm text-slate-500">The pools have not been drawn yet.</p>
+        <p className={ui.empty}>The pools have not been drawn yet.</p>
       ) : (
         <DrawTree tournament={t} pools={pools} teams={teams} matches={matches} games={games} slots={slots}
           standings={standings} settings={settingsFor(t, 'knockout')} />
       )}
       {matches.some((m) => m.stage === 'knockout') && (
-        <details className="rounded border bg-white p-3">
-          <summary className="cursor-pointer text-sm font-semibold">Knockout on its own, with every game score</summary>
-          <div className="mt-3">
+        <details className={ui.card}>
+          <summary className={`${ui.head} disclosure`}>
+            <span className={ui.eyebrow}>Knockout on its own, with every game score</span>
+          </summary>
+          <div className="p-5">
             <Bracket matches={matches} teams={teams} games={games} slots={slots}
               pendingFor={(m) => pendingFor(latest, teams, m)} />
           </div>

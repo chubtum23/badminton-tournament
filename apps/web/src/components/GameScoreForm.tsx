@@ -5,6 +5,9 @@ import { validateGame, type Settings } from '@tournament/core';
 import type { ActionResult } from '@/actions/errors';
 import { OUTCOME_EVENT, OUTCOME_PREFIX } from './RecentOutcome';
 
+/** Scores are the numbers on this screen that matter, so they are set in the display face. */
+const scoreBox = 'w-16 border-hair bg-white px-2 py-1.5 text-center font-display text-lg font-black tabular-nums text-ink outline-none focus:border-navy';
+
 /** Text an action can hand back for the inline outcome line. */
 const outcomeText = (data: unknown): string | null =>
   typeof data === 'object' && data !== null && 'text' in data && typeof (data as { text: unknown }).text === 'string'
@@ -69,27 +72,27 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
     >
       <input
         name="scoreA" inputMode="numeric" value={a} onChange={(e) => setA(e.target.value)}
-        aria-label={`${label} · ${teamA}`} className="w-14 rounded border p-1"
+        aria-label={`${label} · ${teamA}`} className={`${scoreBox} ${a.trim() !== '' && !check.ok ? 'border-red-400' : 'border-line'}`}
       />
       <input
         name="scoreB" inputMode="numeric" value={b} onChange={(e) => setB(e.target.value)}
-        aria-label={`${label} · ${teamB}`} className="w-14 rounded border p-1"
+        aria-label={`${label} · ${teamB}`} className={`${scoreBox} ${b.trim() !== '' && !check.ok ? 'border-red-400' : 'border-line'}`}
       />
       {clocked && (
-        <label className="flex items-center gap-1 text-xs text-slate-600">
+        <label className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-label text-muted-strong">
           <input
             type="checkbox" name="timeExpired" checked={expired} onChange={(e) => setExpired(e.target.checked)}
-            title="Clock ran out; highest score wins" aria-label={`${label} time up`}
+            title="Clock ran out; highest score wins" aria-label={`${label} time up`} className="h-4 w-4 accent-navy"
           />
           Time up
         </label>
       )}
-      <button disabled={!ready || pending} className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-40">
+      <button disabled={!ready || pending} className="bg-navy px-5 py-2 text-xs font-bold uppercase tracking-label text-white hover:bg-ink disabled:opacity-40">
         {pending ? 'Saving…' : 'Save'}
       </button>
-      {hint && <span className="text-xs text-slate-600">{hint}</span>}
+      {hint && <span className="text-[11px] font-bold uppercase tracking-label text-muted">{hint}</span>}
       {outcome && (
-        <span data-testid="game-outcome" className={`text-xs ${outcome.ok ? 'text-emerald-700' : 'text-red-700'}`}>{outcome.text}</span>
+        <span data-testid="game-outcome" className={`text-[11px] font-bold uppercase tracking-label ${outcome.ok ? 'text-orange-ink' : 'text-red-700'}`}>{outcome.text}</span>
       )}
     </form>
   );

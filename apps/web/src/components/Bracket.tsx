@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Game, Match } from '@tournament/core';
 import type { GameRow, TeamRow } from '@/lib/db/types';
 import type { Pending } from './MatchCard';
+import { ui } from './ui';
 
 function roundTitle(round: number, totalRounds: number): string {
   const fromEnd = totalRounds - round;
@@ -19,7 +20,7 @@ export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
   pendingFor?: (m: Match) => Pending | undefined;
 }) {
   const ko = matches.filter((m) => m.stage === 'knockout');
-  if (ko.length === 0) return <p className="text-sm text-slate-500">The knockout has not started.</p>;
+  if (ko.length === 0) return <p className={ui.empty}>The knockout has not started.</p>;
   const totalRounds = Math.max(...ko.map((m) => m.round ?? 1));
   const rounds = Array.from({ length: totalRounds }, (_, i) => ko.filter((m) => m.round === i + 1).sort((x, y) => x.slot - y.slot));
   const team = (id: string | null) => teams.find((t) => t.id === id);
@@ -35,40 +36,40 @@ export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
     // 'awarded', 'forfeit' or 'bye' — no scores were played, so the word replaces them.
     const decided = m.status === 'done' && m.decidedBy !== 'played';
     return (
-      <div className={`flex items-center justify-between gap-2 px-2 py-1 ${won ? 'font-semibold' : ''}`}>
+      <div className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${won ? 'bg-orange-wash font-bold' : ''}`}>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1 truncate">
-            {t && <span className="inline-block h-2 w-2 rounded-full" style={{ background: t.colour }} />}
-            {t?.seed && <span className="rounded bg-amber-100 px-1 text-[10px]">#{t.seed}</span>}
+          <span className="flex items-center gap-1.5 truncate">
+            {t && <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.colour }} />}
+            {t?.seed && <span className="bg-orange-tint px-1.5 text-[10px] font-bold text-orange-ink">#{t.seed}</span>}
             <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
           </span>
-          {t?.tagline && <span className="block truncate text-[10px] text-slate-500">{t.tagline}</span>}
+          {t?.tagline && <span className="block truncate text-[10px] text-muted">{t.tagline}</span>}
         </span>
-        <span className="shrink-0 font-mono text-xs text-slate-700">
-          {decided ? <span className="uppercase tracking-wide">{m.decidedBy}</span> : scores.join(' ')}
+        <span className="shrink-0 font-display text-sm font-black tabular-nums">
+          {decided ? <span className="text-[10px] uppercase tracking-label text-muted">{m.decidedBy}</span> : scores.join(' ')}
         </span>
       </div>
     );
   };
 
   return (
-    <div className="overflow-x-auto pb-4">
+    <div data-testid="bracket" className="overflow-x-auto pb-4">
       <div className="flex gap-8" style={{ minHeight: `${rounds[0]!.length * 6}rem` }}>
         {rounds.map((list, i) => (
           <div key={i} className="bk-round">
-            <div className="mb-2 rounded bg-blue-900 px-2 py-1 text-center text-xs font-semibold uppercase tracking-wide text-white">
+            <div className="mb-2.5 bg-navy px-3 py-1.5 text-center text-[11px] font-bold uppercase tracking-eyebrow text-bone">
               {roundTitle(i + 1, totalRounds)}
             </div>
             <div className="bk-slots">
               {list.map((m) => {
                 const pending = pendingFor?.(m);
                 const box = (
-                  <div className={`bk-box relative w-full divide-y rounded border-2 bg-white text-sm ${m.status === 'live' ? 'border-emerald-500 shadow-md' : 'border-blue-900'}`}>
+                  <div className={`bk-box relative w-full divide-y divide-line bg-white ${m.status === 'live' ? 'border-2 border-orange' : 'border-2 border-navy'}`}>
                     {row(m, m.teamAId, 'a')}
                     {row(m, m.teamBId, 'b')}
-                    {m.status === 'live' && courtsOf(m).length > 0 && <div className="px-2 py-0.5 text-[10px] text-emerald-700">Court {courtsOf(m).join(', ')} · live</div>}
+                    {m.status === 'live' && courtsOf(m).length > 0 && <div className="bg-orange px-3 py-1 text-[10px] font-bold uppercase tracking-label text-ink">Court {courtsOf(m).join(', ')} · live</div>}
                     {(m.status === 'submitted' || m.status === 'disputed') && (
-                      <div className="px-2 py-0.5 text-[10px] uppercase text-amber-700">
+                      <div className="bg-orange-tint px-3 py-1 text-[10px] font-bold uppercase tracking-label text-orange-ink">
                         {m.status === 'disputed' ? 'disputed' : 'unconfirmed'}{pending ? ` · ${pending.by}` : ''}
                       </div>
                     )}

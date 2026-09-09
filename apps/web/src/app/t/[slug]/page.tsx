@@ -6,6 +6,7 @@ import { scheduleBoard } from '@/lib/schedule/board';
 import { pairNames } from '@/lib/teams/roster';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
 import { NowPlaying } from '@/components/NowPlaying';
+import { poolTone, ui } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,11 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
     : m.stage === 'playoff' ? `${poolName(m)} · playoff`
     : `Round ${m.round}`;
   const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
+  // Pool colour, so a card is placed at a glance. A knockout meeting has no pool and stays neutral.
+  const tone = (m: typeof matches[number]) => {
+    const i = pools.findIndex((p) => p.id === m.poolId);
+    return i >= 0 ? poolTone(i).head : undefined;
+  };
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
   // Submitted/disputed matches are neither "now playing" nor "up next", so without this section a
@@ -48,45 +54,62 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {bundle.announcements.filter((a) => a.pinned).map((a) => (
-        <div key={a.id} className="rounded border border-amber-400 bg-amber-50 p-3 text-sm whitespace-pre-wrap">{a.body}</div>
+        <div key={a.id} className={`${ui.card} ${ui.headOrange} whitespace-pre-wrap border-orange px-5 py-4 text-sm font-semibold`}>{a.body}</div>
       ))}
-      {t.status === 'setup' && <p className="rounded border bg-white p-4 text-sm">Pools have not been drawn yet. Check back soon.</p>}
+      {t.status === 'setup' && <p className={ui.empty}>Pools have not been drawn yet. Check back soon.</p>}
+
       <NowPlaying tournament={t} games={board.nowPlaying} teams={teams} settings={settingsOf} />
+
       {awaiting.length > 0 && (
-        <section>
-          <h2 className="mb-2 font-semibold">Awaiting confirmation</h2>
-          <div className="grid gap-3 md:grid-cols-2">{awaiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}</div>
+        <section className="space-y-4">
+          <h2 className={ui.h2}>Awaiting confirmation <span className="text-muted-soft">({awaiting.length})</span></h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            {awaiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
+          </div>
         </section>
       )}
-      <section>
-        <h2 className="mb-2 font-semibold">Up next</h2>
-        {board.upNext.length === 0 ? <p className="text-sm text-slate-500">Nothing queued.</p> : (
-          <ul className="space-y-1 rounded border bg-white p-3 text-sm">
+
+      <section className="space-y-4">
+        <h2 className={ui.h2}>Up next <span className="text-muted-soft">({board.upNext.length})</span></h2>
+        {board.upNext.length === 0 ? <p className={ui.empty}>Nothing queued.</p> : (
+          <ol className={ui.card}>
             {board.upNext.map((g) => {
               const pairs = pairLine(g.match, g.slot.game_no);
               return (
-                <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-xs text-slate-500">{label(g.match)} · {g.label}</span>
-                  <span>{nameOf(g.match.teamAId)} v {nameOf(g.match.teamBId)}</span>
-                  {pairs && <span className="block w-full text-xs text-slate-500">{pairs}</span>}
+                <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="border-b-hair border-line-soft px-5 py-3.5 last:border-b-0">
+                  <span className={`${ui.eyebrow} text-muted`}>{label(g.match)} · {g.label}</span>
+                  <span className="mt-0.5 block font-display text-base font-extrabold uppercase">
+                    {nameOf(g.match.teamAId)} <span className="font-sans text-[13px] font-medium lowercase text-line-strong">vs</span> {nameOf(g.match.teamBId)}
+                  </span>
+                  {pairs && <span className="mt-0.5 block text-xs text-muted">{pairs}</span>}
                 </li>
               );
             })}
-          </ul>
+          </ol>
         )}
       </section>
+
       {seeded.length > 0 && (
-        <section>
-          <h2 className="mb-2 font-semibold">Top seeds</h2>
-          <ol className="flex flex-wrap gap-2 text-sm">{seeded.map((x) => <li key={x.id} className="rounded border bg-white px-2 py-1"><span className="mr-1 rounded bg-amber-100 px-1 text-xs">#{x.seed}</span>{x.name}</li>)}</ol>
+        <section className="space-y-4">
+          <h2 className={ui.h2}>Top seeds</h2>
+          <ol className="flex flex-wrap gap-2.5">
+            {seeded.map((x) => (
+              <li key={x.id} className="flex items-center gap-2 border-hair border-navy bg-white px-3 py-2 text-sm font-bold">
+                <span className="bg-orange-tint px-1.5 text-[10px] font-bold text-orange-ink">#{x.seed}</span>{x.name}
+              </li>
+            ))}
+          </ol>
         </section>
       )}
+
       {recent.length > 0 && (
-        <section>
-          <h2 className="mb-2 font-semibold">Latest results</h2>
-          <div className="grid gap-3 md:grid-cols-2">{recent.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tournament={t} slots={slots[m.id]} />)}</div>
+        <section className="space-y-4">
+          <h2 className={ui.h2}>Latest results <span className="text-muted-soft">({recent.length})</span></h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            {recent.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} tournament={t} slots={slots[m.id]} />)}
+          </div>
         </section>
       )}
     </div>

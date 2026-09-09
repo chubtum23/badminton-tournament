@@ -1,18 +1,21 @@
 import type { Game } from '@tournament/core';
 import type { SubmissionRow } from '@/lib/db/types';
 
-function fmt(games: Game[]) { return games.map((g) => `${g.scoreA}-${g.scoreB}`).join(', '); }
+function fmt(games: Game[]) { return games.map((g) => `${g.scoreA}–${g.scoreB}`).join(', '); }
 
+/** The two teams' claimed scores side by side, so the organiser can pick one and move on. */
 export function SubmissionCompare({ a, b, teamA, teamB, onConfirm }: {
   a?: SubmissionRow; b?: SubmissionRow; teamA: string; teamB: string;
   /** Renders a confirm form for the given submission id. */
   onConfirm: (submissionId: string) => React.ReactNode;
 }) {
   const cell = (label: string, s?: SubmissionRow) => (
-    <div className="rounded border p-2">
-      <div className="text-xs text-slate-500">{label} says</div>
-      {s ? <><div className="font-mono text-sm">{fmt(s.games)}</div><div className="mt-1">{onConfirm(s.id)}</div></> : <div className="text-xs text-slate-400">no submission</div>}
+    <div data-testid="submission-cell" className="border-hair border-line p-3">
+      <div className="text-[11px] font-bold uppercase tracking-label text-muted">{label} says</div>
+      {s
+        ? <><div className="mt-1 font-display text-lg font-black tabular-nums">{fmt(s.games)}</div><div className="mt-2.5">{onConfirm(s.id)}</div></>
+        : <div className="mt-1 text-[11px] font-bold uppercase tracking-label text-muted">no submission</div>}
     </div>
   );
-  return <div className="grid grid-cols-2 gap-2">{cell(teamA, a)}{cell(teamB, b)}</div>;
+  return <div className="grid grid-cols-2 gap-3">{cell(teamA, a)}{cell(teamB, b)}</div>;
 }

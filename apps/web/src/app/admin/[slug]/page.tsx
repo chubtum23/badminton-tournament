@@ -35,6 +35,12 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   const canLock = t.status === 'setup' && teamsTile.pill === 'Done' && pools.length > 0 && !strandedByLateSignup;
   const resultCount = matches.filter((m) => m.status === 'done').length;
   const pill = (p: string) => (p === 'Done' ? ui.pillDone : p === 'Locked' ? ui.pillLocked : ui.pillTodo);
+  // The tiles are a real sequence — you cannot draw pools before you have teams — so the step
+  // number is set as a figure rather than left buried in the title.
+  const step = (title: string) => {
+    const m = /^(\d+)\.\s*(.*)$/.exec(title);
+    return m ? { n: m[1]!, rest: m[2]! } : { n: '', rest: title };
+  };
 
   async function lock() { 'use server'; redirectWithMsg(`/admin/${slug}`, await lockPools(slug), 'Pools locked and matches created'); }
   async function unlock() { 'use server'; redirectWithMsg(`/admin/${slug}`, await unlockPools(slug), 'Pools unlocked'); }
@@ -42,22 +48,38 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   return (
     <div className="space-y-5">
       <FlashMessage />
-      <p className="text-base text-slate-700">{t.status === 'setup' ? 'Get these four things done, then lock the pools.' : 'Everything is set. Run the night from Matches.'}</p>
-      <ol className="space-y-3">
-        {tiles.map((tile) => (
-          <li key={tile.key}>
-            <Link href={`/admin/${slug}${tile.href}`} data-testid={`tile-${tile.key}`} className="flex items-center justify-between gap-3 rounded-xl border bg-white p-5 hover:bg-slate-50">
-              <span><span className="block text-lg font-semibold">{tile.title}</span><span className="block text-sm text-slate-600">{tile.summary}</span></span>
-              <span className={pill(tile.pill)}>{tile.pill}</span>
-            </Link>
-          </li>
-        ))}
+      <p className="text-[13px] text-muted-strong">
+        {t.status === 'setup' ? 'Get these four things done, then lock the pools.' : 'Everything is set. Run the night from Matches.'}
+      </p>
+      <ol className="grid gap-5 sm:grid-cols-2">
+        {tiles.map((tile) => {
+          const { n, rest } = step(tile.title);
+          return (
+            <li key={tile.key}>
+              <Link
+                href={`/admin/${slug}${tile.href}`}
+                data-testid={`tile-${tile.key}`}
+                className={`${ui.card} flex h-full flex-col justify-between gap-4 px-5 py-5 hover:border-orange`}
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span className={`${ui.figure} text-[34px] text-navy`}>{n}</span>
+                  <span className={pill(tile.pill)}>{tile.pill}</span>
+                </span>
+                <span>
+                  <span className="block font-display text-base font-extrabold uppercase tracking-tight">{rest}</span>
+                  <span className="mt-1 block text-[13px] text-muted">{tile.summary}</span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ol>
+
       {t.status === 'setup' && (
-        <form action={lock} className="space-y-1">
+        <form action={lock} className="space-y-2">
           <SubmitButton disabled={!canLock} className={`${ui.primary} disabled:opacity-50`}>Lock pools and create matches</SubmitButton>
           {!canLock && <p className={ui.help}>{pools.length === 0
-            ? 'Draw the pools first (tile 4).'
+            ? 'Draw the pools first (step 4).'
             : strandedByLateSignup
               ? 'A team signed up after the draw. Re-deal the pools, or move them into one on the Standings page.'
               : 'Every team needs two men and one woman, and you need at least 2 teams.'}</p>}
