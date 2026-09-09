@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addTeams, drawAndLock, fillScores, openMeetings, playGames, signIn } from './helpers';
+import { addTeams, drawAndLock, fillScores, openFirstGame, openMeetings, playGames, signIn } from './helpers';
 
 const slug = `e2e-${Date.now().toString(36)}`;
 const teams = ['Ann & Bo', 'Cy & Di', 'Ed & Flo', 'Gus & Hal', 'Ivy & Jo', 'Kim & Lu', 'Mo & Ned', 'Oz & Pia'];
@@ -68,7 +68,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   // court holds one game now rather than a whole meeting, so what goes out is a single game, and
   // it appears in the Now playing box at the top of the organiser's screen.
   await page.goto(`/admin/${slug}/matches?pool=all`);
-  await page.getByRole('button', { name: 'Start now' }).first().click();
+  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
   await expect(page.getByTestId('now-playing').getByText('Court 1')).toBeVisible();
   await page.goto(`/t/${slug}`);
   const publicNowPlaying = page.getByTestId('now-playing');
@@ -80,7 +80,7 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   // to look for rather than a two-point-lead complaint. This is scoped to one meeting card because
   // the game on court renders its form here *and* in the Now playing box.
   await page.goto(`/admin/${slug}/matches?pool=all`);
-  const form = openMeetings(page).first().getByTestId('game-score-form').first();
+  const form = await openFirstGame(openMeetings(page).first());
   await fillScores(form, 14, 12);
   await expect(form.getByText('winner must reach 15', { exact: true })).toBeVisible();
   // an unfinished score cannot be saved

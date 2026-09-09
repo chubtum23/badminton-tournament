@@ -65,25 +65,29 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
       so a score entered by mistake can still be changed. */
   const card = (m: typeof matches[number]) => (
     <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} tone={tone(m)} slots={slots[m.id]} gameList={false}>
-      {m.teamAId && m.teamBId && m.status !== 'pending' && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {([['a', m.teamAId], ['b', m.teamBId]] as const).map(([side, id]) => (
-            <form key={side} action={award}>
-              <input type="hidden" name="matchId" value={m.id} />
-              <input type="hidden" name="winnerId" value={id!} />
-              <SubmitButton
-                confirmMessage={`Award this match to ${teamName(teams, id)} without a score? Any later match that depended on it is reset.`}
-                className={ui.tiny}
-              >Award to {teamName(teams, id)}</SubmitButton>
-            </form>
+      {m.teamAId && m.teamBId ? (
+        <div className="flex flex-col gap-2.5">
+          {(slots[m.id] ?? []).map((s) => (
+            <GameLine key={s.game_no} tournament={t} match={m} slot={s} settings={settingsOf(m)} teams={teams} admin={m.status !== 'pending'} collapsible />
           ))}
+          {/* Walkovers and no-shows are rare and destructive, so they sit under the games rather
+              than above them, at the smallest weight the design has. */}
+          {m.status !== 'pending' && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {([['a', m.teamAId], ['b', m.teamBId]] as const).map(([side, id]) => (
+                <form key={side} action={award}>
+                  <input type="hidden" name="matchId" value={m.id} />
+                  <input type="hidden" name="winnerId" value={id!} />
+                  <SubmitButton
+                    confirmMessage={`Award this match to ${teamName(teams, id)} without a score? Any later match that depended on it is reset.`}
+                    className={ui.tiny}
+                  >Award to {teamName(teams, id)}</SubmitButton>
+                </form>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-      {m.teamAId && m.teamBId
-        ? (slots[m.id] ?? []).map((s) => (
-          <GameLine key={s.game_no} tournament={t} match={m} slot={s} settings={settingsOf(m)} teams={teams} admin={m.status !== 'pending'} />
-        ))
-        : <p className="text-xs font-bold uppercase tracking-label text-muted">Waiting on both teams.</p>}
+      ) : <p className="text-xs font-bold uppercase tracking-label text-muted">Waiting on both teams.</p>}
     </MatchCard>
   );
 

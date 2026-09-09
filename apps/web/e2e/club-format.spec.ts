@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addTeams, aIsSideA, drawAndLock, fillScores, meetingCard, openMeetings, openTeamRow, playGames, playersOf, signIn } from './helpers';
+import { addTeams, aIsSideA, drawAndLock, fillScores, meetingCard, openFirstGame, openMeetings, openTeamRow, playGames, playersOf, signIn } from './helpers';
 
 const slug = `club-${Date.now().toString(36)}`;
 // One pool of 4 -> 6 meetings; we engineer a 2nd/3rd tie: A beats everyone; B beats C; C beats D; D beats B.
@@ -62,7 +62,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
 
   // Start now on the first open game: it goes to a court of its own and the Now playing box at the
   // top of the screen picks it up, clock and all. The public live board shows the same box.
-  await page.getByRole('button', { name: 'Start now' }).first().click();
+  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
   const nowPlaying = page.getByTestId('now-playing');
   await expect(nowPlaying.getByTestId('court-clock')).toBeVisible();
   await expect(nowPlaying.getByText(GAME_LABELS[0], { exact: true })).toBeVisible();
@@ -81,7 +81,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   // invalid single game 14-12 keeps Save disabled and shows the reason. Scoped to a meeting card,
   // because the game on court renders its form in the Now playing box as well.
   await page.goto(`/admin/${slug}/matches?pool=all`);
-  const first = openMeetings(page).first().getByTestId('game-score-form').first();
+  const first = await openFirstGame(openMeetings(page).first());
   await fillScores(first, 14, 12);
   await expect(first.getByText('winner must reach 15', { exact: true })).toBeVisible();
   await expect(first.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -95,7 +95,7 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   const bravoWins: readonly [number, number] = alphaFirst ? [9, 15] : [15, 9];
   await playGames(opener, [alphaWins, alphaWins]);
   await expect(opener).toHaveCount(1);
-  await expect(opener.getByTestId('game-score-form')).toHaveCount(1);
+  await expect(opener.locator('[data-testid="game-row"][data-scored="false"]')).toHaveCount(1);
   await playGames(opener, [bravoWins]);
   await expect(opener).toHaveCount(0);
 

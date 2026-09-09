@@ -70,14 +70,35 @@ export async function drawAndLock(page: Page, slug: string, poolCount: number): 
   await expect(page.getByText('Pools locked and matches created')).toBeVisible();
 }
 
+/** The games of a meeting still to be scored. Their row carries data-scored="false". */
+function unscoredGames(scope: Locator | Page): Locator {
+  return scope.locator('[data-testid="game-row"][data-scored="false"]');
+}
+
 /** Every meeting card with at least one game still to score, on the Matches screen. */
 export function openMeetings(page: Page): Locator {
-  return page.getByTestId('match-card').filter({ has: page.getByTestId('game-score-form') });
+  return page.getByTestId('match-card').filter({ has: page.locator('[data-testid="game-row"][data-scored="false"]') });
 }
 
 /** The open meeting between two named teams. */
 export function meetingCard(page: Page, a: string, b: string): Locator {
   return openMeetings(page).filter({ hasText: a }).filter({ hasText: b }).first();
+}
+
+/**
+ * Expands a meeting card's first unscored game and returns its score form.
+ *
+ * Game rows on a meeting card are collapsed to a single line by default, so the score box only
+ * exists once the chevron has been clicked. The Now playing box is never collapsed, which is why
+ * this is only needed for locators scoped to a card.
+ */
+export async function openFirstGame(card: Locator): Promise<Locator> {
+  const row = unscoredGames(card).first();
+  const toggle = row.getByTestId('game-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  const form = row.getByTestId('game-score-form');
+  await expect(form).toBeVisible();
+  return form;
 }
 
 /** The games of a meeting, in the order the organiser scores them. */
@@ -86,22 +107,20 @@ export type Rounds = readonly (readonly [number, number])[];
 /**
  * Scores games of one meeting, oldest unscored game first.
  *
- * `card` must identify *this* meeting and nothing else: a scored game unmounts its own form, so the
- * count of forms still inside the card is what tells us the save landed. Waiting on the word
- * "Saved" would not — the page-top banner keeps the previous game's message up for eight seconds.
- *
- * A running game deliberately renders its form twice, in the Now playing box and on its meeting
- * card, so every locator here is scoped to the card.
+ * `card` must identify *this* meeting and nothing else: a saved game's row flips to
+ * data-scored="true", so the count of unscored rows still inside the card is what tells us the save
+ * landed. Waiting on the word "Saved" would not — the page-top banner keeps the previous game's
+ * message up for eight seconds.
  */
 export async function playGames(card: Locator, rounds: Rounds, timeUp = false): Promise<void> {
-  const forms = card.getByTestId('game-score-form');
+  const rows = unscoredGames(card);
   for (const [a, b] of rounds) {
-    const before = await forms.count();
-    const form = forms.first();
+    const before = await rows.count();
+    const form = await openFirstGame(card);
     await fillScores(form, a, b);
     if (timeUp) await form.locator('input[name="timeExpired"]').check();
     await form.getByRole('button', { name: 'Save' }).click();
-    await expect(forms).toHaveCount(before - 1);
+    await expect(rows).toHaveCount(before - 1);
   }
 }
 
@@ -131,6 +150,7 @@ export async function fillScores(form: Locator, a: number, b: number): Promise<v
  * unambiguously.
  */
 export async function aIsSideA(card: Locator, a: string): Promise<boolean> {
-  const aria = await card.getByTestId('game-score-form').first().locator('input[name="scoreA"]').getAttribute('aria-label');
+  const form = await openFirstGame(card);
+  const aria = await form.locator('input[name="scoreA"]').getAttribute('aria-label');
   return (aria ?? '').includes(a);
 }
