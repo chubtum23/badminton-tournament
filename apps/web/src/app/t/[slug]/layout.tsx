@@ -16,7 +16,7 @@ export default async function PublicLayout({ children, params }: { children: Rea
   const t = await getTournamentBySlug(sb, slug);
   if (!t) notFound();
   const me = await currentParticipant(slug);
-  const tabs: Array<readonly [string, string]> = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket'], ['/announcements', 'Announcements']];
+  const tabs: Array<readonly [string, string]> = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket'], ['/players', 'Players'], ['/announcements', 'Announcements']];
   if (me) tabs.push(['/team', `My team: ${me.team.name}`]);
   if (t.status === 'setup' && t.signup_open && !me) tabs.push(['/join', 'Join']);
   return (
