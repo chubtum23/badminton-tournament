@@ -44,7 +44,7 @@ export function JoinForm({ slug, needsCode, action }: {
       {/* Name, tagline and colour are one short line each, so on a wide screen they sit three
           across rather than leaving half the card empty. The description spans the row under them. */}
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <label className={ui.labelLg}>Team name<input name="name" required maxLength={40} className={ui.fieldLg} placeholder="e.g. Net Ninjas" /></label>
+        <label className={ui.labelLg}>Team name<input name="name" required maxLength={40} className={ui.fieldLg} /></label>
         <label className={ui.labelLg}>Tagline <span className={optional}>(optional)</span><input name="tagline" maxLength={80} className={ui.fieldLg} /></label>
         <label className={ui.labelLg}>Team colour<input name="colour" type="color" defaultValue="#2B3390" className="mt-2.5 h-[62px] w-full cursor-pointer border-hair border-line bg-white p-1.5" /></label>
         <label className={`${ui.labelLg} md:col-span-2 xl:col-span-3`}>About your team <span className={optional}>(optional)</span>

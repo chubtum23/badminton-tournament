@@ -136,7 +136,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
             <span className={`${ui.eyebrow} text-muted`}>For a team that could not use the link</span>
           </div>
           <form action={add} className={`${ui.body} space-y-6`}>
-            <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} placeholder="e.g. Net Ninjas" /></label>
+            <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} /></label>
             <RosterFields />
             <SubmitButton className={ui.solid}>Add team</SubmitButton>
           </form>
