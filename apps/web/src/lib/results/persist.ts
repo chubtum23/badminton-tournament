@@ -59,6 +59,10 @@ export async function applyResultPlan(
     // The rows are the meeting's game slots, so they stay; only the results go.
     const blank = await sb.from('games').update(BLANK_GAME).eq('match_id', id);
     if (blank.error) return fail('invalid_input', blank.error.message);
+    // Same reason as in clearGameScore: blanking leaves the games rows in place, so the ratings
+    // hanging off them have to be removed by hand.
+    const unrate = await sb.from('player_ratings').delete().eq('match_id', id);
+    if (unrate.error) return fail('invalid_input', unrate.error.message);
     const subs = await sb.from('score_submissions').delete().eq('match_id', id);
     if (subs.error) return fail('invalid_input', subs.error.message);
   }

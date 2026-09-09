@@ -3,9 +3,10 @@ import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 import { matchResult, rollback, validateGame } from '@tournament/core';
-import { listGames, listMatches } from '@/lib/db/queries';
+import { listGames, listMatches, listTeamsWithPlayers } from '@/lib/db/queries';
 import { matchToRow, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planResult } from '@/lib/results/apply';
+import { parseRatings, ratingSlots } from '@/lib/results/ratings';
 import { applyResultPlan, BLANK_GAME } from '@/lib/results/persist';
 import { firstFreeCourt, planGameCourt } from '@/lib/schedule/plan';
 import { syncMatchStatus } from '@/lib/schedule/status';
@@ -108,6 +109,13 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
   const check = validateGame(settings, scoreA, scoreB, timeExpired);
   if (!check.ok) return fail('invalid_score', check.reason);
 
+  // Ratings are parsed before the score is written, so a bad rating fails the whole save and the
+  // organiser never ends up with a score whose ratings were silently dropped.
+  const teams = await listTeamsWithPlayers(ctx.sb, ctx.tournament.id);
+  const courtSlots = ratingSlots(teams.find((t) => t.id === row.team_a_id), teams.find((t) => t.id === row.team_b_id), gameNo);
+  const rated = parseRatings(formData, courtSlots);
+  if (!rated.ok) return fail('invalid_input', rated.reason);
+
   // Writing the score also takes the game off court: it is finished, so it must not hold a
   // court or keep counting down.
   const upd = await ctx.sb.from('games')
@@ -115,6 +123,16 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
     .eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
   if (upd.error) return fail('invalid_input', upd.error.message);
   if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+
+  // Replaced wholesale rather than upserted: a box the organiser cleared has to leave the table,
+  // and this game's ratings are only ever written here.
+  const dropped = await ctx.sb.from('player_ratings').delete().eq('match_id', matchId).eq('game_no', gameNo);
+  if (dropped.error) return fail('invalid_input', dropped.error.message);
+  if (rated.value.length > 0) {
+    const added = await ctx.sb.from('player_ratings')
+      .insert(rated.value.map((r) => ({ match_id: matchId, game_no: gameNo, player_id: r.playerId, rating: r.rating })));
+    if (added.error) return fail('invalid_input', added.error.message);
+  }
 
   const slots = (await listGames(ctx.sb, ctx.tournament.id)).filter((g) => g.match_id === matchId);
   const scored = slots
@@ -182,6 +200,10 @@ export async function clearGameScore(slug: string, matchId: string, gameNo: numb
     for (const id of rb.resetMatchIds) {
       const blank = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', id);
       if (blank.error) return fail('invalid_input', blank.error.message);
+      // The games rows are blanked rather than deleted, so the foreign key's cascade never fires
+      // and a reset match would otherwise keep ratings for scores that no longer exist.
+      const unrate = await ctx.sb.from('player_ratings').delete().eq('match_id', id);
+      if (unrate.error) return fail('invalid_input', unrate.error.message);
       const subs = await ctx.sb.from('score_submissions').delete().eq('match_id', id);
       if (subs.error) return fail('invalid_input', subs.error.message);
     }
@@ -200,6 +222,8 @@ export async function clearGameScore(slug: string, matchId: string, gameNo: numb
   const cleared = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
   if (cleared.error) return fail('invalid_input', cleared.error.message);
   if ((cleared.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+  const unrated = await ctx.sb.from('player_ratings').delete().eq('match_id', matchId).eq('game_no', gameNo);
+  if (unrated.error) return fail('invalid_input', unrated.error.message);
   await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
   revalidateTournament(slug);
   return ok(undefined);
