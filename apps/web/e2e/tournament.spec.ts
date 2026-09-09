@@ -51,10 +51,18 @@ test('an admin runs an 8-team tournament from setup to a champion', async ({ pag
   await expect(page.getByTestId('tile-teams')).toContainText('0 signed up');
   await expect(page.getByTestId('tile-draw')).toContainText('Not drawn');
 
-  // rules: club defaults (three games to 15, 13-minute clock) — just save to prove the form works
+  // rules: club defaults (three games to 15, 13-minute clock) — just save to prove the form works.
+  // Rules has no tab of its own, so saving hands the organiser back to the checklist they came
+  // from rather than leaving them on the form with nowhere obvious to go.
   await page.goto(`/admin/${slug}/rules`);
   await page.getByRole('button', { name: 'Save rules' }).click();
+  await expect(page.getByTestId('tile-rules')).toBeVisible();
   await expect(page.getByText('Rules saved')).toBeVisible();
+
+  // and the page offers a way back without saving at all
+  await page.goto(`/admin/${slug}/rules`);
+  await page.getByTestId('back-link').click();
+  await expect(page).toHaveURL(new RegExp(`/admin/${slug}$`));
 
   // teams: eight of them, each with two men and one woman
   await addTeams(page, slug, teams);

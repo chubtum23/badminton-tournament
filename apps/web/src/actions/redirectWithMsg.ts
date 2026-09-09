@@ -7,3 +7,12 @@ export function redirectWithMsg(path: string, result: ActionResult<unknown>, okM
   const sep = path.includes('?') ? '&' : '?';
   redirect(`${path}${sep}msg=${encodeURIComponent(msg)}`);
 }
+
+/**
+ * For a page reached from somewhere else and finished with once saved: a success goes back to
+ * `backPath` carrying the message, a failure stays on `path` so the error is read beside the form
+ * that caused it rather than on a screen the organiser has already left.
+ */
+export function redirectBackOnSuccess(path: string, backPath: string, result: ActionResult<unknown>, okMessage: string): never {
+  return redirectWithMsg(result.ok ? backPath : path, result, okMessage);
+}

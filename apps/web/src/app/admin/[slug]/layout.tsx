@@ -33,6 +33,7 @@ export default async function AdminLayout({ children, params }: { children: Reac
       status={<>{line}{when && <> · {when}</>}{t.venue && <> · {t.venue}</>}</>}
       links={
         <>
+          <ShellLink href="/admin" tone="quiet">All tournaments</ShellLink>
           <ShellLink href={`/t/${slug}`}>Public page</ShellLink>
           <form action={signOut}><SubmitButton className="uppercase tracking-label text-onnavy-soft hover:text-bone">Sign out</SubmitButton></form>
         </>

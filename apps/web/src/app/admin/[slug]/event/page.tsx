@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
 import { updateEvent } from '@/actions/tournaments';
-import { redirectWithMsg } from '@/actions/redirectWithMsg';
+import { redirectBackOnSuccess } from '@/actions/redirectWithMsg';
+import { BackLink } from '@/components/BackLink';
 import { FlashMessage } from '@/components/FlashMessage';
 import { LocalDateTimeInput } from '@/components/LocalDateTime';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -12,9 +13,10 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
-  async function save(fd: FormData) { 'use server'; redirectWithMsg(`/admin/${slug}/event`, await updateEvent(slug, fd), 'Event details saved'); }
+  async function save(fd: FormData) { 'use server'; redirectBackOnSuccess(`/admin/${slug}/event`, `/admin/${slug}`, await updateEvent(slug, fd), 'Event details saved'); }
   return (
     <div className="max-w-prose space-y-6">
+      <BackLink href={`/admin/${slug}`}>Setup checklist</BackLink>
       <FlashMessage />
       <section className={ui.card}>
         <div className={`${ui.head} ${ui.headOrange}`}>

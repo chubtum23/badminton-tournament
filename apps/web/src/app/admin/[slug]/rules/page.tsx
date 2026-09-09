@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import { PAIR_SLOT_LABEL, pairSlotForGame } from '@tournament/core';
 import { requireAdmin } from '@/actions/guard';
 import { updateSettings } from '@/actions/tournaments';
-import { redirectWithMsg } from '@/actions/redirectWithMsg';
+import { redirectBackOnSuccess } from '@/actions/redirectWithMsg';
+import { BackLink } from '@/components/BackLink';
 import { FlashMessage } from '@/components/FlashMessage';
 import { gameLabel, settingsFor } from '@/lib/db/mappers';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -31,11 +32,12 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
 
   async function save(formData: FormData) {
     'use server';
-    redirectWithMsg(`/admin/${slug}/rules`, await updateSettings(slug, formData), 'Rules saved');
+    redirectBackOnSuccess(`/admin/${slug}/rules`, `/admin/${slug}`, await updateSettings(slug, formData), 'Rules saved');
   }
 
   return (
     <div className="space-y-6">
+      <BackLink href={`/admin/${slug}`}>Setup checklist</BackLink>
       <FlashMessage />
       <section className={ui.card}>
       <div className={`${ui.head} ${ui.headOrange}`}>
