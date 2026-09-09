@@ -105,4 +105,53 @@ describe.skipIf(!enabled)('row level security', () => {
     const denied = await outsider.rpc('regenerate_team_token', { team: teamId });
     expect(denied.error).not.toBeNull();
   });
+
+  describe('player ratings', () => {
+    let matchId: string;
+    let playerId: string;
+
+    beforeAll(async () => {
+      const player = await service.from('players')
+        .insert({ tournament_id: tournamentId, name: 'Rated One', gender: 'male' }).select('id').single();
+      if (player.error) throw player.error;
+      playerId = player.data.id;
+      const match = await service.from('matches')
+        .insert({ tournament_id: tournamentId, stage: 'knockout', round: 1, slot: 1 }).select('id').single();
+      if (match.error) throw match.error;
+      matchId = match.data.id;
+      const game = await service.from('games').insert({ match_id: matchId, game_no: 1 });
+      if (game.error) throw game.error;
+    });
+
+    it('an admin can write a rating', async () => {
+      const res = await admin.from('player_ratings')
+        .insert({ match_id: matchId, game_no: 1, player_id: playerId, rating: 7.4 }).select('rating').single();
+      expect(res.error).toBeNull();
+      expect(Number(res.data!.rating)).toBe(7.4);
+    });
+
+    it('anon can read ratings', async () => {
+      const res = await anon.from('player_ratings').select('rating').eq('match_id', matchId);
+      expect(res.error).toBeNull();
+      expect(res.data).toHaveLength(1);
+    });
+
+    it('anon cannot write a rating', async () => {
+      const res = await anon.from('player_ratings')
+        .insert({ match_id: matchId, game_no: 1, player_id: playerId, rating: 5 });
+      expect(res.error).not.toBeNull();
+    });
+
+    it('a signed-in non-admin cannot write a rating', async () => {
+      const res = await outsider.from('player_ratings')
+        .insert({ match_id: matchId, game_no: 1, player_id: playerId, rating: 5 });
+      expect(res.error).not.toBeNull();
+    });
+
+    it('the database refuses a rating off the scale', async () => {
+      const res = await admin.from('player_ratings')
+        .insert({ match_id: matchId, game_no: 1, player_id: playerId, rating: 10.5 });
+      expect(res.error).not.toBeNull();
+    });
+  });
 });

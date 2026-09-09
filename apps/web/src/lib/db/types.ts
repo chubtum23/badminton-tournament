@@ -123,6 +123,17 @@ export interface GameRow {
 /** A game row that has actually been scored, so it maps to the core `Game` type. */
 export type ScoredGameRow = GameRow & { score_a: number; score_b: number };
 
+/**
+ * One player's mark out of 10 for one game. `rating` is `numeric(3,1)` in Postgres, so it arrives
+ * as a JSON number with a single decimal place; nothing in the app widens it.
+ */
+export interface RatingRow {
+  match_id: string;
+  game_no: number;
+  player_id: string;
+  rating: number;
+}
+
 export interface SubmissionRow {
   id: string;
   match_id: string;

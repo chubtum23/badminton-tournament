@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AnnouncementRow, GameRow, MatchRow, PoolRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
+import type { AnnouncementRow, GameRow, MatchRow, PoolRow, RatingRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
 import { TEAM_PUBLIC_COLUMNS, TOURNAMENT_PUBLIC_COLUMNS } from './types';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -68,6 +68,18 @@ export async function listGames(sb: SupabaseClient, tournamentId: string): Promi
   return rows.map(({ match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms }) => ({
     match_id, game_no, score_a, score_b, time_expired, court, started_at, paused_at, paused_ms,
   }));
+}
+
+// NOT cached: `saveGameScore` deletes and re-inserts a game's ratings, and the Players page is
+// rendered from a fresh request, so memoising this would only risk handing an action stale rows.
+export async function listPlayerRatings(sb: SupabaseClient, tournamentId: string): Promise<RatingRow[]> {
+  // player_ratings has no tournament_id; join through matches, exactly as listGames does.
+  const res = await sb
+    .from('player_ratings')
+    .select('match_id, game_no, player_id, rating, matches!inner(tournament_id)')
+    .eq('matches.tournament_id', tournamentId);
+  const rows = must(res, 'player ratings') as Array<RatingRow & { matches: unknown }>;
+  return rows.map(({ match_id, game_no, player_id, rating }) => ({ match_id, game_no, player_id, rating: Number(rating) }));
 }
 
 /**
@@ -139,14 +151,15 @@ export interface TournamentBundle {
   games: GameRow[];
   submissions: SubmissionRow[];
   announcements: AnnouncementRow[];
+  ratings: RatingRow[];
 }
 
 export async function loadTournamentBundle(sb: SupabaseClient, slug: string): Promise<TournamentBundle | null> {
   const tournament = await getTournamentBySlug(sb, slug);
   if (!tournament) return null;
-  const [pools, teams, matches, games, submissions, announcements] = await Promise.all([
+  const [pools, teams, matches, games, submissions, announcements, ratings] = await Promise.all([
     listPools(sb, tournament.id), listTeamsWithPlayers(sb, tournament.id), listMatches(sb, tournament.id), listGames(sb, tournament.id),
-    listSubmissions(sb, tournament.id), listAnnouncements(sb, tournament.id),
+    listSubmissions(sb, tournament.id), listAnnouncements(sb, tournament.id), listPlayerRatings(sb, tournament.id),
   ]);
-  return { tournament, pools, teams, matches, games, submissions, announcements };
+  return { tournament, pools, teams, matches, games, submissions, announcements, ratings };
 }
