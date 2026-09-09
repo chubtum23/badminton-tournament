@@ -56,7 +56,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   return (
     <div className="space-y-7">
       {bundle.announcements.filter((a) => a.pinned).map((a) => (
-        <div key={a.id} className={`${ui.card} ${ui.headOrange} whitespace-pre-wrap border-orange px-5 py-4 text-sm font-semibold`}>{a.body}</div>
+        <div key={a.id} className={`${ui.card} ${ui.headOrange} whitespace-pre-wrap border-orange px-7 py-6 text-base font-semibold`}>{a.body}</div>
       ))}
       {t.status === 'setup' && <p className={ui.empty}>Pools have not been drawn yet. Check back soon.</p>}
 
@@ -65,7 +65,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       {awaiting.length > 0 && (
         <section className="space-y-4">
           <h2 className={ui.h2}>Awaiting confirmation <span className="text-muted-soft">({awaiting.length})</span></h2>
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2">
             {awaiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
           </div>
         </section>
@@ -78,10 +78,10 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
             {board.upNext.map((g) => {
               const pairs = pairLine(g.match, g.slot.game_no);
               return (
-                <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="border-b-hair border-line-soft px-5 py-3.5 last:border-b-0">
+                <li key={`${g.slot.match_id}:${g.slot.game_no}`} className="border-b-hair border-line-soft px-7 py-5 last:border-b-0">
                   <span className={`${ui.eyebrow} text-muted`}>{label(g.match)} · {g.label}</span>
-                  <span className="mt-0.5 block font-display text-base font-extrabold uppercase">
-                    {nameOf(g.match.teamAId)} <span className="font-sans text-[13px] font-medium lowercase text-line-strong">vs</span> {nameOf(g.match.teamBId)}
+                  <span className="mt-1 block font-display text-xl font-extrabold uppercase">
+                    {nameOf(g.match.teamAId)} <span className="font-sans text-base font-medium lowercase text-line-strong">vs</span> {nameOf(g.match.teamBId)}
                   </span>
                   {pairs && <span className="mt-0.5 block text-xs text-muted">{pairs}</span>}
                 </li>
@@ -96,8 +96,8 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
           <h2 className={ui.h2}>Top seeds</h2>
           <ol className="flex flex-wrap gap-2.5">
             {seeded.map((x) => (
-              <li key={x.id} className="flex items-center gap-2 border-hair border-navy bg-white px-3 py-2 text-sm font-bold">
-                <span className="bg-orange-tint px-1.5 text-[10px] font-bold text-orange-ink">#{x.seed}</span>{x.name}
+              <li key={x.id} className="flex items-center gap-2 border-hair border-navy bg-white px-4 py-3 text-base font-bold">
+                <span className="bg-orange-tint px-1.5 text-[11px] font-bold text-orange-ink">#{x.seed}</span>{x.name}
               </li>
             ))}
           </ol>
@@ -107,7 +107,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
       {recent.length > 0 && (
         <section className="space-y-4">
           <h2 className={ui.h2}>Latest results <span className="text-muted-soft">({recent.length})</span></h2>
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2">
             {recent.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} tournament={t} slots={slots[m.id]} />)}
           </div>
         </section>

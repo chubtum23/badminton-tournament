@@ -8,7 +8,7 @@ import { gameLabel, settingsFor } from '@/lib/db/mappers';
 import { SubmitButton } from '@/components/SubmitButton';
 import { ui } from '@/components/ui';
 
-const fieldset = 'space-y-4 border-hair border-line p-5';
+const fieldset = 'space-y-5 border-hair border-line p-6';
 const legend = 'px-2 text-xs font-bold uppercase tracking-eyebrow text-navy';
 
 export default async function RulesPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -35,14 +35,14 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <FlashMessage />
       <section className={ui.card}>
       <div className={`${ui.head} ${ui.headOrange}`}>
         <h2 className={ui.eyebrow}>Rules</h2>
         <span className={ui.eyebrow}>{locked ? 'Locked — pools are drawn' : 'Step 2'}</span>
       </div>
-      <form action={save} className={`${ui.body} space-y-5`}>
+      <form action={save} className={`${ui.body} space-y-6`}>
         <fieldset className={fieldset}>
           <legend className={legend}>Pool stage</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

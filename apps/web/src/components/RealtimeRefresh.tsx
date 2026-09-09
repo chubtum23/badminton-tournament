@@ -9,7 +9,7 @@ import { createBrowserSupabase } from '@/lib/supabase/browser';
  * that moves, so a live page is obvious without reading anything.
  */
 const pill = (status: 'connecting' | 'live' | 'reconnecting') => (
-  <span data-testid="realtime-status" className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-label text-onnavy-soft">
+  <span data-testid="realtime-status" className="flex items-center gap-2 text-[15px] font-semibold uppercase tracking-label text-onnavy-soft">
     <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${status === 'live' ? 'bg-orange' : 'bg-onnavy-soft'}`} />
     {status}
   </span>

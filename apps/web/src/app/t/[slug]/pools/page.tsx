@@ -23,7 +23,7 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
   const latest = latestByMatch(bundle.submissions);
   const pending = (m: typeof matches[number]) => pendingFor(latest, teams, m);
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
+    <div className="grid gap-6 lg:grid-cols-2">
       {pools.map((p, pi) => {
         const poolMatches = matches.filter((m) => m.poolId === p.id && m.stage === 'pool');
         const doneCount = poolMatches.filter((m) => m.status === 'done').length;
@@ -35,15 +35,15 @@ export default async function PoolsPage({ params }: { params: Promise<{ slug: st
               <h2 className={ui.eyebrow}>{p.name}</h2>
               <span className={ui.eyebrow}>Top {t.advance_per_pool} qualify</span>
             </div>
-            <div className="px-5 py-4">
+            <div className="px-7 py-6">
               <StandingsTable rows={rows} teams={teams} advance={t.advance_per_pool} manual={manual} ties={ties} />
             </div>
             <details className="border-t-hair border-line">
-              <summary className={`${ui.eyebrow} disclosure flex items-center justify-between gap-3 px-5 py-3 text-muted`}>
+              <summary className={`${ui.eyebrow} disclosure flex items-center justify-between gap-3 px-7 py-5 text-muted`}>
                 <span>Matches</span>
                 <span className="ml-auto">{doneCount}/{poolMatches.length} played</span>
               </summary>
-              <div className="grid gap-4 px-5 pb-5">
+              <div className="grid gap-5 px-7 pb-7">
                 {poolMatches.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={`#${m.slot}`} tone={poolTone(pi).head} pending={pending(m)} tournament={t} slots={slots[m.id]} />)}
                 {playoffs.length > 0 && (
                   <>

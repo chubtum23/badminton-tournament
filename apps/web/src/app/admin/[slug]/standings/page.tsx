@@ -12,7 +12,7 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { FlashMessage } from '@/components/FlashMessage';
 import { poolTag, poolTone, ui } from '@/components/ui';
 
-const th = 'pb-2 pt-1 text-[11px] font-bold uppercase tracking-label text-muted';
+const th = 'pb-2 pt-1 text-xs font-bold uppercase tracking-label text-muted';
 
 export default async function PoolsAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -72,19 +72,19 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <FlashMessage />
       {editable && (
-        <form action={generate} className={`${ui.card} flex flex-wrap items-end gap-4 px-5 py-4`}>
+        <form action={generate} className={`${ui.card} flex flex-wrap items-end gap-5 px-7 py-6`}>
           <label className={ui.label}>Number of pools
             <input name="poolCount" type="number" min={1} max={teams.length} defaultValue={Math.max(1, Math.round(teams.length / 4))} className={`${ui.field} w-24`} />
           </label>
           <SubmitButton className={ui.solid}>{pools.length ? 'Re-deal randomly' : 'Generate pools'}</SubmitButton>
-          <span className="text-[13px] text-muted">{teams.length} teams. Placement is random; seeds are labels only.</span>
+          <span className="text-[15px] text-muted">{teams.length} teams. Placement is random; seeds are labels only.</span>
         </form>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {poolResults.map(({ pool: p, rows, ties, manual, playoffs, complete, fixtures }, pi) => {
           const poolTeams = teams.filter((x) => x.pool_id === p.id);
           const tiedPair = ties[0]?.teamIds ?? [];
@@ -99,13 +99,13 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                 <h2 className={ui.eyebrow}>{p.name}</h2>
                 <span className={ui.eyebrow}>Top {t.advance_per_pool} qualify</span>
               </div>
-              <div className="px-5 py-4">
+              <div className="px-7 py-6">
                 {editable ? (
                   <ul className="divide-y divide-line-soft">
                     {poolTeams.map((x) => (
                       <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                         <span className="flex items-center gap-2 text-sm font-bold">
-                          {x.seed && <span className="bg-orange-tint px-1.5 text-[10px] font-bold text-orange-ink">#{x.seed}</span>}
+                          {x.seed && <span className="bg-orange-tint px-1.5 text-[11px] font-bold text-orange-ink">#{x.seed}</span>}
                           {x.name}
                         </span>
                         <form action={move} className="flex gap-1.5">
@@ -118,7 +118,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                         </form>
                       </li>
                     ))}
-                    {poolTeams.length === 0 && <li className="py-2 text-[13px] text-muted">No teams in this pool yet.</li>}
+                    {poolTeams.length === 0 && <li className="py-2 text-[15px] text-muted">No teams in this pool yet.</li>}
                   </ul>
                 ) : (
                   <>
@@ -148,7 +148,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                         <h3 className={`${ui.eyebrow} mb-2 text-muted`}>Fixtures</h3>
                         <ul className="space-y-1">
                           {fixtures.map((m) => (
-                            <li key={m.id} className="flex items-baseline justify-between gap-3 text-[13px]">
+                            <li key={m.id} className="flex items-baseline justify-between gap-3 text-[15px]">
                               <span className="font-semibold">{m.teamAId ? nameOf(m.teamAId) : '?'} v {m.teamBId ? nameOf(m.teamBId) : '?'}</span>
                               <span className="shrink-0 tabular-nums text-muted">
                                 {m.status === 'done'
@@ -211,7 +211,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
         return (
           <section className={ui.card} data-testid="leaderboard">
             <div className={ui.head}><h2 className={ui.eyebrow}>Overall points</h2></div>
-            <div className="px-5 py-3">
+            <div className="px-7 py-5">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b-hair border-line text-left">

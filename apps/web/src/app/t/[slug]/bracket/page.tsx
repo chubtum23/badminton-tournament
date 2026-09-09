@@ -30,9 +30,9 @@ export default async function BracketPage({ params }: { params: Promise<{ slug: 
     : undefined;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {champion && (
-        <p className={`${ui.card} ${ui.headOrange} px-5 py-4 font-display text-xl font-black uppercase`}>
+        <p className={`${ui.card} ${ui.headOrange} px-7 py-6 font-display text-2xl font-black uppercase`}>
           Champions: {champion.name}
         </p>
       )}

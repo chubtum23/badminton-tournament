@@ -20,13 +20,13 @@ export function ShellTabs({ tabs }: { tabs: readonly { href: string; label: stri
     null,
   );
   return (
-    <nav className="-mb-px mt-5 flex w-fit max-w-full flex-wrap border-hair border-b-0 border-navy-line">
+    <nav className="-mb-px mt-7 flex w-fit max-w-full flex-wrap border-hair border-b-0 border-navy-line">
       {tabs.map((tab, i) => (
         <Link
           key={tab.href}
           href={tab.href}
           aria-current={tab.href === active ? 'page' : undefined}
-          className={`whitespace-nowrap px-4 py-2.5 text-[13px] font-bold uppercase tracking-label sm:px-[22px] ${
+          className={`whitespace-nowrap px-6 py-4 text-sm font-bold uppercase tracking-label sm:px-8 ${
             i > 0 ? 'border-l-hair border-navy-line' : ''
           } ${tab.href === active ? 'bg-orange text-ink' : 'text-onnavy hover:text-bone'}`}
         >

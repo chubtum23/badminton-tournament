@@ -35,7 +35,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
   const byRole = (x: TeamWithPlayers, r: 'mixed1' | 'mixed2' | 'woman') => x.players.find((p) => p.role === r)?.name ?? '';
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* The sign-up link is the one thing an organiser copies out of this app, so it leads the
           page and the copy button is the only orange control on it. */}
       <section className={ui.card}>
@@ -72,8 +72,8 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
           <h2 className={ui.eyebrow}>Teams</h2>
           <span className={`${ui.eyebrow} text-muted`}>{teams.length}</span>
         </div>
-        <div className="px-5">
-          {teams.length === 0 && <p className="py-5 text-[13px] text-muted">No teams yet. Share the sign-up link or add one below.</p>}
+        <div className="px-7">
+          {teams.length === 0 && <p className="py-5 text-[15px] text-muted">No teams yet. Share the sign-up link or add one below.</p>}
           <ul className="divide-y divide-line-soft">
             {teams.map((x) => {
               const ok = validateRoster(rosterOf(x)).ok;
@@ -83,7 +83,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
                     <summary className="disclosure flex flex-wrap items-center gap-2.5">
                       <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: x.colour }} />
                       <span className={`font-display text-[15px] font-extrabold uppercase ${x.withdrawn ? 'text-muted-soft line-through' : ''}`}>{x.name}</span>
-                      {x.tagline && <span className="text-[13px] text-muted">{x.tagline}</span>}
+                      {x.tagline && <span className="text-[15px] text-muted">{x.tagline}</span>}
                       {!ok && <span className={ui.pillTodo}>Incomplete roster</span>}
                       {x.withdrawn && <span className={ui.pillLocked}>Withdrawn</span>}
                       <span className={`${ui.eyebrow} ml-auto text-muted`}>details</span>
@@ -135,7 +135,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
             <h2 className={ui.eyebrow}>Add a team yourself</h2>
             <span className={`${ui.eyebrow} text-muted`}>For a team that could not use the link</span>
           </div>
-          <form action={add} className={`${ui.body} space-y-5`}>
+          <form action={add} className={`${ui.body} space-y-6`}>
             <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} placeholder="e.g. Net Ninjas" /></label>
             <RosterFields />
             <SubmitButton className={ui.solid}>Add team</SubmitButton>

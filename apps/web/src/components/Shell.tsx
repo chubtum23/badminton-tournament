@@ -21,18 +21,18 @@ export function Shell({ title, status, links, tabs, children }: {
   return (
     <>
       <div className="on-navy court-lines relative bg-navy text-bone">
-        <div className="relative mx-auto max-w-shell px-5 pt-6 sm:px-8">
+        <div className="relative mx-auto max-w-shell px-6 pt-8 sm:px-10">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="font-display text-2xl font-black uppercase leading-tight tracking-tight sm:text-[30px]">{title}</h1>
-              {status && <p className="mt-0.5 text-[12.5px] font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
+              <h1 className="font-display text-3xl font-black uppercase leading-tight tracking-tight sm:text-[42px]">{title}</h1>
+              {status && <p className="mt-1.5 text-sm font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
             </div>
-            {links && <div className="flex flex-wrap items-center gap-5 pb-1.5 text-[13px] font-semibold uppercase tracking-label">{links}</div>}
+            {links && <div className="flex flex-wrap items-center gap-6 pb-2 text-sm font-semibold uppercase tracking-label">{links}</div>}
           </div>
           <ShellTabs tabs={tabs} />
         </div>
       </div>
-      <main className="mx-auto max-w-shell px-5 pb-16 pt-7 sm:px-8">{children}</main>
+      <main className="mx-auto max-w-shell px-6 pb-24 pt-9 sm:px-10">{children}</main>
     </>
   );
 }
@@ -52,15 +52,15 @@ export function PlainShell({ title, status, links, children }: {
   return (
     <>
       <div className="on-navy court-lines relative bg-navy text-bone">
-        <div className="relative mx-auto flex max-w-shell flex-wrap items-end justify-between gap-4 px-5 py-7 sm:px-8">
+        <div className="relative mx-auto flex max-w-shell flex-wrap items-end justify-between gap-5 px-6 py-9 sm:px-10">
           <div className="min-w-0">
-            <h1 className="font-display text-2xl font-black uppercase leading-tight tracking-tight sm:text-[30px]">{title}</h1>
-            {status && <p className="mt-0.5 text-[12.5px] font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
+            <h1 className="font-display text-3xl font-black uppercase leading-tight tracking-tight sm:text-[42px]">{title}</h1>
+            {status && <p className="mt-1.5 text-sm font-semibold uppercase tracking-wide2 text-orange">{status}</p>}
           </div>
-          {links && <div className="flex flex-wrap items-center gap-5 text-[13px] font-semibold uppercase tracking-label">{links}</div>}
+          {links && <div className="flex flex-wrap items-center gap-6 text-sm font-semibold uppercase tracking-label">{links}</div>}
         </div>
       </div>
-      <main className="mx-auto max-w-shell px-5 pb-16 pt-7 sm:px-8">{children}</main>
+      <main className="mx-auto max-w-shell px-6 pb-24 pt-9 sm:px-10">{children}</main>
     </>
   );
 }

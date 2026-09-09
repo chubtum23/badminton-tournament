@@ -40,13 +40,13 @@ export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5 truncate">
             {t && <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.colour }} />}
-            {t?.seed && <span className="bg-orange-tint px-1.5 text-[10px] font-bold text-orange-ink">#{t.seed}</span>}
+            {t?.seed && <span className="bg-orange-tint px-1.5 text-[11px] font-bold text-orange-ink">#{t.seed}</span>}
             <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
           </span>
-          {t?.tagline && <span className="block truncate text-[10px] text-muted">{t.tagline}</span>}
+          {t?.tagline && <span className="block truncate text-[11px] text-muted">{t.tagline}</span>}
         </span>
         <span className="shrink-0 font-display text-sm font-black tabular-nums">
-          {decided ? <span className="text-[10px] uppercase tracking-label text-muted">{m.decidedBy}</span> : scores.join(' ')}
+          {decided ? <span className="text-[11px] uppercase tracking-label text-muted">{m.decidedBy}</span> : scores.join(' ')}
         </span>
       </div>
     );
@@ -57,7 +57,7 @@ export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
       <div className="flex gap-8" style={{ minHeight: `${rounds[0]!.length * 6}rem` }}>
         {rounds.map((list, i) => (
           <div key={i} className="bk-round">
-            <div className="mb-2.5 bg-navy px-3 py-1.5 text-center text-[11px] font-bold uppercase tracking-eyebrow text-bone">
+            <div className="mb-2.5 bg-navy px-3 py-1.5 text-center text-xs font-bold uppercase tracking-eyebrow text-bone">
               {roundTitle(i + 1, totalRounds)}
             </div>
             <div className="bk-slots">
@@ -67,9 +67,9 @@ export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
                   <div className={`bk-box relative w-full divide-y divide-line bg-white ${m.status === 'live' ? 'border-2 border-orange' : 'border-2 border-navy'}`}>
                     {row(m, m.teamAId, 'a')}
                     {row(m, m.teamBId, 'b')}
-                    {m.status === 'live' && courtsOf(m).length > 0 && <div className="bg-orange px-3 py-1 text-[10px] font-bold uppercase tracking-label text-ink">Court {courtsOf(m).join(', ')} · live</div>}
+                    {m.status === 'live' && courtsOf(m).length > 0 && <div className="bg-orange px-3 py-1 text-[11px] font-bold uppercase tracking-label text-ink">Court {courtsOf(m).join(', ')} · live</div>}
                     {(m.status === 'submitted' || m.status === 'disputed') && (
-                      <div className="bg-orange-tint px-3 py-1 text-[10px] font-bold uppercase tracking-label text-orange-ink">
+                      <div className="bg-orange-tint px-3 py-1 text-[11px] font-bold uppercase tracking-label text-orange-ink">
                         {m.status === 'disputed' ? 'disputed' : 'unconfirmed'}{pending ? ` · ${pending.by}` : ''}
                       </div>
                     )}

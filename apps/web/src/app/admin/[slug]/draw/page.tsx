@@ -60,7 +60,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
           <>
             <section className={ui.card}>
               <div className={`${ui.head} ${ui.headOrange}`}><h2 className={ui.eyebrow}>Qualifiers</h2></div>
-              <ul className="grid gap-2 px-5 py-4 text-sm md:grid-cols-2">
+              <ul className="grid gap-4 px-7 py-6 text-base md:grid-cols-2">
                 {preview.qualifiers.map((q) => (
                   <li key={q.poolId}>
                     <span className={`${ui.eyebrow} text-muted`}>{pools.find((p) => p.id === q.poolId)?.name}</span>
@@ -97,7 +97,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
       )}
       <Bracket matches={matches} teams={teams} games={games} slots={slots} hrefFor={() => `/admin/${slug}/matches?pool=all`} />
       {t.status === 'finished' && (
-        <p className={`${ui.card} ${ui.headOrange} px-5 py-4 font-display text-lg font-extrabold uppercase`}>
+        <p className={`${ui.card} ${ui.headOrange} px-7 py-6 font-display text-2xl font-extrabold uppercase`}>
           Champion: {teams.find((x) => x.id === matches.find((m) => m.stage === 'knockout' && m.nextMatchId === null)?.winnerId)?.name}
         </p>
       )}

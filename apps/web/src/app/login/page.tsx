@@ -7,11 +7,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { error } = await searchParams;
   return (
     <PlainShell title="Organiser sign in" status="GUGC tournament desk">
-      <div className={`${ui.card} max-w-sm`}>
+      <div className={`${ui.card} max-w-md`}>
         <div className={`${ui.head} ${ui.headOrange}`}>
           <span className={ui.eyebrow}>Sign in</span>
         </div>
-        <div className={`${ui.body} space-y-5`}>
+        <div className={`${ui.body} space-y-6`}>
           {error && <p role="alert" className={ui.alarm}>{error}</p>}
           <form action={signIn} className="space-y-4">
             <label className={ui.label}>Email

@@ -29,7 +29,7 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
       status={`${list.length} tournament${list.length === 1 ? '' : 's'}`}
       links={<form action={signOut}><SubmitButton className="uppercase tracking-label text-onnavy-soft hover:text-bone">Sign out</SubmitButton></form>}
     >
-      <div className="max-w-2xl space-y-5">
+      <div className="space-y-6">
         {error && <p role="alert" className={ui.alarm}>{error}</p>}
 
         {list.length === 0 ? (
@@ -42,8 +42,8 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
                   <span className={ui.eyebrow}>{STAGE[t.status] ?? t.status}</span>
                   <span className={`${ui.eyebrow} text-muted`}>/{t.slug}</span>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                  <span className="font-display text-lg font-extrabold uppercase">{t.name}</span>
+                <div className="flex flex-wrap items-center justify-between gap-4 px-7 py-6">
+                  <span className="font-display text-2xl font-extrabold uppercase">{t.name}</span>
                   <span className="flex flex-wrap gap-2">
                     <Link href={`/t/${t.slug}`} className={ui.secondary}>Public</Link>
                     <Link href={`/admin/${t.slug}`} className={ui.solid}>Manage</Link>

@@ -25,7 +25,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   const me = await currentParticipant(slug);
   if (!me) {
     return (
-      <section className={`${ui.card} max-w-2xl`}>
+      <section className={`${ui.card} max-w-prose`}>
         <div className={ui.head}><h2 className={ui.eyebrow}>My team</h2></div>
         <p className={`${ui.body} text-sm`}>Open the private link your organiser gave you to unlock this page. It is unique to your team; do not share it.</p>
       </section>
@@ -130,7 +130,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
         <div className={ui.body}>
           {rosterLocked ? (
             <>
-              <p className="text-[13px] text-muted">The draw is locked, so players can&apos;t change. Ask the organiser if someone is injured.</p>
+              <p className="text-[15px] text-muted">The draw is locked, so players can&apos;t change. Ask the organiser if someone is injured.</p>
               {rosterComplete ? (
                 <ul className="mt-4 divide-y divide-line-soft">
                   {([['Mixed #1', `${byRole('mixed1')} & ${byRole('woman')}`],
@@ -177,7 +177,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
 
       <section className="space-y-4">
         <h2 className={ui.h2}>Your matches <span className="text-muted-soft">({mine.length})</span></h2>
-        <div className="grid gap-5 md:grid-cols-2">{mine.map((m) => (
+        <div className="grid gap-6 md:grid-cols-2">{mine.map((m) => (
           <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} pending={pending(m)} tournament={me.tournament} slots={slots[m.id]}>
             {canSubmit(m) && (
               <SubmitScoresForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}

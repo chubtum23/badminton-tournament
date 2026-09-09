@@ -104,7 +104,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
             <h2 className={ui.eyebrow}>Needs attention</h2>
             <span data-testid="attention-count" className={ui.eyebrow}>{attention.length}</span>
           </div>
-          <div className="grid gap-5 p-5 lg:grid-cols-2">
+          <div className="grid gap-6 p-7 lg:grid-cols-2">
             {attention.map((m) => (
               <MatchCard key={m.id} match={m} teams={teams} games={[]} label={`${label(m)} · ${m.status}`} tone={tone(m)} slots={slots[m.id]} gameList={false}>
                 <SubmissionCompare a={latest[m.id]?.a} b={latest[m.id]?.b} teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)}
@@ -112,7 +112,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
                     <form action={confirm}>
                       <input type="hidden" name="matchId" value={m.id} />
                       <input type="hidden" name="submissionId" value={id} />
-                      <SubmitButton className="bg-navy px-3 py-1.5 text-[11px] font-bold uppercase tracking-label text-white hover:bg-ink">Confirm this</SubmitButton>
+                      <SubmitButton className="bg-navy px-3 py-1.5 text-xs font-bold uppercase tracking-label text-white hover:bg-ink">Confirm this</SubmitButton>
                     </form>
                   )} />
                 <p className={ui.help}>Or enter the games yourself in the list below.</p>
@@ -124,7 +124,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {heading('Ready to play', ready.length)}
-        <nav aria-label="Filter by pool" className="flex flex-wrap gap-1.5">
+        <nav aria-label="Filter by pool" className="flex flex-wrap gap-2">
           {tabsList.map(([key, name]) => (
             <a
               key={key}
@@ -137,7 +137,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
           ))}
         </nav>
       </div>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {ready.map((m) => card(m))}
         {ready.length === 0 && <p className={`${ui.empty} lg:col-span-2`}>Nothing waiting.</p>}
       </div>
@@ -145,7 +145,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
       {waiting.length > 0 && (
         <section className="space-y-4">
           {heading('Waiting on an earlier result', waiting.length)}
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2">
             {waiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} tone={tone(m)} slots={slots[m.id]} gameList={false} />)}
           </div>
         </section>
@@ -156,7 +156,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
           <span className={ui.eyebrow}>Finished</span>
           <span data-testid="finished-count" className={`${ui.eyebrow} ml-auto text-muted`}>{finished.length}</span>
         </summary>
-        <div className="grid gap-5 p-5 lg:grid-cols-2">
+        <div className="grid gap-6 p-7 lg:grid-cols-2">
           {finished.map((m) => card(m))}
         </div>
       </details>

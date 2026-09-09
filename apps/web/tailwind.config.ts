@@ -43,7 +43,14 @@ export default {
       letterSpacing: { label: '1px', eyebrow: '1.5px', wide2: '2.5px' },
       borderRadius: { none: '0', sm: '0', DEFAULT: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0', full: '9999px' },
       borderWidth: { hair: '1.5px' },
-      maxWidth: { shell: '1140px' },
+      maxWidth: {
+        /** The page column. Wide enough to use a laptop screen; capped so an ultrawide monitor
+            does not stretch a two-column card grid into unreadable bands. */
+        shell: '1600px',
+        /** Single-column reading and typing: an announcement, a sign-up form. Long lines of prose
+            are harder to read, so these stay narrow even though the shell around them is wide. */
+        prose: '900px',
+      },
     },
   },
   plugins: [],

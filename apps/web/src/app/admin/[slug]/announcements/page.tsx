@@ -20,7 +20,7 @@ export default async function AnnouncementsAdminPage({ params }: { params: Promi
   async function remove(formData: FormData) { 'use server'; redirectWithMsg(here, await deleteAnnouncement(slug, String(formData.get('id'))), 'Deleted'); }
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="max-w-prose space-y-6">
       <FlashMessage />
       <section className={ui.card}>
         <div className={ui.head}><h2 className={ui.eyebrow}>New announcement</h2></div>

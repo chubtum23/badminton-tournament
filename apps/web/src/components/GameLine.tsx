@@ -61,16 +61,16 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   };
 
   return (
-    <div className="border-t-hair border-line py-2.5 first:border-t-0">
+    <div className="border-t-hair border-line py-3.5 first:border-t-0">
       <div className="flex flex-wrap items-center gap-2.5">
         <span className="min-w-[9rem]">
-          <span className="block text-[13px] font-bold uppercase tracking-wide">{label}</span>
+          <span className="block text-base font-bold uppercase tracking-wide">{label}</span>
           {(pairA || pairB) && <span data-testid="pair-names" className="block text-xs text-muted">{pairA ?? '—'} · {pairB ?? '—'}</span>}
         </span>
         {showTeams && <span className="truncate font-display text-sm font-extrabold uppercase">{a} v {b}</span>}
         {scored && (
           <>
-            <span className="font-display text-lg font-black tabular-nums">{slot.score_a}–{slot.score_b}</span>
+            <span className="font-display text-2xl font-black tabular-nums">{slot.score_a}–{slot.score_b}</span>
             {slot.time_expired && <span className={ui.pillLocked}>time</span>}
           </>
         )}

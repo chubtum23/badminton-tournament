@@ -99,7 +99,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
   const side = (id: string | null, name: string) => (
     <span className={`min-w-0 ${lost(id) ? 'text-muted-soft' : ''}`}>
       <span className="block truncate">{name}</span>
-      {taglines && tagline(id) && <span className="block truncate font-sans text-[11px] font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}
+      {taglines && tagline(id) && <span className="block truncate font-sans text-xs font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}
     </span>
   );
 
@@ -115,21 +115,21 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
         </span>
       </div>
 
-      <div className="px-5 pb-2 pt-4 font-display text-lg font-extrabold uppercase leading-snug tracking-tight sm:text-xl">
+      <div className="px-7 pb-3 pt-6 font-display text-2xl font-extrabold uppercase leading-snug tracking-tight sm:text-3xl">
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           {side(match.teamAId, a)}
-          <span className="font-sans text-[15px] font-medium lowercase text-line-strong">vs</span>
+          <span className="font-sans text-lg font-medium lowercase text-line-strong">vs</span>
           {side(match.teamBId, b)}
         </span>
       </div>
 
       {showPending && (
-        <div className="px-5 pb-1">
-          <span className={match.status === 'disputed' ? 'bg-red-100 px-3 py-1 text-[11px] font-bold uppercase tracking-label text-red-800' : ui.pillTodo}>
+        <div className="px-7 pb-2">
+          <span className={match.status === 'disputed' ? 'bg-red-100 px-3 py-1 text-xs font-bold uppercase tracking-label text-red-800' : ui.pillTodo}>
             {match.status === 'disputed' ? 'disputed' : 'unconfirmed'} · {pending.by}
           </span>
           {pending.other && (
-            <p className="mt-1.5 text-[11px] tabular-nums text-red-800">
+            <p className="mt-1.5 text-xs tabular-nums text-red-800">
               {pending.by} says {compact(pending.games)} · {pending.other.by} says {compact(pending.other.games)}
             </p>
           )}
@@ -137,19 +137,19 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
       )}
 
       {perGame && gameList ? (
-        <ul className="flex flex-col gap-2 px-5 pb-5 pt-2.5">
+        <ul className="flex flex-col gap-2.5 px-7 pb-7 pt-3">
           {slots!.map((s) => {
             const scored = s.score_a !== null && s.score_b !== null;
             const name = tournament ? gameLabel(tournament, s.game_no) : `Game ${s.game_no}`;
             return (
               <li
                 key={s.game_no}
-                className={`flex items-center justify-between gap-3 px-3.5 py-2.5 ${scored ? 'bg-navy text-bone' : 'border-hair border-line'}`}
+                className={`flex items-center justify-between gap-4 px-5 py-4 ${scored ? 'bg-navy text-bone' : 'border-hair border-line'}`}
               >
-                <span className={`min-w-0 text-[13px] font-bold uppercase tracking-wide ${scored ? 'text-orange-bright' : ''}`}>
+                <span className={`min-w-0 text-base font-bold uppercase tracking-wide ${scored ? 'text-orange-bright' : ''}`}>
                   <span className="block truncate">{name}{s.time_expired ? ' — time' : ''}</span>
                 </span>
-                <span className={`shrink-0 tabular-nums ${scored ? 'font-display text-xl font-black' : 'text-[13px] font-semibold text-muted'}`}>
+                <span className={`shrink-0 tabular-nums ${scored ? 'font-display text-3xl font-black' : 'text-base font-semibold text-muted'}`}>
                   {scored ? `${s.score_a}–${s.score_b}` : s.started_at !== null ? `Court ${s.court ?? '?'}` : '—'}
                 </span>
               </li>
@@ -158,13 +158,13 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
         </ul>
       ) : (
         shown.length > 0 && (
-          <p className="px-5 pb-5 pt-1 font-display text-xl font-black tabular-nums">
+          <p className="px-7 pb-7 pt-2 font-display text-2xl font-black tabular-nums">
             {shown.map((g) => `${g.scoreA}–${g.scoreB}`).join('  ')}
           </p>
         )
       )}
 
-      {children && <div className="border-t-hair border-line px-5 py-4">{children}</div>}
+      {children && <div className="border-t-hair border-line px-7 py-6">{children}</div>}
     </div>
   );
 }

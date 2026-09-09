@@ -81,7 +81,7 @@ export function RecentOutcome() {
   return (
     <div data-testid="score-outcome-banner" className="space-y-2">
       {entries.map((e) => (
-        <p key={e.id} className="border-l-4 border-orange bg-orange-wash px-4 py-3 text-[13px] font-semibold text-orange-ink">{e.text}</p>
+        <p key={e.id} className="border-l-4 border-orange bg-orange-wash px-4 py-3 text-[15px] font-semibold text-orange-ink">{e.text}</p>
       ))}
     </div>
   );

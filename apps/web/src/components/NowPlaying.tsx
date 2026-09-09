@@ -24,23 +24,23 @@ export function NowPlaying({ tournament, games, teams, settings, admin = false }
 }) {
   if (games.length === 0) {
     return (
-      <section data-testid="now-playing" className={`${ui.card} flex flex-wrap items-center gap-3.5 px-5 py-3.5`}>
+      <section data-testid="now-playing" className={`${ui.card} flex flex-wrap items-center gap-4 px-7 py-5`}>
         <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-orange" />
-        <h2 className="text-[13px] font-bold uppercase tracking-label">Court is free</h2>
-        <p className="text-[13px] text-muted">{admin ? 'Hit “Start now” on any game below to put it on court.' : 'Nothing is on court at the moment.'}</p>
+        <h2 className="text-base font-bold uppercase tracking-label">Court is free</h2>
+        <p className="text-base text-muted">{admin ? 'Hit “Start now” on any game below to put it on court.' : 'Nothing is on court at the moment.'}</p>
       </section>
     );
   }
   return (
     <section data-testid="now-playing" className={ui.card}>
       <div className={`${ui.head} bg-navy text-bone`}>
-        <h2 className="flex items-center gap-3.5 text-[13px] font-bold uppercase tracking-label">
+        <h2 className="flex items-center gap-3.5 text-[15px] font-bold uppercase tracking-label">
           <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-orange" />
           On court now
         </h2>
         <span className="text-xs font-bold uppercase tracking-label text-orange">{games.length} game{games.length === 1 ? '' : 's'}</span>
       </div>
-      <div className="px-5 py-2">
+      <div className="px-7 py-3">
         {games.map((g) => (
           <GameLine
             key={`${g.slot.match_id}:${g.slot.game_no}`}

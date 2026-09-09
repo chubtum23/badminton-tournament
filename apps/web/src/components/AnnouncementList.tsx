@@ -15,7 +15,7 @@ export function AnnouncementList({ items, actions }: {
             <span className={ui.eyebrow}>{a.pinned ? 'Pinned · ' : ''}{new Date(a.created_at).toLocaleString()}</span>
             {actions?.(a)}
           </div>
-          <p className="whitespace-pre-wrap px-5 py-4 text-sm">{a.body}</p>
+          <p className="whitespace-pre-wrap px-7 py-6 text-base">{a.body}</p>
         </li>
       ))}
     </ul>

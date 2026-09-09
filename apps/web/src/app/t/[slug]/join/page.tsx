@@ -15,7 +15,7 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
   const open = t.status === 'setup' && t.signup_open;
   if (!open) {
     return (
-      <section className={`${ui.card} max-w-2xl`}>
+      <section className={`${ui.card} max-w-prose`}>
         <div className={`${ui.head} ${ui.headOrange}`}>
           <h2 className={ui.eyebrow}>Sign your team up</h2>
           <span className={ui.eyebrow}>Closed</span>
@@ -30,13 +30,13 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
   const needs = await sb.rpc('signup_needs_code', { p_slug: slug });
   if (needs.error) throw new Error(`signup_needs_code: ${needs.error.message}`);
   return (
-    <section className={`${ui.card} max-w-3xl`}>
+    <section className={`${ui.card} max-w-prose`}>
       <div className={`${ui.head} ${ui.headOrange}`}>
         <h2 className={ui.eyebrow}>Sign your team up</h2>
         <span className={ui.eyebrow}>Open</span>
       </div>
       <div className={ui.body}>
-        <p className="mb-6 text-[13px] text-muted">One person signs the whole team up: a team name and your three players. You get a private team link at the end.</p>
+        <p className="mb-6 text-[15px] text-muted">One person signs the whole team up: a team name and your three players. You get a private team link at the end.</p>
         <JoinForm slug={slug} needsCode={Boolean(needs.data)} action={signUpTeam.bind(null, slug)} />
       </div>
     </section>

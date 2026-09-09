@@ -46,12 +46,12 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   async function unlock() { 'use server'; redirectWithMsg(`/admin/${slug}`, await unlockPools(slug), 'Pools unlocked'); }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <FlashMessage />
-      <p className="text-[13px] text-muted-strong">
+      <p className="text-[15px] text-muted-strong">
         {t.status === 'setup' ? 'Get these four things done, then lock the pools.' : 'Everything is set. Run the night from Matches.'}
       </p>
-      <ol className="grid gap-5 sm:grid-cols-2">
+      <ol className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {tiles.map((tile) => {
           const { n, rest } = step(tile.title);
           return (
@@ -59,15 +59,15 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
               <Link
                 href={`/admin/${slug}${tile.href}`}
                 data-testid={`tile-${tile.key}`}
-                className={`${ui.card} flex h-full flex-col justify-between gap-4 px-5 py-5 hover:border-orange`}
+                className={`${ui.card} flex h-full flex-col justify-between gap-6 px-7 py-7 hover:border-orange`}
               >
                 <span className="flex items-start justify-between gap-3">
-                  <span className={`${ui.figure} text-[34px] text-navy`}>{n}</span>
+                  <span className={`${ui.figure} text-6xl text-navy`}>{n}</span>
                   <span className={pill(tile.pill)}>{tile.pill}</span>
                 </span>
                 <span>
-                  <span className="block font-display text-base font-extrabold uppercase tracking-tight">{rest}</span>
-                  <span className="mt-1 block text-[13px] text-muted">{tile.summary}</span>
+                  <span className="block font-display text-xl font-extrabold uppercase tracking-tight">{rest}</span>
+                  <span className="mt-1.5 block text-base text-muted">{tile.summary}</span>
                 </span>
               </Link>
             </li>

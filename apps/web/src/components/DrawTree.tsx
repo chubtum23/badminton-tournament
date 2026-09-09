@@ -45,7 +45,7 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
           <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
         </span>
         <span className="shrink-0 font-display text-sm font-black tabular-nums">
-          {decided ? <span className="text-[10px] uppercase tracking-label text-muted">{m.decidedBy}</span> : scored > 0 ? wonGames : ''}
+          {decided ? <span className="text-[11px] uppercase tracking-label text-muted">{m.decidedBy}</span> : scored > 0 ? wonGames : ''}
         </span>
       </div>
     );
@@ -59,7 +59,7 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
         {slotRow(m, m.teamAId)}
         {slotRow(m, m.teamBId)}
         {live.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 bg-orange px-3 py-1 text-[10px] font-bold uppercase tracking-label text-ink">
+          <div className="flex flex-wrap items-center gap-2 bg-orange px-3 py-1 text-[11px] font-bold uppercase tracking-label text-ink">
             <span>Live · Court {live.map((s) => s.court ?? '?').join(', ')}</span>
             {settings.timeCapMinutes !== null && live[0]!.started_at && (
               <CourtClock startedAt={live[0]!.started_at} capMinutes={settings.timeCapMinutes}
@@ -72,13 +72,13 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
   };
 
   const heading = (text: string) => (
-    <div className="mb-2.5 bg-navy px-3 py-1.5 text-center text-[11px] font-bold uppercase tracking-eyebrow text-bone">{text}</div>
+    <div className="mb-2.5 bg-navy px-3 py-1.5 text-center text-xs font-bold uppercase tracking-eyebrow text-bone">{text}</div>
   );
 
   /** A pool's table, tinted in that pool's own colour so the two halves of the tree stay apart. */
   const poolBox = (p: DrawPool, i: number) => (
     <section key={p.id} className="border-2 border-navy bg-white">
-      <h3 className={`border-b-2 border-navy px-3 py-1.5 text-[11px] font-bold uppercase tracking-eyebrow ${poolTone(i).head}`}>{p.name}</h3>
+      <h3 className={`border-b-2 border-navy px-3 py-1.5 text-xs font-bold uppercase tracking-eyebrow ${poolTone(i).head}`}>{p.name}</h3>
       {p.rows.length === 0 ? (
         <p className="px-3 py-2 text-xs text-muted">No teams yet.</p>
       ) : p.rows.map((r) => (
@@ -148,7 +148,7 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
             <div className="font-display text-2xl font-black uppercase tracking-label">Final</div>
             {final ? <div className="w-full">{box(final)}</div> : (
               <>
-                <p className="w-full border-2 border-dashed border-line-strong bg-white px-6 py-5 text-center text-[13px] text-muted">
+                <p className="w-full border-2 border-dashed border-line-strong bg-white px-6 py-5 text-center text-[15px] text-muted">
                   Winner Pool A<br />vs<br />Winner Pool B
                 </p>
                 <p className="text-center text-xs font-bold uppercase tracking-label text-orange-ink">
