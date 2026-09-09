@@ -37,6 +37,10 @@ export const ui = {
   // — Forms ———————————————————————————————————————————————
   label: 'block text-[13px] font-bold uppercase tracking-label text-muted',
   field: 'mt-2 w-full border-hair border-line bg-white px-4 py-3 text-base text-ink outline-none focus:border-navy disabled:bg-line-soft disabled:text-muted',
+  /** The sign-up form is a page in its own right rather than a panel, so its label and box scale up
+      with it. Everything else on the site keeps `label` and `field`. */
+  labelLg: 'block text-[15px] font-bold uppercase tracking-label text-muted',
+  fieldLg: 'mt-2.5 w-full border-hair border-line bg-white px-5 py-4 text-lg text-ink outline-none focus:border-navy disabled:bg-line-soft disabled:text-muted',
   /** Narrow inline input or select sitting in a row of controls. */
   fieldSm: 'border-hair border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-navy',
   checkbox: 'h-5 w-5 accent-navy',

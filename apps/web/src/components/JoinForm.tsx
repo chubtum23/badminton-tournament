@@ -20,7 +20,7 @@ export function JoinForm({ slug, needsCode, action }: {
   const [pending, start] = useTransition();
   return (
     <form
-      className="space-y-6"
+      className="space-y-10"
       onSubmit={(e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
@@ -40,21 +40,26 @@ export function JoinForm({ slug, needsCode, action }: {
       }}
     >
       {error && <p role="alert" data-testid="signup-error" className={ui.alarm}>{error}</p>}
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className={ui.label}>Team name<input name="name" required maxLength={40} className={ui.field} placeholder="e.g. Net Ninjas" /></label>
-        <label className={ui.label}>Tagline <span className={optional}>(optional)</span><input name="tagline" maxLength={80} className={ui.field} /></label>
-        <label className={ui.label}>Team colour<input name="colour" type="color" defaultValue="#2B3390" className="mt-1.5 h-12 w-full cursor-pointer border-hair border-line bg-white p-1" /></label>
-        <label className={`${ui.label} md:col-span-2`}>About your team <span className={optional}>(optional)</span>
-          <textarea name="description" maxLength={400} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} />
+
+      {/* Name, tagline and colour are one short line each, so on a wide screen they sit three
+          across rather than leaving half the card empty. The description spans the row under them. */}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <label className={ui.labelLg}>Team name<input name="name" required maxLength={40} className={ui.fieldLg} placeholder="e.g. Net Ninjas" /></label>
+        <label className={ui.labelLg}>Tagline <span className={optional}>(optional)</span><input name="tagline" maxLength={80} className={ui.fieldLg} /></label>
+        <label className={ui.labelLg}>Team colour<input name="colour" type="color" defaultValue="#2B3390" className="mt-2.5 h-[62px] w-full cursor-pointer border-hair border-line bg-white p-1.5" /></label>
+        <label className={`${ui.labelLg} md:col-span-2 xl:col-span-3`}>About your team <span className={optional}>(optional)</span>
+          <textarea name="description" maxLength={400} rows={3} className={`${ui.fieldLg} resize-y font-normal normal-case tracking-normal`} />
         </label>
       </div>
-      <RosterFields />
+
+      <RosterFields big />
+
       {needsCode && (
-        <label className={ui.label}>Join code<input name="joinCode" required className={ui.field} />
-          <span className={ui.help}>The organiser gave this to club members.</span>
+        <label className={`${ui.labelLg} block max-w-md`}>Join code<input name="joinCode" required className={ui.fieldLg} />
+          <span className={`${ui.help} text-base`}>The organiser gave this to club members.</span>
         </label>
       )}
-      <button type="submit" disabled={pending} aria-busy={pending} className={`${ui.primary} w-full disabled:opacity-60 sm:w-auto`}>
+      <button type="submit" disabled={pending} aria-busy={pending} className={`${ui.primary} w-full px-10 py-5 text-base disabled:opacity-60 sm:w-auto`}>
         {pending ? 'Signing up…' : 'Sign our team up'}
       </button>
     </form>
