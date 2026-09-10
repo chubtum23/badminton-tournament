@@ -11,13 +11,15 @@ import { ShellTabs } from './ShellTabs';
  * faint vertical rules are court sidelines — the only ornament in the design, and the thing that
  * makes a hall screen recognisable from across the room.
  */
-export function Shell({ title, status, links, tabs, children }: {
+export function Shell({ title, status, links, tabs, notice, children }: {
   title: string;
   /** The one status line under the title: stage, court, team count. */
   status?: React.ReactNode;
   /** Links at the top right of the band. */
   links?: React.ReactNode;
   tabs: readonly { href: string; label: string }[];
+  /** A full-width strip between the band and the page, e.g. a new-announcement alert. */
+  notice?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -37,6 +39,7 @@ export function Shell({ title, status, links, tabs, children }: {
           <ShellTabs tabs={tabs} />
         </div>
       </div>
+      {notice}
       <main className="mx-auto max-w-shell px-6 pb-24 pt-9 sm:px-10">{children}</main>
     </>
   );
