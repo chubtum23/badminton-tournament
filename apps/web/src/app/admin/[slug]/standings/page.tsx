@@ -7,7 +7,7 @@ import { fail } from '@/actions/errors';
 import { gameSlotsByMatch, listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch } from '@/lib/db/mappers';
 import { computePool } from '@/lib/standings/compute';
-import { StandingsTable } from '@/components/StandingsTable';
+import { StandingsTable, StatHeaders, StatKey } from '@/components/StandingsTable';
 import { SubmitButton } from '@/components/SubmitButton';
 import { FlashMessage } from '@/components/FlashMessage';
 import { poolTag, poolTone, ui } from '@/components/ui';
@@ -216,8 +216,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                 <thead>
                   <tr className="border-b-hair border-line text-left">
                     <th className={`${th} w-12`}>Rank</th><th className={th}>Team</th><th className={`${th} w-24`}>Pool</th>
-                    <th className={`${th} w-10 text-center`}>P</th><th className={`${th} w-10 text-center`}>W</th>
-                    <th className={`${th} w-12 text-center`}>Pts</th><th className={`${th} w-10 text-center`}>±</th>
+                    <StatHeaders th={th} />
                   </tr>
                 </thead>
                 <tbody>{table.map((r) => {
@@ -235,6 +234,7 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
                   );
                 })}</tbody>
               </table>
+              <StatKey />
             </div>
           </section>
         );

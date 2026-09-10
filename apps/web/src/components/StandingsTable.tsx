@@ -12,6 +12,34 @@ function tieNote(tie: UnresolvedTie): string {
 const th = 'pb-3 pt-1 text-xs font-bold uppercase tracking-label text-muted';
 const num = 'px-1 text-center tabular-nums text-muted-strong';
 
+// Short labels on a phone so the team name keeps its room; full words once there's space.
+const STAT_COLS = [
+  { short: 'P', full: 'Played', title: 'Matches played', width: 'w-10 sm:w-16' },
+  { short: 'W', full: 'Won', title: 'Matches won', width: 'w-10 sm:w-14' },
+  { short: 'Pts', full: 'Points', title: 'Table points — one per match won', width: 'w-12 sm:w-16' },
+  { short: '±', full: '+/−', title: 'Points scored minus points conceded', width: 'w-10 sm:w-14' },
+] as const;
+
+/** The four stat column headers shared by every standings table. */
+export function StatHeaders({ th }: { th: string }) {
+  return STAT_COLS.map((c) => (
+    <th key={c.full} className={`${th} ${c.width} text-center`} title={c.title}>
+      <abbr title={c.title} className="no-underline sm:hidden">{c.short}</abbr>
+      <span className="hidden sm:inline">{c.full}</span>
+    </th>
+  ));
+}
+
+/** One-line legend under a standings table; spells out the phone abbreviations and what ± counts. */
+export function StatKey() {
+  return (
+    <p className="mt-3 text-xs text-muted" data-testid="standings-key">
+      <span className="sm:hidden">P played · W won · Pts one per win · ± points scored minus conceded</span>
+      <span className="hidden sm:inline">Points: one per match won · +/−: points scored minus points conceded, which splits teams level on wins</span>
+    </p>
+  );
+}
+
 export function StandingsTable({ rows, teams, advance, manual, ties, actionHeader, rowAction }: {
   rows: StandingRow[]; teams: readonly TeamRow[]; advance: number;
   /** The organiser has set the finishing order for this pool; renders the "Order set by organiser" caption. */
@@ -30,10 +58,7 @@ export function StandingsTable({ rows, teams, advance, manual, ties, actionHeade
           <tr className="border-b-hair border-line text-left">
             <th className={`${th} w-7`}>#</th>
             <th className={th}>Team</th>
-            <th className={`${th} w-10 text-center`}>P</th>
-            <th className={`${th} w-10 text-center`}>W</th>
-            <th className={`${th} w-12 text-center`}>Pts</th>
-            <th className={`${th} w-10 text-center`}>±</th>
+            <StatHeaders th={th} />
             {rowAction && <th className={`${th} text-right`}>{actionHeader}</th>}
           </tr>
         </thead>
@@ -68,6 +93,7 @@ export function StandingsTable({ rows, teams, advance, manual, ties, actionHeade
           })}
         </tbody>
       </table>
+      <StatKey />
       {manual && <p className="mt-2 text-xs font-bold uppercase tracking-label text-muted">Order set by organiser</p>}
       {ties && ties.length > 0 && (
         <div className="mt-2 space-y-1">
