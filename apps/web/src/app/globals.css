@@ -22,6 +22,10 @@ body { @apply bg-bone font-sans text-ink; }
 .disclosure::after { content: '▾'; @apply text-muted transition-transform; }
 details[open] > .disclosure::after { transform: rotate(180deg); }
 
+/* A size modifier, for where the whole card is the toggle rather than a line of text inside one:
+   the triangle is then a control someone aims at, so it is scaled to the card, not to the label. */
+.disclosure-lg::after { @apply text-2xl leading-none; }
+
 /* The header band's court markings: faint sidelines every 120px, the one piece of ornament in
    the design. Purely decorative, so it sits behind the content and is never announced. */
 .court-lines::before {

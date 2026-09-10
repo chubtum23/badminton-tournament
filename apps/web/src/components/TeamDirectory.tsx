@@ -56,7 +56,9 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
       {groups.map((group) => (
         <section key={group.key} data-testid="team-group">
           <h2 className={`${ui.h2} mb-4`}>{group.name}</h2>
-          <div className="grid gap-4 lg:grid-cols-2">
+          {/* items-start, because a grid row stretches its items to the tallest one by default:
+              opening one card would otherwise grow the empty box of the card beside it. */}
+          <div className="grid items-start gap-4 lg:grid-cols-2">
             {group.teams.map((team) => {
               const rating = teamRating(team.id);
               // Roles are fixed, so the roster always reads Mixed #1, Mixed #2, Woman rather than
@@ -67,7 +69,7 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
               ];
               return (
                 <details key={team.id} data-testid="team-card" data-team={team.id} className={ui.card}>
-                  <summary className={`${ui.head} ${group.tone === null ? '' : poolTone(group.tone).head} disclosure`}>
+                  <summary className={`${ui.head} ${group.tone === null ? '' : poolTone(group.tone).head} disclosure disclosure-lg`}>
                     <span className="flex min-w-0 items-center gap-3">
                       <span aria-hidden className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: team.colour }} />
                       <span className="min-w-0">
