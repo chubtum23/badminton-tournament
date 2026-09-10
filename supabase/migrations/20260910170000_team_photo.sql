@@ -13,6 +13,19 @@ alter table public.teams add column photo_path text
 -- public pages cannot read it.
 grant select (photo_path) on public.teams to anon, authenticated;
 
+-- Anything already uploaded under the per-player design moves up to the team rather than being
+-- dropped with the column: a team takes the first photo among its players, in playing order. The
+-- object itself does not move — the path is the same, and the bucket is unchanged.
+update public.teams t set photo_path = (
+  select p.photo_path
+    from public.team_players tp
+    join public.players p on p.id = tp.player_id
+   where tp.team_id = t.id and p.photo_path is not null
+   order by case tp.role when 'mixed1' then 1 when 'mixed2' then 2 else 3 end
+   limit 1
+)
+where t.photo_path is null;
+
 alter table public.players drop column photo_path;
 
 -- ---------- back to a roster function that only knows about names ----------
