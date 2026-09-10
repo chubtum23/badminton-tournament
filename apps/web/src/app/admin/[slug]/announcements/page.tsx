@@ -20,22 +20,22 @@ export default async function AnnouncementsAdminPage({ params }: { params: Promi
   async function remove(formData: FormData) { 'use server'; redirectWithMsg(here, await deleteAnnouncement(slug, String(formData.get('id'))), 'Deleted'); }
 
   return (
-    <div className="max-w-prose space-y-6">
+    <div className="space-y-6">
       <FlashMessage />
       <section className={ui.card}>
-        <div className={ui.head}><h2 className={ui.eyebrow}>New announcement</h2></div>
-        <form action={post} className={`${ui.body} space-y-4`}>
+        <div className={`${ui.head} px-9 py-6`}><h2 className={ui.h2}>New announcement</h2></div>
+        <form action={post} className="space-y-6 px-9 py-9">
           <label className={ui.label}>
             <span className="sr-only">Announcement</span>
             <textarea
-              name="body" rows={3} maxLength={1000} required
+              name="body" rows={4} maxLength={1000} required
               placeholder="e.g. Round 2 starts in 10 minutes — kings and Test warm up now"
-              className={`${ui.field} min-h-[90px] resize-y font-normal normal-case tracking-normal placeholder:text-muted-soft`}
+              className={`${ui.fieldLg} min-h-[140px] resize-y font-normal normal-case tracking-normal placeholder:text-muted-soft`}
             />
           </label>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <label className={ui.check}><input type="checkbox" name="pinned" className={ui.checkbox} /> Pin to the top of the live page</label>
-            <SubmitButton className={ui.primary}>Post</SubmitButton>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <label className={`${ui.check} text-base`}><input type="checkbox" name="pinned" className={ui.checkbox} /> Pin to the top of the live page</label>
+            <SubmitButton className={`${ui.primary} px-12 py-5 text-base`}>Post</SubmitButton>
           </div>
         </form>
       </section>

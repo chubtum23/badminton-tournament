@@ -81,3 +81,14 @@ details[open] > .disclosure::after { transform: rotate(180deg); }
 .dt-r .dt-round:not(:last-child) .dt-box::before {
   content: ''; position: absolute; right: -1rem; top: 50%; width: 1rem; border-top: 2px solid #2B3390;
 }
+
+/* A native colour input drawn as a small dot rather than a full-width bar. The browser's own
+   swatch sits inside a padded wrapper, so both are flattened for the swatch to fill the circle. */
+.colour-dot {
+  -webkit-appearance: none;
+  appearance: none;
+  @apply h-11 w-11 cursor-pointer rounded-full border-2 border-line-strong bg-transparent p-0 hover:border-navy;
+}
+.colour-dot::-webkit-color-swatch-wrapper { padding: 0; }
+.colour-dot::-webkit-color-swatch { border: none; border-radius: 9999px; }
+.colour-dot::-moz-color-swatch { border: none; border-radius: 9999px; }

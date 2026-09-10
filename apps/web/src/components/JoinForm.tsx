@@ -52,7 +52,7 @@ export function JoinForm({ slug, needsCode, action }: {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         <label className={ui.labelLg}>Team name<LimitedField name="name" required limit={PROFILE_LIMITS.name} className={ui.fieldLg} onValueChange={setName} /></label>
         <label className={ui.labelLg}>Tagline <span className={optional}>(optional)</span><LimitedField name="tagline" limit={PROFILE_LIMITS.tagline} className={ui.fieldLg} /></label>
-        <label className={ui.labelLg}>Team colour<input name="colour" type="color" value={colour} onChange={(e) => setColour(e.target.value)} className="mt-2.5 h-[62px] w-full cursor-pointer border-hair border-line bg-white p-1.5" /></label>
+        <label className={ui.labelLg}>Team colour<input name="colour" type="color" value={colour} onChange={(e) => setColour(e.target.value)} className="colour-dot mt-2.5 block" /></label>
         <label className={ui.labelLg}>Team photo <span className={optional}>(optional)</span>
           <PhotoField teamName={name} colour={colour} currentPath={null} />
         </label>

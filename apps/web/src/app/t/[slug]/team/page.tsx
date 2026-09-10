@@ -120,7 +120,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
         <form action={save} className={`${ui.body} grid gap-4 md:grid-cols-2`}>
           <label className={ui.label}>Team name<LimitedField name="name" defaultValue={me.team.name} limit={PROFILE_LIMITS.name} required className={ui.field} /></label>
           <label className={ui.label}>Tagline<LimitedField name="tagline" defaultValue={me.team.tagline} limit={PROFILE_LIMITS.tagline} className={ui.field} /></label>
-          <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1.5 h-12 w-full cursor-pointer border-hair border-line bg-white p-1" /></label>
+          <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="colour-dot mt-2 block" /></label>
           <label className={ui.label}>Team photo
             <PhotoField teamName={me.team.name} colour={me.team.colour} currentPath={me.team.photo_path} />
           </label>
