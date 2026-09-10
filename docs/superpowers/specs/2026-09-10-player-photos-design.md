@@ -42,15 +42,19 @@ decoder for a case iOS mostly avoids by converting to JPEG on pick is not worth 
 - Bucket `player-photos`: public read, no insert/update/delete for `anon` or `authenticated`.
   Every write is service-role, for the same reason `sign_up_team` is not granted to `anon` - the
   anon key ships in the browser bundle, and the only rate limiter lives in the server action.
-- `players.photo_path text` (nullable). Object path `<tournament_id>/<player_id>-<8 random chars>.jpg`.
-  The random suffix exists because Supabase serves public objects through a CDN: overwriting a
-  fixed path would keep serving the old photo. Each upload writes a new path and deletes the old
-  object, so a replacement is visible the moment it is saved.
-- `write_roster` deletes and recreates all three players on every roster edit. It captures
-  `photo_path` per role before the delete and reinstates it after, so renaming a player keeps
-  their photo. The durable slot in this schema is `(team, role)`, not the player row.
-- `set_player_photo(p_player uuid, p_path text)` and `clear_player_photo(p_player uuid)`,
-  service-role only, keep the writes in one place.
+- `players.photo_path text` (nullable). Object path `<tournament_id>/<32 hex chars>.jpg`.
+  The name carries no player id, for two reasons. A photo is uploaded before `sign_up_team`
+  runs, so no player id exists yet; and Supabase serves public objects through a CDN, so a fixed
+  path would keep serving the old photo after a replacement. Every upload writes a fresh path,
+  and the object it replaces is deleted.
+- `write_roster` gains `p_photo1`, `p_photo2`, `p_photow` (default null) and stores them on the
+  players it creates. It does **not** try to preserve paths across the delete/recreate by itself:
+  it cannot tell a rename from a replacement, and `swapMixed` moves a person between roles. The
+  caller is authoritative and passes the three paths it means. `sign_up_team` and
+  `admin_set_roster` take and forward the same three.
+- A caller may only pass a path already held by one of that team's players, or one it has just
+  uploaded in the same request. The server action checks this; otherwise a crafted form could
+  point a player at any object in the bucket.
 
 ## 3. Flow
 
@@ -59,16 +63,20 @@ decoder for a case iOS mostly avoids by converting to JPEG on pick is not worth 
 replaces the file in a hidden input so the existing single-submit form is unchanged in shape. A
 thumbnail with a remove button shows what will be uploaded.
 
-**Server** (`signUpTeam`): unchanged up to and including the `sign_up_team` RPC. Then, for each of
-the three optional blobs, re-check the bytes, upload to the bucket, and call `set_player_photo`.
+**Server** (`signUpTeam`): re-check the bytes of each blob, upload each to its own random path,
+then call `sign_up_team` with the three paths. If the sign-up itself then fails, the uploaded
+objects are deleted, best-effort.
 
-A failed upload does **not** fail the sign-up. The team is already created; the action returns the
-token with `photosFailed: true` and the team page says the photos did not save and offers the
-field again. Losing a team because a photo upload timed out would be the worse failure.
+A failed **upload** does not fail the sign-up: that photo’s path is null, the team is created
+without it, and the team page says so and offers the field again. Losing a team because a photo
+timed out would be the worse failure.
 
-**Later edits**: the same `PhotoField` sits in the team edit page's roster form, and
-`updateMyRoster` handles added, replaced and removed photos. Replacing writes a new path and deletes the
-old object; removing deletes the object and nulls the column. Either way the delete is best-effort:
+**Later edits**: each roster box carries a hidden `photo_<role>` holding the path already stored,
+which the picker overwrites on a new upload and empties on remove. `updateMyRoster` uploads any
+new blob, passes the three resulting paths to `write_roster`, and deletes objects that are no
+longer referenced. The same `PhotoField` sits in the team edit page's roster form.
+Replacing writes a new path and deletes the old object; removing deletes the object and nulls the
+column. Either way the delete is best-effort:
 an unreferenced object is harmless, where a failed column update would leave a player pointing at
 nothing.
 
