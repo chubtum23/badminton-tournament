@@ -7,9 +7,9 @@ function team(id: string, name: string): TeamWithPlayers {
     id, tournament_id: 't', name, tagline: '', colour: '#2563eb', description: '', seed: null,
     pool_id: null, pool_order: 0, withdrawn: false, pool_rank_override: null,
     players: [
-      { id: `${id}-m1`, tournament_id: 't', name: `${name} One`, gender: 'male', role: 'mixed1' },
-      { id: `${id}-m2`, tournament_id: 't', name: `${name} Two`, gender: 'male', role: 'mixed2' },
-      { id: `${id}-w`, tournament_id: 't', name: `${name} Ella`, gender: 'female', role: 'woman' },
+      { id: `${id}-m1`, tournament_id: 't', name: `${name} One`, gender: 'male', photo_path: null, role: 'mixed1' },
+      { id: `${id}-m2`, tournament_id: 't', name: `${name} Two`, gender: 'male', photo_path: null, role: 'mixed2' },
+      { id: `${id}-w`, tournament_id: 't', name: `${name} Ella`, gender: 'female', photo_path: null, role: 'woman' },
     ],
   };
 }
