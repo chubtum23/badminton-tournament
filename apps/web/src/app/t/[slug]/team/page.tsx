@@ -113,7 +113,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
       <section className={ui.card}>
         <div className={ui.head}>
           <h2 className="flex items-center gap-2.5 font-display text-base font-extrabold uppercase tracking-tight">
-            <TeamAvatar teamName={me.team.name} colour={me.team.colour} path={me.team.photo_path} size={32} />{me.team.name}
+            <TeamAvatar teamName={me.team.name} colour={me.team.colour} path={me.team.photo_path} size={46} />{me.team.name}
           </h2>
           <span className={`${ui.eyebrow} text-muted`}>Your team</span>
         </div>

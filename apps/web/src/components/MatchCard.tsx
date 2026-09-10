@@ -108,7 +108,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
     const t = id ? teams.find((x) => x.id === id) : undefined;
     return (
       <span className={`flex min-w-0 items-center gap-2.5 ${lost(id) ? 'text-muted-soft' : ''}`}>
-        {t && <TeamAvatar teamName={t.name} colour={t.colour} path={t.photo_path} size={36} />}
+        {t && <TeamAvatar teamName={t.name} colour={t.colour} path={t.photo_path} size={54} />}
         <span className="min-w-0">
           <span className="block truncate">{name}</span>
           {taglines && tagline(id) && <span className="block truncate font-sans text-xs font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}

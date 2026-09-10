@@ -76,7 +76,7 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
                 <details key={team.id} data-testid="team-card" data-team={team.id} className={ui.card}>
                   <summary className={`${ui.head} ${group.tone === null ? '' : poolTone(group.tone).head} disclosure disclosure-lg`}>
                     <span className="flex min-w-0 flex-1 items-center gap-3">
-                      <TeamAvatar teamName={team.name} colour={team.colour} path={team.photo_path} size={36} />
+                      <TeamAvatar teamName={team.name} colour={team.colour} path={team.photo_path} size={52} />
                       <span className="min-w-0">
                         <span className={`block truncate font-display text-lg font-extrabold uppercase tracking-tight ${team.withdrawn ? 'text-muted-soft line-through' : ''}`}>{team.name}</span>
                         {team.tagline && <span className="block truncate text-xs font-normal normal-case tracking-normal text-muted">{team.tagline}</span>}

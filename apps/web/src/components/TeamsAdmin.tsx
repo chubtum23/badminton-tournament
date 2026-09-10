@@ -83,7 +83,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
                 <li key={x.id} data-testid="team-row" className="py-4">
                   <details>
                     <summary className="disclosure flex flex-wrap items-center gap-2.5">
-                      <TeamAvatar teamName={x.name} colour={x.colour} path={x.photo_path} size={30} />
+                      <TeamAvatar teamName={x.name} colour={x.colour} path={x.photo_path} size={44} />
                       <span className={`font-display text-[15px] font-extrabold uppercase ${x.withdrawn ? 'text-muted-soft line-through' : ''}`}>{x.name}</span>
                       {x.tagline && <span className="text-[15px] text-muted">{x.tagline}</span>}
                       {!ok && <span className={ui.pillTodo}>Incomplete roster</span>}
@@ -102,7 +102,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
                       {x.photo_path && (
                         <form action={dropPhoto} className="flex items-center gap-3">
                           <input type="hidden" name="teamId" value={x.id} />
-                          <TeamAvatar teamName={x.name} colour={x.colour} path={x.photo_path} size={32} />
+                          <TeamAvatar teamName={x.name} colour={x.colour} path={x.photo_path} size={48} />
                           <span className="text-sm font-bold">{x.name}</span>
                           <SubmitButton confirmMessage={`Remove ${x.name}'s photo?`} className={ui.tiny}>Remove photo</SubmitButton>
                         </form>

@@ -73,8 +73,8 @@ export function PhotoField({ teamName, colour, currentPath }: {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3">
       {preview
-        ? <img src={preview} alt="" style={{ width: 44, height: 44, borderColor: colour }} className="inline-block shrink-0 rounded-full border-[3px] object-cover" />
-        : <TeamAvatar teamName={teamName} colour={colour} path={path} size={44} />}
+        ? <img src={preview} alt="" style={{ width: 72, height: 72, borderColor: colour }} className="inline-block shrink-0 rounded-full border-[3px] object-cover" />
+        : <TeamAvatar teamName={teamName} colour={colour} path={path} size={72} />}
       <input ref={fileInput} type="file" name="photo_file" accept="image/*" className="hidden" onChange={pick} />
       <input type="hidden" name="photo" value={path ?? ''} readOnly />
       <button type="button" disabled={busy} onClick={() => fileInput.current?.click()} className={ui.tiny}>
