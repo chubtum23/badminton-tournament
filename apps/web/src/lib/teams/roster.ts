@@ -5,10 +5,33 @@ import { parseProfileForm, type ProfileInput } from '@/lib/participant/profile';
 export interface RosterInput { mixed1: string; mixed2: string; woman: string }
 export interface SignupInput extends ProfileInput, RosterInput { joinCode: string }
 
+export const ROSTER_ROLES = ['mixed1', 'mixed2', 'woman'] as const;
+export type RosterRole = typeof ROSTER_ROLES[number];
+
 /** The three sign-up boxes, in form order. The box decides the player's gender and role. */
 export const ROSTER_FIELD_LABELS: Record<keyof RosterInput, string> = {
   mixed1: 'Man playing Mixed #1', mixed2: 'Man playing Mixed #2', woman: 'Woman',
 };
+
+/** A newly resized blob per role, where the picker put one. */
+export function photoBlobsFrom(fd: FormData): Record<RosterRole, File | null> {
+  const out: Record<RosterRole, File | null> = { mixed1: null, mixed2: null, woman: null };
+  for (const role of ROSTER_ROLES) {
+    const v = fd.get(`photo_${role}_file`);
+    out[role] = v instanceof File && v.size > 0 ? v : null;
+  }
+  return out;
+}
+
+/** The path the form says is already stored for each role; empty means the player removed it. */
+export function keptPathsFrom(fd: FormData): Record<RosterRole, string | null> {
+  const out: Record<RosterRole, string | null> = { mixed1: null, mixed2: null, woman: null };
+  for (const role of ROSTER_ROLES) {
+    const v = String(fd.get(`photo_${role}`) ?? '').trim();
+    out[role] = v === '' ? null : v;
+  }
+  return out;
+}
 
 export function rosterOf(team: Pick<TeamWithPlayers, 'players'>): RosterPlayer[] {
   return team.players.map((p) => ({ id: p.id, name: p.name, gender: p.gender, role: p.role }));
@@ -23,7 +46,7 @@ export function pairNames(team: Pick<TeamWithPlayers, 'players'>, gameNo: number
 export function parseRosterForm(fd: FormData): { ok: true; value: RosterInput } | { ok: false; problems: string[] } {
   const problems: string[] = [];
   const value = { mixed1: '', mixed2: '', woman: '' };
-  for (const key of ['mixed1', 'mixed2', 'woman'] as const) {
+  for (const key of ROSTER_ROLES) {
     const v = String(fd.get(key) ?? '').trim();
     if (v.length === 0) problems.push(`${ROSTER_FIELD_LABELS[key]} is required`);
     else if (v.length > 60) problems.push(`${ROSTER_FIELD_LABELS[key]} must be at most 60 characters`);
