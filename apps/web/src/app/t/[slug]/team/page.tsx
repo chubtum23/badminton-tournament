@@ -12,10 +12,12 @@ import { RecentOutcome } from '@/components/RecentOutcome';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { RosterFields } from '@/components/RosterFields';
+import { LimitedField } from '@/components/LimitedField';
 import { poolTone, ui } from '@/components/ui';
 import { siteOrigin } from '@/lib/siteUrl';
 import { validateRoster } from '@tournament/core';
 import { rosterOf } from '@/lib/teams/roster';
+import { PROFILE_LIMITS } from '@/lib/participant/profile';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,10 +116,10 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
           <span className={`${ui.eyebrow} text-muted`}>Your team</span>
         </div>
         <form action={save} className={`${ui.body} grid gap-4 md:grid-cols-2`}>
-          <label className={ui.label}>Team name<input name="name" defaultValue={me.team.name} maxLength={40} required className={ui.field} /></label>
-          <label className={ui.label}>Tagline<input name="tagline" defaultValue={me.team.tagline} maxLength={80} className={ui.field} /></label>
+          <label className={ui.label}>Team name<LimitedField name="name" defaultValue={me.team.name} limit={PROFILE_LIMITS.name} required className={ui.field} /></label>
+          <label className={ui.label}>Tagline<LimitedField name="tagline" defaultValue={me.team.tagline} limit={PROFILE_LIMITS.tagline} className={ui.field} /></label>
           <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1.5 h-12 w-full cursor-pointer border-hair border-line bg-white p-1" /></label>
-          <label className={`${ui.label} md:col-span-2`}>About your team<textarea name="description" defaultValue={me.team.description} maxLength={400} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} /></label>
+          <label className={`${ui.label} md:col-span-2`}>About your team<LimitedField name="description" defaultValue={me.team.description} limit={PROFILE_LIMITS.description} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} /></label>
           <div className="md:col-span-2"><SubmitButton className={ui.primary}>Save team</SubmitButton></div>
         </form>
       </section>
