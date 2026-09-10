@@ -1,23 +1,23 @@
 import { initialsOf, inkOn, publicPhotoUrl } from '@/lib/photos/rules';
 
 /**
- * A player's face, or their initials when there is no photo. The only circle in a zero-radius
- * design system, deliberately: a profile picture reads as one, and the team colour ringing it
- * ties a player back to their team at a glance.
+ * A team's face, or its initials when there is no photo. The only circle in a zero-radius design
+ * system, deliberately: a profile picture reads as one, and the team's own colour ringing it ties
+ * it back to that team at a glance.
  *
  * A plain <img> rather than next/image, for the same reason as ClubLogo: these are already 512px
  * JPEGs of about 80 KB served from Supabase's CDN, so the optimisation pipeline adds a hop and
  * buys nothing.
  */
-export function PlayerAvatar({ name, colour, path, size = 40 }: {
-  name: string; colour: string; path: string | null; size?: number;
+export function TeamAvatar({ teamName, colour, path, size = 40 }: {
+  teamName: string; colour: string; path: string | null; size?: number;
 }) {
   const box = { width: size, height: size, borderColor: colour };
   if (!path) {
     return (
       <span aria-hidden style={{ ...box, background: colour, color: inkOn(colour), fontSize: Math.round(size * 0.36) }}
         className="inline-flex shrink-0 items-center justify-center rounded-full border-[3px] font-display font-black leading-none">
-        {initialsOf(name)}
+        {initialsOf(teamName)}
       </span>
     );
   }

@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react';
 import type { ActionResult } from '@/actions/errors';
 import { PROFILE_LIMITS } from '@/lib/participant/profile';
 import { LimitedField } from './LimitedField';
+import { PhotoField } from './PhotoField';
 import { RosterFields } from './RosterFields';
 import { ui } from './ui';
 
@@ -50,12 +51,15 @@ export function JoinForm({ slug, needsCode, action }: {
         <label className={ui.labelLg}>Team name<LimitedField name="name" required limit={PROFILE_LIMITS.name} className={ui.fieldLg} /></label>
         <label className={ui.labelLg}>Tagline <span className={optional}>(optional)</span><LimitedField name="tagline" limit={PROFILE_LIMITS.tagline} className={ui.fieldLg} /></label>
         <label className={ui.labelLg}>Team colour<input name="colour" type="color" value={colour} onChange={(e) => setColour(e.target.value)} className="mt-2.5 h-[62px] w-full cursor-pointer border-hair border-line bg-white p-1.5" /></label>
+        <label className={ui.labelLg}>Team photo <span className={optional}>(optional)</span>
+          <PhotoField teamName="" colour={colour} currentPath={null} />
+        </label>
         <label className={`${ui.labelLg} md:col-span-2 xl:col-span-3`}>About your team <span className={optional}>(optional)</span>
           <LimitedField name="description" limit={PROFILE_LIMITS.description} rows={3} className={`${ui.fieldLg} resize-y font-normal normal-case tracking-normal`} />
         </label>
       </div>
 
-      <RosterFields big colour={colour} />
+      <RosterFields big />
 
       {needsCode && (
         <label className={`${ui.labelLg} block max-w-md`}>Join code<input name="joinCode" required className={ui.fieldLg} />

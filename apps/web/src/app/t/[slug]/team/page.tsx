@@ -13,10 +13,11 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { RosterFields } from '@/components/RosterFields';
 import { LimitedField } from '@/components/LimitedField';
+import { PhotoField } from '@/components/PhotoField';
 import { poolTone, ui } from '@/components/ui';
 import { siteOrigin } from '@/lib/siteUrl';
 import { validateRoster } from '@tournament/core';
-import { rosterOf, type RosterRole } from '@/lib/teams/roster';
+import { rosterOf } from '@/lib/teams/roster';
 import { PROFILE_LIMITS } from '@/lib/participant/profile';
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +71,6 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   const privateLink = `${siteOrigin(await headers())}/t/${slug}/team/${token}`;
   const myTeam = teams.find((x) => x.id === me.team.id);
   const byRole = (r: 'mixed1' | 'mixed2' | 'woman') => myTeam?.players.find((p) => p.role === r)?.name ?? '';
-  const pathOf = (r: RosterRole) => myTeam?.players.find((p) => p.role === r)?.photo_path ?? null;
   const rosterLocked = me.tournament.status !== 'setup';
   // A team entered before roles existed has no mixed1/mixed2/woman, so the three pair lines would
   // read "Mixed #1:  &". Say so plainly instead; only the organiser can repair it once locked.
@@ -120,6 +120,9 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
           <label className={ui.label}>Team name<LimitedField name="name" defaultValue={me.team.name} limit={PROFILE_LIMITS.name} required className={ui.field} /></label>
           <label className={ui.label}>Tagline<LimitedField name="tagline" defaultValue={me.team.tagline} limit={PROFILE_LIMITS.tagline} className={ui.field} /></label>
           <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="mt-1.5 h-12 w-full cursor-pointer border-hair border-line bg-white p-1" /></label>
+          <label className={ui.label}>Team photo
+            <PhotoField teamName={me.team.name} colour={me.team.colour} currentPath={me.team.photo_path} />
+          </label>
           <label className={`${ui.label} md:col-span-2`}>About your team<LimitedField name="description" defaultValue={me.team.description} limit={PROFILE_LIMITS.description} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} /></label>
           <div className="md:col-span-2"><SubmitButton className={ui.primary}>Save team</SubmitButton></div>
         </form>
@@ -154,8 +157,6 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
               <form action={saveRoster} className="space-y-4">
                 <RosterFields
                   defaults={{ mixed1: byRole('mixed1'), mixed2: byRole('mixed2'), woman: byRole('woman') }}
-                  photos={{ mixed1: pathOf('mixed1'), mixed2: pathOf('mixed2'), woman: pathOf('woman') }}
-                  colour={me.team.colour}
                 />
                 <SubmitButton className={ui.primary}>Save players</SubmitButton>
               </form>

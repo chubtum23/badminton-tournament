@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { keptPathsFrom, pairNames, parseRosterForm, parseSignupForm, photoBlobsFrom, rosterErrorMessage, rosterOf } from './roster';
+import { keptPathFrom, pairNames, parseRosterForm, parseSignupForm, photoBlobFrom, rosterErrorMessage, rosterOf } from './roster';
 import type { TeamWithPlayers } from '@/lib/db/queries';
 
 const team: TeamWithPlayers = {
   id: 't1', tournament_id: 'x', name: 'Smashers', tagline: '', colour: '#2563eb', description: '', seed: null,
-  pool_id: null, pool_order: 0, withdrawn: false, pool_rank_override: null,
+  pool_id: null, pool_order: 0, withdrawn: false, pool_rank_override: null, photo_path: null,
   players: [
-    { id: 'p1', tournament_id: 'x', name: 'Alex', gender: 'male', photo_path: null, role: 'mixed1' },
-    { id: 'p2', tournament_id: 'x', name: 'Ben', gender: 'male', photo_path: null, role: 'mixed2' },
-    { id: 'p3', tournament_id: 'x', name: 'Priya', gender: 'female', photo_path: null, role: 'woman' },
+    { id: 'p1', tournament_id: 'x', name: 'Alex', gender: 'male', role: 'mixed1' },
+    { id: 'p2', tournament_id: 'x', name: 'Ben', gender: 'male', role: 'mixed2' },
+    { id: 'p3', tournament_id: 'x', name: 'Priya', gender: 'female', role: 'woman' },
   ],
 };
 
@@ -55,45 +55,43 @@ describe('parseSignupForm', () => {
   });
 });
 
-describe('photoBlobsFrom', () => {
+describe('photoBlobFrom', () => {
   const file = (name: string, size: number) => new File([new Uint8Array(size)], name, { type: 'image/jpeg' });
 
-  it('picks up a file for one role and leaves the others null', () => {
+  it('picks up the file the picker put in the form', () => {
     const f = new FormData();
-    f.set('photo_mixed2_file', file('ben.jpg', 1000));
-    const blobs = photoBlobsFrom(f);
-    expect(blobs.mixed1).toBeNull();
-    expect(blobs.woman).toBeNull();
-    expect(blobs.mixed2).not.toBeNull();
-    expect(blobs.mixed2!.name).toBe('ben.jpg');
+    f.set('photo_file', file('team.jpg', 1000));
+    const blob = photoBlobFrom(f);
+    expect(blob).not.toBeNull();
+    expect(blob!.name).toBe('team.jpg');
   });
 
   it('treats a zero-byte file as no file', () => {
     const f = new FormData();
-    f.set('photo_mixed1_file', file('empty.jpg', 0));
-    expect(photoBlobsFrom(f).mixed1).toBeNull();
+    f.set('photo_file', file('empty.jpg', 0));
+    expect(photoBlobFrom(f)).toBeNull();
   });
 
-  it('is null for a role never present in the form', () => {
-    expect(photoBlobsFrom(new FormData()).woman).toBeNull();
+  it('is null when the form has no file', () => {
+    expect(photoBlobFrom(new FormData())).toBeNull();
   });
 });
 
-describe('keptPathsFrom', () => {
-  it('keeps the path the form names for a role', () => {
+describe('keptPathFrom', () => {
+  it('keeps the path the form names', () => {
     const f = new FormData();
-    f.set('photo_mixed1', 'tid/abc123.jpg');
-    expect(keptPathsFrom(f).mixed1).toBe('tid/abc123.jpg');
+    f.set('photo', 'tid/abc123.jpg');
+    expect(keptPathFrom(f)).toBe('tid/abc123.jpg');
   });
 
   it('treats an empty value as removed', () => {
     const f = new FormData();
-    f.set('photo_mixed1', '');
-    expect(keptPathsFrom(f).mixed1).toBeNull();
+    f.set('photo', '');
+    expect(keptPathFrom(f)).toBeNull();
   });
 
-  it('is null for a role never present in the form', () => {
-    expect(keptPathsFrom(new FormData()).woman).toBeNull();
+  it('is null when the form has no path', () => {
+    expect(keptPathFrom(new FormData())).toBeNull();
   });
 });
 
