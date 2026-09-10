@@ -3,6 +3,7 @@ import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
 import { gameLabel } from '@/lib/db/mappers';
+import { TeamAvatar } from './TeamAvatar';
 import { ui } from './ui';
 
 export function teamName(teams: readonly TeamRow[], id: string | null, fallback = 'TBD'): string {
@@ -96,12 +97,25 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
     ? `${playedCount}/${slots!.length}${courts.length > 0 ? ` · Court ${courts.join(', ')}` : ''}`
     : courts.length > 0 ? `Court ${courts.join(', ')} · live` : match.status;
 
-  const side = (id: string | null, name: string) => (
-    <span className={`min-w-0 ${lost(id) ? 'text-muted-soft' : ''}`}>
-      <span className="block truncate">{name}</span>
-      {taglines && tagline(id) && <span className="block truncate font-sans text-xs font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}
-    </span>
-  );
+  /**
+   * A side of the meeting: its face, its name, and its tagline underneath.
+   *
+   * The avatar is what makes a card scannable from a few metres — two photos read faster than two
+   * names in the same weight, which is how these are used on the night. A team with no photo shows
+   * its initials on its colour, so both sides are always the same shape.
+   */
+  const side = (id: string | null, name: string) => {
+    const t = id ? teams.find((x) => x.id === id) : undefined;
+    return (
+      <span className={`flex min-w-0 items-center gap-2.5 ${lost(id) ? 'text-muted-soft' : ''}`}>
+        {t && <TeamAvatar teamName={t.name} colour={t.colour} path={t.photo_path} size={36} />}
+        <span className="min-w-0">
+          <span className="block truncate">{name}</span>
+          {taglines && tagline(id) && <span className="block truncate font-sans text-xs font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}
+        </span>
+      </span>
+    );
+  };
 
   return (
     // `data-testid` rather than a class hook: the end-to-end specs used to find these cards by
@@ -116,7 +130,9 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
       </div>
 
       <div className="px-7 pb-3 pt-6 font-display text-2xl font-extrabold uppercase leading-snug tracking-tight sm:text-3xl">
-        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        {/* items-center rather than items-baseline: each side is now a photo beside its name, so
+            there is no single baseline to hang "vs" from. */}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           {side(match.teamAId, a)}
           <span className="font-sans text-lg font-medium lowercase text-line-strong">vs</span>
           {side(match.teamBId, b)}

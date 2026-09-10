@@ -12,6 +12,7 @@ import { RecentOutcome } from '@/components/RecentOutcome';
 import { SubmitButton } from '@/components/SubmitButton';
 import { CopyButton } from '@/components/CopyButton';
 import { RosterFields } from '@/components/RosterFields';
+import { TeamAvatar } from '@/components/TeamAvatar';
 import { LimitedField } from '@/components/LimitedField';
 import { PhotoField } from '@/components/PhotoField';
 import { poolTone, ui } from '@/components/ui';
@@ -112,7 +113,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
       <section className={ui.card}>
         <div className={ui.head}>
           <h2 className="flex items-center gap-2.5 font-display text-base font-extrabold uppercase tracking-tight">
-            <span className="inline-block h-3.5 w-3.5 rounded-full" style={{ background: me.team.colour }} />{me.team.name}
+            <TeamAvatar teamName={me.team.name} colour={me.team.colour} path={me.team.photo_path} size={32} />{me.team.name}
           </h2>
           <span className={`${ui.eyebrow} text-muted`}>Your team</span>
         </div>

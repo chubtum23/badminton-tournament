@@ -83,7 +83,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
                 <li key={x.id} data-testid="team-row" className="py-4">
                   <details>
                     <summary className="disclosure flex flex-wrap items-center gap-2.5">
-                      <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: x.colour }} />
+                      <TeamAvatar teamName={x.name} colour={x.colour} path={x.photo_path} size={30} />
                       <span className={`font-display text-[15px] font-extrabold uppercase ${x.withdrawn ? 'text-muted-soft line-through' : ''}`}>{x.name}</span>
                       {x.tagline && <span className="text-[15px] text-muted">{x.tagline}</span>}
                       {!ok && <span className={ui.pillTodo}>Incomplete roster</span>}

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { StandingRow, UnresolvedTie } from '@tournament/core';
 import type { TeamRow } from '@/lib/db/types';
+import { TeamAvatar } from './TeamAvatar';
 
 function tieNote(tie: UnresolvedTie): string {
   return tie.affects === 'qualification'
@@ -50,7 +51,7 @@ export function StandingsTable({ rows, teams, advance, manual, ties, actionHeade
                 <td className="py-4 font-display text-lg font-extrabold">{i + 1}</td>
                 <td className={`py-4 font-bold ${t?.withdrawn ? 'text-muted-soft line-through' : ''}`}>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t?.colour }} />{r.name}
+                    <TeamAvatar teamName={r.name} colour={t?.colour ?? '#2B3390'} path={t?.photo_path ?? null} size={26} />{r.name}
                     {t?.seed && <span className="bg-orange-tint px-1.5 text-[11px] font-bold text-orange-ink">#{t.seed}</span>}
                     {r.tieUnresolved && <span className="bg-red-100 px-1.5 text-[11px] font-bold uppercase tracking-label text-red-800">tie</span>}
                     {t?.withdrawn && <span className="bg-line-soft px-1.5 text-[11px] font-bold uppercase tracking-label text-muted">withdrawn</span>}

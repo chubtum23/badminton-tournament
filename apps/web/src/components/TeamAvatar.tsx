@@ -12,11 +12,13 @@ import { initialsOf, inkOn, publicPhotoUrl } from '@/lib/photos/rules';
 export function TeamAvatar({ teamName, colour, path, size = 40 }: {
   teamName: string; colour: string; path: string | null; size?: number;
 }) {
-  const box = { width: size, height: size, borderColor: colour };
+  // The ring is the team's colour, so it has to stay visible at 24px in a standings row without
+  // eating the photo at that size. Three pixels is right for the big ones, two for the rest.
+  const box = { width: size, height: size, borderColor: colour, borderWidth: size >= 36 ? 3 : 2 };
   if (!path) {
     return (
       <span aria-hidden style={{ ...box, background: colour, color: inkOn(colour), fontSize: Math.round(size * 0.36) }}
-        className="inline-flex shrink-0 items-center justify-center rounded-full border-[3px] font-display font-black leading-none">
+        className="inline-flex shrink-0 items-center justify-center rounded-full border-solid font-display font-black leading-none">
         {initialsOf(teamName)}
       </span>
     );
@@ -25,6 +27,6 @@ export function TeamAvatar({ teamName, colour, path, size = 40 }: {
     // eslint-disable-next-line @next/next/no-img-element -- as in ClubLogo: an already-optimised
     // 512px CDN-served JPEG gains nothing from next/image's pipeline.
     <img src={publicPhotoUrl(path)} alt="" loading="lazy" style={box}
-      className="inline-block shrink-0 rounded-full border-[3px] bg-line-soft object-cover" />
+      className="inline-block shrink-0 rounded-full border-solid bg-line-soft object-cover" />
   );
 }
