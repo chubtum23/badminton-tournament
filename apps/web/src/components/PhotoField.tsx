@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { checkPickedFile } from '@/lib/photos/rules';
 import { resizeToSquareJpeg } from '@/lib/photos/resize';
 import { PlayerAvatar } from './PlayerAvatar';
@@ -22,6 +22,12 @@ export function PhotoField({ role, name, colour, currentPath }: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Bumped whenever the picked file (or its resize) should no longer take effect, so an in-flight
+  // resize that's since been cancelled by a Remove (or superseded by a later pick) can tell and
+  // discard its result instead of applying it.
+  const tokenRef = useRef(0);
+  // Mirrors `preview` so the unmount cleanup can revoke it without depending on state.
+  const previewRef = useRef<string | null>(null);
 
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -30,28 +36,39 @@ export function PhotoField({ role, name, colour, currentPath }: {
     if (problem) { e.target.value = ''; setError(problem); return; }
     setError(null);
     setBusy(true);
+    const token = ++tokenRef.current;
     try {
       const blob = await resizeToSquareJpeg(file);
+      if (token !== tokenRef.current) return; // cancelled (removed, or superseded) while resizing
       // The resized blob replaces the picked file in the input, so the form posts ~80 KB rather
       // than the original. DataTransfer is the only way to write a FileList.
       const dt = new DataTransfer();
       dt.items.add(new File([blob], `${role}.jpg`, { type: 'image/jpeg' }));
       if (fileInput.current) fileInput.current.files = dt.files;
-      setPreview((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(blob); });
+      setPreview((old) => { if (old) URL.revokeObjectURL(old); const next = URL.createObjectURL(blob); previewRef.current = next; return next; });
     } catch (err) {
+      if (token !== tokenRef.current) return;
       if (fileInput.current) fileInput.current.value = '';
       setError(err instanceof Error ? err.message : 'Could not read that photo');
     } finally {
-      setBusy(false);
+      if (token === tokenRef.current) setBusy(false);
     }
   }
 
   function remove() {
+    tokenRef.current++; // invalidate any resize still in flight
     if (fileInput.current) fileInput.current.value = '';
     setPreview((old) => { if (old) URL.revokeObjectURL(old); return null; });
+    previewRef.current = null;
     setPath(null);
     setError(null);
+    setBusy(false);
   }
+
+  // Release the preview object URL if the component unmounts while one is showing.
+  useEffect(() => {
+    return () => { if (previewRef.current) URL.revokeObjectURL(previewRef.current); };
+  }, []);
 
   const has = preview !== null || path !== null;
   return (
@@ -60,7 +77,7 @@ export function PhotoField({ role, name, colour, currentPath }: {
         ? <img src={preview} alt="" style={{ width: 44, height: 44, borderColor: colour }} className="inline-block shrink-0 rounded-full border-[3px] object-cover" />
         : <PlayerAvatar name={name} colour={colour} path={path} size={44} />}
       <input ref={fileInput} type="file" name={`photo_${role}_file`} accept="image/*" className="hidden" onChange={pick} />
-      <input type="hidden" name={`photo_${role}`} value={path ?? ''} />
+      <input type="hidden" name={`photo_${role}`} value={path ?? ''} readOnly />
       <button type="button" disabled={busy} onClick={() => fileInput.current?.click()} className={ui.tiny}>
         {busy ? 'Working…' : has ? 'Change photo' : 'Add photo'}
       </button>
