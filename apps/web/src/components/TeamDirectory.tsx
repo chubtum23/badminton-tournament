@@ -36,9 +36,13 @@ function Rating({ value, caption }: { value: number | null; caption: string }) {
 /**
  * Every team of the tournament, grouped by pool.
  *
- * A card is closed to its identity — colour, name, tagline and the team's average mark — because
- * that is what someone scanning for a team needs. Opening one is what shows the write-up they
- * submitted at sign-up and the three players behind the average, each with their own.
+ * A card is closed to its identity — colour, name, tagline and the team's power — because that is
+ * what someone scanning for a team needs. Opening one is what shows the write-up they submitted at
+ * sign-up and the three players behind that number, each with their own.
+ *
+ * "Power" rather than "average" or "rating": on a public page the number has to say what it means
+ * at a glance, and what it means is how strong this team has looked. "Ranking" would be wrong —
+ * it reads as a position in a table, and this is a level out of 10.
  *
  * A plain <details> rather than React state: nothing here needs to survive a click, and a server
  * component means the whole directory ships as HTML with no hydration cost.
@@ -70,14 +74,14 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
               return (
                 <details key={team.id} data-testid="team-card" data-team={team.id} className={ui.card}>
                   <summary className={`${ui.head} ${group.tone === null ? '' : poolTone(group.tone).head} disclosure disclosure-lg`}>
-                    <span className="flex min-w-0 items-center gap-3">
+                    <span className="flex min-w-0 flex-1 items-center gap-3">
                       <span aria-hidden className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: team.colour }} />
                       <span className="min-w-0">
                         <span className={`block truncate font-display text-lg font-extrabold uppercase tracking-tight ${team.withdrawn ? 'text-muted-soft line-through' : ''}`}>{team.name}</span>
                         {team.tagline && <span className="block truncate text-xs font-normal normal-case tracking-normal text-muted">{team.tagline}</span>}
                       </span>
                     </span>
-                    <Rating value={rating?.average ?? null} caption="avg" />
+                    <Rating value={rating?.average ?? null} caption="power" />
                   </summary>
                   <div className="space-y-5 px-7 py-6">
                     {team.withdrawn && <p className={ui.alarm}>This team has withdrawn.</p>}
@@ -85,7 +89,11 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
                       ? <p className="whitespace-pre-line text-[15px] leading-relaxed text-ink">{team.description}</p>
                       : <p className="text-sm text-muted">This team has not written anything about themselves.</p>}
                     <div>
-                      <h3 className={`${ui.eyebrow} mb-2 text-muted`}>Players</h3>
+                      {/* The column is named once at the top rather than on every row: four
+                          repetitions of the word beside four numbers reads as noise. */}
+                      <h3 className={`${ui.eyebrow} mb-2 flex items-center justify-between text-muted`}>
+                        <span>Players</span><span>Power</span>
+                      </h3>
                       <ul>
                         {roster.map((p) => {
                           const pr = playerRating(p.id);
