@@ -42,7 +42,10 @@ decoder for a case iOS mostly avoids by converting to JPEG on pick is not worth 
 - Bucket `player-photos`: public read, no insert/update/delete for `anon` or `authenticated`.
   Every write is service-role, for the same reason `sign_up_team` is not granted to `anon` - the
   anon key ships in the browser bundle, and the only rate limiter lives in the server action.
-- `players.photo_path text` (nullable). Object path `<tournament_id>/<player_id>.jpg`.
+- `players.photo_path text` (nullable). Object path `<tournament_id>/<player_id>-<8 random chars>.jpg`.
+  The random suffix exists because Supabase serves public objects through a CDN: overwriting a
+  fixed path would keep serving the old photo. Each upload writes a new path and deletes the old
+  object, so a replacement is visible the moment it is saved.
 - `write_roster` deletes and recreates all three players on every roster edit. It captures
   `photo_path` per role before the delete and reinstates it after, so renaming a player keeps
   their photo. The durable slot in this schema is `(team, role)`, not the player row.
@@ -64,9 +67,10 @@ token with `photosFailed: true` and the team page says the photos did not save a
 field again. Losing a team because a photo upload timed out would be the worse failure.
 
 **Later edits**: the same `PhotoField` sits in the team edit page's roster form, and
-`updateMyRoster` handles added, replaced and removed photos. Replacing overwrites the same path
-(the path is keyed by player id, so there is nothing to clean up). Removing deletes the object and
-nulls the column.
+`updateMyRoster` handles added, replaced and removed photos. Replacing writes a new path and deletes the
+old object; removing deletes the object and nulls the column. Either way the delete is best-effort:
+an unreferenced object is harmless, where a failed column update would leave a player pointing at
+nothing.
 
 **Organiser**: a remove control per player on the admin Teams page, calling the same clear path
 under the organiser's own admin check.
