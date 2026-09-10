@@ -106,7 +106,7 @@ export const listTeamsWithPlayers = cache(async (sb: SupabaseClient, tournamentI
   const teams = await listTeams(sb, tournamentId);
   if (teams.length === 0) return [];
   const links = must(
-    await sb.from('team_players').select('team_id, role, players(id, tournament_id, name, gender)').in('team_id', teams.map((t) => t.id)),
+    await sb.from('team_players').select('team_id, role, players(id, tournament_id, name, gender, photo_path)').in('team_id', teams.map((t) => t.id)),
     'team_players',
   ) as unknown as Array<{ team_id: string; role: RosterPlayerRow['role']; players: Omit<RosterPlayerRow, 'role'> | null }>;
   const byTeam = new Map<string, RosterPlayerRow[]>();

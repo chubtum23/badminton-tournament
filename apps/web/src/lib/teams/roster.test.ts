@@ -6,9 +6,9 @@ const team: TeamWithPlayers = {
   id: 't1', tournament_id: 'x', name: 'Smashers', tagline: '', colour: '#2563eb', description: '', seed: null,
   pool_id: null, pool_order: 0, withdrawn: false, pool_rank_override: null,
   players: [
-    { id: 'p1', tournament_id: 'x', name: 'Alex', gender: 'male', role: 'mixed1' },
-    { id: 'p2', tournament_id: 'x', name: 'Ben', gender: 'male', role: 'mixed2' },
-    { id: 'p3', tournament_id: 'x', name: 'Priya', gender: 'female', role: 'woman' },
+    { id: 'p1', tournament_id: 'x', name: 'Alex', gender: 'male', photo_path: null, role: 'mixed1' },
+    { id: 'p2', tournament_id: 'x', name: 'Ben', gender: 'male', photo_path: null, role: 'mixed2' },
+    { id: 'p3', tournament_id: 'x', name: 'Priya', gender: 'female', photo_path: null, role: 'woman' },
   ],
 };
 

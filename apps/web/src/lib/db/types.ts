@@ -72,6 +72,7 @@ export interface PlayerRow {
   tournament_id: string;
   name: string;
   gender: 'male' | 'female';
+  photo_path: string | null;
 }
 
 /** A player as linked to a team, with the role the link carries. */
