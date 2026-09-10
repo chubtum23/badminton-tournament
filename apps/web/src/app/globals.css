@@ -26,6 +26,11 @@ details[open] > .disclosure::after { transform: rotate(180deg); }
    the triangle is then a control someone aims at, so it is scaled to the card, not to the label. */
 .disclosure-lg::after { @apply text-2xl leading-none; }
 
+/* A strip that scrolls sideways under a finger but shows no bar: on the navy band a scrollbar
+   reads as a stray rule, and the edge fades already say there is more to swipe to. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* The header band's court markings: faint sidelines every 120px, the one piece of ornament in
    the design. Purely decorative, so it sits behind the content and is never announced. */
 .court-lines::before {
