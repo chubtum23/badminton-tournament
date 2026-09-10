@@ -18,7 +18,7 @@ function jpegOfSize(n: number): Uint8Array<ArrayBuffer> {
   return b;
 }
 
-describe.skipIf(!enabled)('player photos', () => {
+describe.skipIf(!enabled)('team photos', () => {
   let service: SupabaseClient;
   let anon: SupabaseClient;
   let tournamentId: string;
@@ -45,38 +45,33 @@ describe.skipIf(!enabled)('player photos', () => {
     expect(up.error).not.toBeNull();
   });
 
-  it('signs a team up with one photo and two without', async () => {
+  it('signs a team up with a photo', async () => {
     const up = await service.storage.from('player-photos').upload(path(), jpegBytes, { contentType: 'image/jpeg' });
     expect(up.error).toBeNull();
     const res = await service.rpc('sign_up_team', {
       p_slug: slug, p_join_code: null, p_name: 'Photo Team', p_tagline: '', p_colour: '#2B3390',
       p_description: '', p_mixed1: 'Alex', p_mixed2: 'Ben', p_woman: 'Priya',
-      p_photo1: path(), p_photo2: null, p_photow: null,
+      p_photo: path(),
     });
     expect(res.error).toBeNull();
-    const rows = await service.from('players').select('name, photo_path').eq('tournament_id', tournamentId);
-    expect(rows.data).toEqual(expect.arrayContaining([
-      { name: 'Alex', photo_path: path() },
-      { name: 'Ben', photo_path: null },
-    ]));
+    const row = await service.from('teams').select('name, photo_path').eq('tournament_id', tournamentId).eq('name', 'Photo Team').single();
+    expect(row.data).toEqual({ name: 'Photo Team', photo_path: path() });
+  });
+
+  it('signs a team up without a photo', async () => {
+    const res = await service.rpc('sign_up_team', {
+      p_slug: slug, p_join_code: null, p_name: 'No Photo Team', p_tagline: '', p_colour: '#2B3390',
+      p_description: '', p_mixed1: 'Cam', p_mixed2: 'Dev', p_woman: 'Ella',
+    });
+    expect(res.error).toBeNull();
+    const row = await service.from('teams').select('name, photo_path').eq('tournament_id', tournamentId).eq('name', 'No Photo Team').single();
+    expect(row.data).toEqual({ name: 'No Photo Team', photo_path: null });
   });
 
   it('refuses a path that is not shaped like one of ours', async () => {
-    const bad = await service.from('players').update({ photo_path: '../secrets.jpg' })
-      .eq('tournament_id', tournamentId).eq('name', 'Ben').select('id');
+    const bad = await service.from('teams').update({ photo_path: '../secrets.jpg' })
+      .eq('tournament_id', tournamentId).eq('name', 'Photo Team').select('id');
     expect(bad.error).not.toBeNull();
-  });
-
-  it('keeps a photo with its player when a swap moves them between roles', async () => {
-    const team = await service.from('teams').select('id').eq('tournament_id', tournamentId).single();
-    // swapMixed passes the paths swapped along with the names, so Alex keeps his face at Mixed #2.
-    const res = await service.rpc('write_roster', {
-      p_team: team.data!.id, p_mixed1: 'Ben', p_mixed2: 'Alex', p_woman: 'Priya',
-      p_photo1: null, p_photo2: path(), p_photow: null,
-    });
-    expect(res.error).toBeNull();
-    const alex = await service.from('players').select('photo_path').eq('tournament_id', tournamentId).eq('name', 'Alex').single();
-    expect(alex.data!.photo_path).toBe(path());
   });
 });
 

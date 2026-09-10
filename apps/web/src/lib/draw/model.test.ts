@@ -7,7 +7,7 @@ const pool = (id: string, position: number): PoolRow => ({ id, tournament_id: 't
 
 const team = (id: string, poolId: string | null): TeamRow => ({
   id, tournament_id: 't', name: id.toUpperCase(), tagline: '', colour: '#2563eb', description: '',
-  seed: null, pool_id: poolId, pool_order: 0, withdrawn: false, pool_rank_override: null,
+  seed: null, pool_id: poolId, pool_order: 0, withdrawn: false, pool_rank_override: null, photo_path: null,
 });
 
 const match = (o: Partial<Match> & { id: string }): Match => ({

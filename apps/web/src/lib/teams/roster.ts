@@ -13,24 +13,16 @@ export const ROSTER_FIELD_LABELS: Record<keyof RosterInput, string> = {
   mixed1: 'Man playing Mixed #1', mixed2: 'Man playing Mixed #2', woman: 'Woman',
 };
 
-/** A newly resized blob per role, where the picker put one. */
-export function photoBlobsFrom(fd: FormData): Record<RosterRole, File | null> {
-  const out: Record<RosterRole, File | null> = { mixed1: null, mixed2: null, woman: null };
-  for (const role of ROSTER_ROLES) {
-    const v = fd.get(`photo_${role}_file`);
-    out[role] = v instanceof File && v.size > 0 ? v : null;
-  }
-  return out;
+/** The newly resized blob the picker put in the form, or null if there isn't one. */
+export function photoBlobFrom(fd: FormData): File | null {
+  const v = fd.get('photo_file');
+  return v instanceof File && v.size > 0 ? v : null;
 }
 
-/** The path the form says is already stored for each role; empty means the player removed it. */
-export function keptPathsFrom(fd: FormData): Record<RosterRole, string | null> {
-  const out: Record<RosterRole, string | null> = { mixed1: null, mixed2: null, woman: null };
-  for (const role of ROSTER_ROLES) {
-    const v = String(fd.get(`photo_${role}`) ?? '').trim();
-    out[role] = v === '' ? null : v;
-  }
-  return out;
+/** The path the form says is already stored; empty means the team removed it. */
+export function keptPathFrom(fd: FormData): string | null {
+  const v = String(fd.get('photo') ?? '').trim();
+  return v === '' ? null : v;
 }
 
 export function rosterOf(team: Pick<TeamWithPlayers, 'players'>): RosterPlayer[] {

@@ -1,11 +1,11 @@
 import { validateRoster } from '@tournament/core';
-import { addTeam, deleteTeam, regenerateToken, reinstateTeam, removePlayerPhoto, setJoinCode, setRoster, setSeed, setSignupOpen, withdrawTeam } from '@/actions/teams';
+import { addTeam, deleteTeam, regenerateToken, reinstateTeam, removeTeamPhoto, setJoinCode, setRoster, setSeed, setSignupOpen, withdrawTeam } from '@/actions/teams';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import type { TeamWithPlayers } from '@/lib/db/queries';
 import type { TournamentRow } from '@/lib/db/types';
 import { rosterOf } from '@/lib/teams/roster';
 import { CopyButton } from './CopyButton';
-import { PlayerAvatar } from './PlayerAvatar';
+import { TeamAvatar } from './TeamAvatar';
 import { RosterFields } from './RosterFields';
 import { SubmitButton } from './SubmitButton';
 import { ui } from './ui';
@@ -21,7 +21,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
 
   async function add(fd: FormData) { 'use server'; redirectWithMsg(here, await addTeam(slug, fd), 'Team added'); }
   async function roster(fd: FormData) { 'use server'; redirectWithMsg(here, await setRoster(slug, String(fd.get('teamId')), fd), 'Players saved'); }
-  async function dropPhoto(fd: FormData) { 'use server'; redirectWithMsg(here, await removePlayerPhoto(slug, String(fd.get('playerId'))), 'Photo removed'); }
+  async function dropPhoto(fd: FormData) { 'use server'; redirectWithMsg(here, await removeTeamPhoto(slug, String(fd.get('teamId'))), 'Photo removed'); }
   async function seed(fd: FormData) {
     'use server';
     const raw = String(fd.get('seed') ?? '').trim();
@@ -35,7 +35,6 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
   async function code(fd: FormData) { 'use server'; redirectWithMsg(here, await setJoinCode(slug, String(fd.get('joinCode') ?? '')), 'Join code saved'); }
 
   const byRole = (x: TeamWithPlayers, r: 'mixed1' | 'mixed2' | 'woman') => x.players.find((p) => p.role === r)?.name ?? '';
-  const pathOf = (x: TeamWithPlayers, r: 'mixed1' | 'mixed2' | 'woman') => x.players.find((p) => p.role === r)?.photo_path ?? null;
 
   return (
     <div className="space-y-6">
@@ -96,22 +95,18 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
                         <input type="hidden" name="teamId" value={x.id} />
                         <RosterFields
                           defaults={{ mixed1: byRole(x, 'mixed1'), mixed2: byRole(x, 'mixed2'), woman: byRole(x, 'woman') }}
-                          photos={{ mixed1: pathOf(x, 'mixed1'), mixed2: pathOf(x, 'mixed2'), woman: pathOf(x, 'woman') }}
-                          colour={x.colour}
                           disabled={locked}
                         />
                         {!locked && <SubmitButton className={ui.secondary}>Save players</SubmitButton>}
                       </form>
-                      <div className="space-y-2.5">
-                        {x.players.filter((p) => p.photo_path).map((p) => (
-                          <form key={p.id} action={dropPhoto} className="flex items-center gap-3">
-                            <input type="hidden" name="playerId" value={p.id} />
-                            <PlayerAvatar name={p.name} colour={x.colour} path={p.photo_path} size={32} />
-                            <span className="text-sm font-bold">{p.name}</span>
-                            <SubmitButton confirmMessage={`Remove ${p.name}'s photo?`} className={ui.tiny}>Remove photo</SubmitButton>
-                          </form>
-                        ))}
-                      </div>
+                      {x.photo_path && (
+                        <form action={dropPhoto} className="flex items-center gap-3">
+                          <input type="hidden" name="teamId" value={x.id} />
+                          <TeamAvatar teamName={x.name} colour={x.colour} path={x.photo_path} size={32} />
+                          <span className="text-sm font-bold">{x.name}</span>
+                          <SubmitButton confirmMessage={`Remove ${x.name}'s photo?`} className={ui.tiny}>Remove photo</SubmitButton>
+                        </form>
+                      )}
                       <div className="flex flex-wrap items-center gap-3">
                         <form action={seed} className="flex items-end gap-1.5">
                           <input type="hidden" name="teamId" value={x.id} />

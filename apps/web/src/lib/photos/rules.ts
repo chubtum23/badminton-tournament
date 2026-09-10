@@ -12,7 +12,7 @@ export const PICK_LIMITS = {
 /** What the resize step is asked to produce. */
 export const STORED = { side: 512, quality: 0.82, maxBytes: 400 * 1024 } as const;
 
-/** The sentence to show the player, or null if the file is fine. */
+/** The sentence to show, or null if the file is fine. */
 export function checkPickedFile(file: { size: number; type: string }): string | null {
   if (!PICK_LIMITS.types.includes(file.type as typeof PICK_LIMITS.types[number])) {
     return 'That has to be a JPEG, PNG, WEBP or HEIC photo';

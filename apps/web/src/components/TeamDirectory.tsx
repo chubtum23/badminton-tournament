@@ -1,6 +1,6 @@
 import type { PlayerRatingRow, RosterRole, TeamRatingRow } from '@tournament/core';
 import type { RosterPlayerRow, TeamRow } from '@/lib/db/types';
-import { PlayerAvatar } from './PlayerAvatar';
+import { TeamAvatar } from './TeamAvatar';
 import { poolTone, ui } from './ui';
 
 /** The roster in playing order, named the way the sign-up form named them. */
@@ -76,7 +76,7 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
                 <details key={team.id} data-testid="team-card" data-team={team.id} className={ui.card}>
                   <summary className={`${ui.head} ${group.tone === null ? '' : poolTone(group.tone).head} disclosure disclosure-lg`}>
                     <span className="flex min-w-0 flex-1 items-center gap-3">
-                      <span aria-hidden className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: team.colour }} />
+                      <TeamAvatar teamName={team.name} colour={team.colour} path={team.photo_path} size={36} />
                       <span className="min-w-0">
                         <span className={`block truncate font-display text-lg font-extrabold uppercase tracking-tight ${team.withdrawn ? 'text-muted-soft line-through' : ''}`}>{team.name}</span>
                         {team.tagline && <span className="block truncate text-xs font-normal normal-case tracking-normal text-muted">{team.tagline}</span>}
@@ -100,14 +100,11 @@ export function TeamDirectory({ groups, teamRows, playerRows }: {
                           const pr = playerRating(p.id);
                           return (
                             <li key={p.id} data-testid="team-player" className="flex items-center justify-between gap-3 border-t-hair border-line-soft py-2.5 first:border-t-0">
-                              <span className="flex min-w-0 items-center gap-3">
-                                <PlayerAvatar name={p.name} colour={team.colour} path={p.photo_path} size={40} />
-                                <span className="min-w-0">
-                                  <span className="block truncate font-bold">{p.name}</span>
-                                  <span className="block text-[11px] font-bold uppercase tracking-label text-muted">
-                                    {p.role ? ROLE_LABEL[p.role] : 'No role set'}
-                                    {pr && pr.gamesRated > 0 && <> · {pr.gamesRated} game{pr.gamesRated === 1 ? '' : 's'} rated</>}
-                                  </span>
+                              <span className="min-w-0">
+                                <span className="block truncate font-bold">{p.name}</span>
+                                <span className="block text-[11px] font-bold uppercase tracking-label text-muted">
+                                  {p.role ? ROLE_LABEL[p.role] : 'No role set'}
+                                  {pr && pr.gamesRated > 0 && <> · {pr.gamesRated} game{pr.gamesRated === 1 ? '' : 's'} rated</>}
                                 </span>
                               </span>
                               <span className="flex shrink-0 items-baseline gap-2">

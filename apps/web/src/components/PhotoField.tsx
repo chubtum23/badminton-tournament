@@ -2,20 +2,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { checkPickedFile } from '@/lib/photos/rules';
 import { resizeToSquareJpeg } from '@/lib/photos/resize';
-import { PlayerAvatar } from './PlayerAvatar';
+import { TeamAvatar } from './TeamAvatar';
 import { ui } from './ui';
 
 /**
- * One player's photo, beside their name box. Everything happens in the browser: the picked file is
+ * The team's photo, beside its identity. Everything happens in the browser: the picked file is
  * checked, cropped square and re-encoded to about 80 KB before the form is ever submitted, so the
- * sign-up POST carries three small JPEGs rather than three phone photos.
+ * POST carries one small JPEG rather than a phone photo.
  *
- * `photo_<role>` carries the path already stored, emptied when the player removes it;
- * `photo_<role>_file` carries a new blob. The server takes the file when there is one, the path
- * otherwise.
+ * `photo` carries the path already stored, emptied when the team removes it; `photo_file` carries
+ * a new blob. The server takes the file when there is one, the path otherwise.
  */
-export function PhotoField({ role, name, colour, currentPath }: {
-  role: 'mixed1' | 'mixed2' | 'woman'; name: string; colour: string; currentPath: string | null;
+export function PhotoField({ teamName, colour, currentPath }: {
+  teamName: string; colour: string; currentPath: string | null;
 }) {
   const [path, setPath] = useState(currentPath);
   const [preview, setPreview] = useState<string | null>(null);
@@ -43,7 +42,7 @@ export function PhotoField({ role, name, colour, currentPath }: {
       // The resized blob replaces the picked file in the input, so the form posts ~80 KB rather
       // than the original. DataTransfer is the only way to write a FileList.
       const dt = new DataTransfer();
-      dt.items.add(new File([blob], `${role}.jpg`, { type: 'image/jpeg' }));
+      dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
       if (fileInput.current) fileInput.current.files = dt.files;
       setPreview((old) => { if (old) URL.revokeObjectURL(old); const next = URL.createObjectURL(blob); previewRef.current = next; return next; });
     } catch (err) {
@@ -75,9 +74,9 @@ export function PhotoField({ role, name, colour, currentPath }: {
     <div className="mt-3 flex flex-wrap items-center gap-3">
       {preview
         ? <img src={preview} alt="" style={{ width: 44, height: 44, borderColor: colour }} className="inline-block shrink-0 rounded-full border-[3px] object-cover" />
-        : <PlayerAvatar name={name} colour={colour} path={path} size={44} />}
-      <input ref={fileInput} type="file" name={`photo_${role}_file`} accept="image/*" className="hidden" onChange={pick} />
-      <input type="hidden" name={`photo_${role}`} value={path ?? ''} readOnly />
+        : <TeamAvatar teamName={teamName} colour={colour} path={path} size={44} />}
+      <input ref={fileInput} type="file" name="photo_file" accept="image/*" className="hidden" onChange={pick} />
+      <input type="hidden" name="photo" value={path ?? ''} readOnly />
       <button type="button" disabled={busy} onClick={() => fileInput.current?.click()} className={ui.tiny}>
         {busy ? 'Working…' : has ? 'Change photo' : 'Add photo'}
       </button>

@@ -2,13 +2,13 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
-import { listMatches, listTeamsWithPlayers } from '@/lib/db/queries';
+import { listMatches } from '@/lib/db/queries';
 import type { MatchRow } from '@/lib/db/types';
 import { revalidateTournament } from './revalidate';
 import { awardMatch } from './matches';
-import { parseRosterForm, rosterErrorMessage, keptPathsFrom, photoBlobsFrom, ROSTER_ROLES, type RosterRole } from '@/lib/teams/roster';
+import { parseRosterForm, rosterErrorMessage } from '@/lib/teams/roster';
 import { createServiceSupabase } from '@/lib/supabase/service';
-import { deletePhotos, uploadPhoto } from '@/lib/photos/storage';
+import { deletePhotos } from '@/lib/photos/storage';
 
 /** One team with its three players, written atomically by admin_add_team. */
 export async function addTeam(slug: string, formData: FormData): Promise<ActionResult<{ teamId: string }>> {
@@ -25,41 +25,16 @@ export async function addTeam(slug: string, formData: FormData): Promise<ActionR
   return ok({ teamId: String(res.data) });
 }
 
-/**
- * Rewrites a team's three players (organiser).
- *
- * The photo paths have to be passed back in even though this form is about names: write_roster
- * deletes and recreates all three players, so a roster saved without them would silently drop
- * every photo the team uploaded.
- */
+/** Rewrites a team's three players (organiser). */
 export async function setRoster(slug: string, teamId: string, formData: FormData): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (ctx.tournament.status !== 'setup') return fail('stale_state', 'Rosters are locked once the pools are');
   const roster = parseRosterForm(formData);
   if (!roster.ok) return fail('invalid_input', roster.problems.join('; '));
-  const team = (await listTeamsWithPlayers(ctx.sb, ctx.tournament.id)).find((x) => x.id === teamId);
-  if (!team) return fail('invalid_input', 'Unknown team');
-  const held = new Set(team.players.map((p) => p.photo_path).filter((p): p is string => p !== null));
-  const kept = keptPathsFrom(formData);
-  const blobs = photoBlobsFrom(formData);
-  const svc = createServiceSupabase();
-  const photos: Record<RosterRole, string | null> = { mixed1: null, mixed2: null, woman: null };
-  for (const role of ROSTER_ROLES) {
-    // Same rule as the team's own edit: a kept path has to be one this team already holds, or a
-    // crafted form could point a player at any object in the bucket.
-    const keep = kept[role] !== null && held.has(kept[role]!) ? kept[role] : null;
-    const blob = blobs[role];
-    photos[role] = blob ? (await uploadPhoto(svc, ctx.tournament.id, blob)) ?? keep : keep;
-  }
   const res = await ctx.sb.rpc('admin_set_roster', {
     p_team: teamId, p_mixed1: roster.value.mixed1, p_mixed2: roster.value.mixed2, p_woman: roster.value.woman,
-    p_photo1: photos.mixed1, p_photo2: photos.mixed2, p_photow: photos.woman,
   });
-  if (!res.error) {
-    const still = new Set(Object.values(photos).filter((p): p is string => p !== null));
-    await deletePhotos(svc, [...held].filter((p) => !still.has(p)));
-  }
   if (res.error) return fail(res.error.code === '42501' ? 'not_admin' : 'invalid_input', rosterErrorMessage(res.error.message));
   revalidateTournament(slug);
   return ok(undefined);
@@ -173,19 +148,19 @@ export async function reinstateTeam(slug: string, teamId: string): Promise<Actio
  * The only moderation there is: sign-up is public, so an organiser can take a photo down.
  *
  * Storage deletes need the service client — no policy grants authenticated a write on
- * storage.objects (see the player-photos migration) — so this reaches for it, unlike the rest of
+ * storage.objects (see the team-photo migration) — so this reaches for it, unlike the rest of
  * this file's `ctx.sb` writes. That means the tournament match below is the only thing standing
- * between an organiser and someone else's player row, so it is checked explicitly rather than
- * left to RLS.
+ * between an organiser and someone else's team row, so it is checked explicitly rather than left
+ * to RLS.
  */
-export async function removePlayerPhoto(slug: string, playerId: string): Promise<ActionResult> {
+export async function removeTeamPhoto(slug: string, teamId: string): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   const svc = createServiceSupabase();
-  const row = await svc.from('players').select('id, tournament_id, photo_path').eq('id', playerId).maybeSingle();
-  if (row.error || !row.data) return fail('invalid_input', 'Unknown player');
+  const row = await svc.from('teams').select('id, tournament_id, photo_path').eq('id', teamId).maybeSingle();
+  if (row.error || !row.data) return fail('invalid_input', 'Unknown team');
   if (row.data.tournament_id !== ctx.tournament.id) return fail('not_admin');
-  const upd = await svc.from('players').update({ photo_path: null }).eq('id', playerId);
+  const upd = await svc.from('teams').update({ photo_path: null }).eq('id', teamId);
   if (upd.error) return fail('stale_state', 'Could not remove the photo');
   if (row.data.photo_path) await deletePhotos(svc, [row.data.photo_path]);
   revalidateTournament(slug);

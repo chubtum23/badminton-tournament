@@ -55,9 +55,10 @@ export interface TeamRow {
   withdrawn: boolean;
   /** Organiser-set finishing position within the pool; null = computed. */
   pool_rank_override: number | null;
+  photo_path: string | null;
 }
 
-export const TEAM_PUBLIC_COLUMNS = 'id, tournament_id, name, tagline, colour, description, seed, pool_id, pool_order, withdrawn, pool_rank_override';
+export const TEAM_PUBLIC_COLUMNS = 'id, tournament_id, name, tagline, colour, description, seed, pool_id, pool_order, withdrawn, pool_rank_override, photo_path';
 
 export interface PoolRow {
   id: string;
@@ -72,7 +73,6 @@ export interface PlayerRow {
   tournament_id: string;
   name: string;
   gender: 'male' | 'female';
-  photo_path: string | null;
 }
 
 /** A player as linked to a team, with the role the link carries. */
