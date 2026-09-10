@@ -73,12 +73,16 @@ export async function listGames(sb: SupabaseClient, tournamentId: string): Promi
 // NOT cached: `saveGameScore` deletes and re-inserts a game's ratings, and the Players page is
 // rendered from a fresh request, so memoising this would only risk handing an action stale rows.
 export async function listPlayerRatings(sb: SupabaseClient, tournamentId: string): Promise<RatingRow[]> {
-  // player_ratings has no tournament_id; join through matches, exactly as listGames does.
+  // player_ratings has no tournament_id, and unlike `games` it cannot reach `matches` in one hop:
+  // its only key into the rest of the schema is the composite one into `games`. Giving it a second,
+  // direct key to `matches` would make it a junction table, at which point PostgREST can no longer
+  // tell how `games` embeds `matches` and refuses that embed (PGRST201) — which breaks listGames and
+  // every page built on it. So the hop is spelled out instead: rating -> game -> match.
   const res = await sb
     .from('player_ratings')
-    .select('match_id, game_no, player_id, rating, matches!inner(tournament_id)')
-    .eq('matches.tournament_id', tournamentId);
-  const rows = must(res, 'player ratings') as Array<RatingRow & { matches: unknown }>;
+    .select('match_id, game_no, player_id, rating, games!inner(matches!inner(tournament_id))')
+    .eq('games.matches.tournament_id', tournamentId);
+  const rows = must(res, 'player ratings') as Array<RatingRow & { games: unknown }>;
   return rows.map(({ match_id, game_no, player_id, rating }) => ({ match_id, game_no, player_id, rating: Number(rating) }));
 }
 
