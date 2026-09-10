@@ -26,8 +26,18 @@ export async function signUpTeam(slug: string, formData: FormData): Promise<Acti
   const v = parsed.value;
   const sb = createServiceSupabase();
   // The object path needs the tournament id, and this read also fails fast on an unknown slug.
-  const t = await sb.from('tournaments').select('id').eq('slug', slug).maybeSingle();
+  // It also pulls what's needed to reject an unauthorized attempt (closed sign-ups, bad tournament
+  // status, wrong join code) before any photo is uploaded to storage, since a caller who fails
+  // these checks would otherwise still cost up to three ~400 KB writes per attempt. This is a
+  // cheap pre-check only, NOT a replacement for sign_up_team's own checks: that RPC re-validates
+  // everything below (and more) under the same transaction that creates the team, and remains the
+  // source of truth. The join code is read only to compare here; it must never reach the browser.
+  const t = await sb.from('tournaments').select('id, status, signup_open, join_code').eq('slug', slug).maybeSingle();
   if (t.error || !t.data) return fail('invalid_input', 'Unknown tournament');
+  if (t.data.status !== 'setup' || !t.data.signup_open) return fail('invalid_input', rosterErrorMessage('signup_closed'));
+  if (t.data.join_code !== null && v.joinCode.trim().toLowerCase() !== t.data.join_code.trim().toLowerCase()) {
+    return fail('invalid_input', rosterErrorMessage('bad_join_code'));
+  }
   const blobs = photoBlobsFrom(formData);
   const photos: Record<RosterRole, string | null> = { mixed1: null, mixed2: null, woman: null };
   for (const role of ROSTER_ROLES) {
