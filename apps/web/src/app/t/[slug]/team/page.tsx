@@ -16,7 +16,7 @@ import { LimitedField } from '@/components/LimitedField';
 import { poolTone, ui } from '@/components/ui';
 import { siteOrigin } from '@/lib/siteUrl';
 import { validateRoster } from '@tournament/core';
-import { rosterOf } from '@/lib/teams/roster';
+import { rosterOf, type RosterRole } from '@/lib/teams/roster';
 import { PROFILE_LIMITS } from '@/lib/participant/profile';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +70,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   const privateLink = `${siteOrigin(await headers())}/t/${slug}/team/${token}`;
   const myTeam = teams.find((x) => x.id === me.team.id);
   const byRole = (r: 'mixed1' | 'mixed2' | 'woman') => myTeam?.players.find((p) => p.role === r)?.name ?? '';
+  const pathOf = (r: RosterRole) => myTeam?.players.find((p) => p.role === r)?.photo_path ?? null;
   const rosterLocked = me.tournament.status !== 'setup';
   // A team entered before roles existed has no mixed1/mixed2/woman, so the three pair lines would
   // read "Mixed #1:  &". Say so plainly instead; only the organiser can repair it once locked.
@@ -151,7 +152,11 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
           ) : (
             <>
               <form action={saveRoster} className="space-y-4">
-                <RosterFields defaults={{ mixed1: byRole('mixed1'), mixed2: byRole('mixed2'), woman: byRole('woman') }} />
+                <RosterFields
+                  defaults={{ mixed1: byRole('mixed1'), mixed2: byRole('mixed2'), woman: byRole('woman') }}
+                  photos={{ mixed1: pathOf('mixed1'), mixed2: pathOf('mixed2'), woman: pathOf('woman') }}
+                  colour={me.team.colour}
+                />
                 <SubmitButton className={ui.primary}>Save players</SubmitButton>
               </form>
               <form action={swap} className="mt-4">
