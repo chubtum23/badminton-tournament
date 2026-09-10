@@ -22,6 +22,8 @@ export function JoinForm({ slug, needsCode, action }: {
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [colour, setColour] = useState('#2B3390');
+  // Mirrors the name box so the placeholder circle carries the team's initials as they type it.
+  const [name, setName] = useState('');
   return (
     <form
       className="space-y-10"
@@ -48,11 +50,11 @@ export function JoinForm({ slug, needsCode, action }: {
       {/* Name, tagline and colour are one short line each, so on a wide screen they sit three
           across rather than leaving half the card empty. The description spans the row under them. */}
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <label className={ui.labelLg}>Team name<LimitedField name="name" required limit={PROFILE_LIMITS.name} className={ui.fieldLg} /></label>
+        <label className={ui.labelLg}>Team name<LimitedField name="name" required limit={PROFILE_LIMITS.name} className={ui.fieldLg} onValueChange={setName} /></label>
         <label className={ui.labelLg}>Tagline <span className={optional}>(optional)</span><LimitedField name="tagline" limit={PROFILE_LIMITS.tagline} className={ui.fieldLg} /></label>
         <label className={ui.labelLg}>Team colour<input name="colour" type="color" value={colour} onChange={(e) => setColour(e.target.value)} className="mt-2.5 h-[62px] w-full cursor-pointer border-hair border-line bg-white p-1.5" /></label>
         <label className={ui.labelLg}>Team photo <span className={optional}>(optional)</span>
-          <PhotoField teamName="" colour={colour} currentPath={null} />
+          <PhotoField teamName={name} colour={colour} currentPath={null} />
         </label>
         <label className={`${ui.labelLg} md:col-span-2 xl:col-span-3`}>About your team <span className={optional}>(optional)</span>
           <LimitedField name="description" limit={PROFILE_LIMITS.description} rows={3} className={`${ui.fieldLg} resize-y font-normal normal-case tracking-normal`} />
