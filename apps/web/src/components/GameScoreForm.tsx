@@ -105,26 +105,31 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
         </label>
       )}
       {ready && slots && slots.length > 0 && (
-        <div data-testid="rating-row" className="flex w-full flex-wrap items-center gap-3 border-t-hair border-line-soft pt-2">
-          <span className="text-xs font-bold uppercase tracking-label text-muted">Out of 10</span>
-          {slots.map((slot) => (
-            <label key={slot.playerId} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-label text-muted-strong">
-              <span className="max-w-[9rem] truncate">{slot.name}</span>
-              <input
-                name={`${RATING_FIELD_PREFIX}${slot.playerId}`}
-                data-testid="rating-input"
-                data-player={slot.playerId}
-                inputMode="decimal"
-                aria-label={`${label} · ${slot.name} rating out of 10`}
-                value={ratingValue(slot)}
-                onChange={(e) => {
-                  setTouched((t) => ({ ...t, [slot.playerId]: true }));
-                  setRatings((r) => ({ ...r, [slot.playerId]: e.target.value }));
-                }}
-                className={ratingBox}
-              />
-            </label>
-          ))}
+        <div data-testid="rating-row" className="mt-5 w-full border-t-hair border-line-soft pt-5">
+          {/* The scores above are the fact; this is a judgement about it, so it is separated and
+              named rather than trailing the score boxes as one more field on the same line. */}
+          <h4 className="text-[13px] font-bold uppercase tracking-eyebrow text-ink">Player scoring</h4>
+          <p className="mt-1 text-xs text-muted">Rate player performance out of 10.</p>
+          <div className="mt-3.5 flex flex-wrap items-center gap-3">
+            {slots.map((slot) => (
+              <label key={slot.playerId} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-label text-muted-strong">
+                <span className="max-w-[9rem] truncate">{slot.name}</span>
+                <input
+                  name={`${RATING_FIELD_PREFIX}${slot.playerId}`}
+                  data-testid="rating-input"
+                  data-player={slot.playerId}
+                  inputMode="decimal"
+                  aria-label={`${label} · ${slot.name} rating out of 10`}
+                  value={ratingValue(slot)}
+                  onChange={(e) => {
+                    setTouched((t) => ({ ...t, [slot.playerId]: true }));
+                    setRatings((r) => ({ ...r, [slot.playerId]: e.target.value }));
+                  }}
+                  className={ratingBox}
+                />
+              </label>
+            ))}
+          </div>
         </div>
       )}
       <button disabled={!ready || pending} className="bg-navy px-5 py-2 text-xs font-bold uppercase tracking-label text-white hover:bg-ink disabled:opacity-40">
