@@ -83,8 +83,12 @@ describe('settingsFor', () => {
   it('uses pool values for pool and playoff, and falls back for knockout when ko_* are null', () => {
     const pool = { gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13, playAllGames: true };
     expect(settingsFor(base, 'pool')).toEqual(pool);
-    expect(settingsFor(base, 'playoff')).toEqual(pool);
     expect(settingsFor(base, 'knockout')).toEqual(pool);
+  });
+
+  it('makes a playoff one game that decides it, whatever the pool format', () => {
+    const three = { ...base, games_per_match: 3 } as TournamentRow;
+    expect(settingsFor(three, 'playoff')).toMatchObject({ gamesPerMatch: 1, playAllGames: false, pointsPerGame: 15, timeCapMinutes: 13 });
   });
 
   it('uses ko_* for knockout when set', () => {
@@ -104,7 +108,6 @@ describe('settingsFor', () => {
   it('carries play_all_games into every stage; the knockout has no override', () => {
     const off = { ...base, play_all_games: false } as TournamentRow;
     expect(settingsFor(off, 'pool').playAllGames).toBe(false);
-    expect(settingsFor(off, 'playoff').playAllGames).toBe(false);
     expect(settingsFor(off, 'knockout').playAllGames).toBe(false);
   });
 

@@ -121,13 +121,14 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await page.goto(`/admin/${slug}/standings`);
   await page.getByRole('button', { name: /Record men.s doubles playoff/ }).click();
   await expect(page.getByText('Playoff created')).toBeVisible();
-  // The playoff is a real meeting: it appears on the open list labelled "<pool> · playoff", and it
-  // is three games like any other.
+  // The playoff is a real meeting on the open list labelled "<pool> · playoff", but it is a single
+  // men's doubles game: scoring that one game decides it.
   await page.goto(`/admin/${slug}/matches?pool=all`);
   const playoffCard = openMeetings(page)
     .filter({ hasText: /playoff/i }).first();
   await expect(playoffCard).toBeVisible();
-  await playGames(playoffCard, [[15, 9], [15, 9], [9, 15]]);
+  await expect(playoffCard.getByText("Men's doubles playoff", { exact: true })).toBeVisible();
+  await playGames(playoffCard, [[15, 9]]);
   await expect(playoffCard).toHaveCount(0);
   // The public pools page lists it under its own "Playoff" heading (inside the collapsed
   // "Matches (n/n played)" disclosure, which counts pool matches only).

@@ -19,10 +19,13 @@ const SIGNUP_WINDOW_MS = 60_000;
  * The token comes back once; the caller turns it into the httpOnly cookie via the one-time link.
  */
 export async function signUpTeam(slug: string, formData: FormData): Promise<ActionResult<{ token: string }>> {
-  const key = `signup:${clientKeyFrom(await headers())}`;
-  if (!allow(key, SIGNUP_LIMIT, SIGNUP_WINDOW_MS)) return fail('rate_limited', 'Too many attempts. Try again in a minute.');
   const parsed = parseSignupForm(formData);
   if (!parsed.ok) return fail('invalid_input', parsed.problems.join('; '));
+  // Charged only once the form is well formed: a team fixing a typo touches nothing but this
+  // process, so it should not spend the budget. Everything past here reads the database, writes
+  // storage or tries a join code, which is what the limit is for.
+  const key = `signup:${clientKeyFrom(await headers())}`;
+  if (!allow(key, SIGNUP_LIMIT, SIGNUP_WINDOW_MS)) return fail('rate_limited', 'Too many attempts. Try again in a minute.');
   const v = parsed.value;
   const sb = createServiceSupabase();
   // The object path needs the tournament id, and this read also fails fast on an unknown slug.

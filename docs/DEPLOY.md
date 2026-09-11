@@ -133,12 +133,31 @@ issues the HTTPS certificate itself.
 - Private team links are `https://<your-site>/t/<slug>/team/<token>`. The Setup page shows each
   team's link with a copy target; send each one to that team only.
 - Everything updates live: entering a score changes every open phone within a second or two.
+- **Take backups.** The tournament's home screen has a **Download a backup** button that saves
+  every team, result and announcement as one file. Take one after sign-ups close, one before
+  locking the pools and one before starting the knockout. A wiped result cannot be brought back
+  any other way (the free Supabase plan has no downloadable backups).
+- **Only one result saves at a time.** Two people saving at the same moment is safe: the second
+  waits a moment. If a save waits more than a few seconds it says "Someone else is saving a
+  result right now" — just press it again.
+- **Pool results freeze when the knockout starts**, because the bracket is drawn from them.
+  Double-check the pool tables before pressing Start knockout.
+
+### The day before
+
+1. Supabase dashboard: the project is awake, and **Authentication → Email → "Allow new users
+   to sign up" is off** (step 4).
+2. Vercel: `NEXT_PUBLIC_SITE_URL` is set (step 6), and the functions region shows **Sydney
+   (syd1)** under Settings → Functions (`vercel.json` asks for it).
+3. Sign in, open the tournament, and press **Download a backup** once to check it works.
+4. Send each team its private link, and tell teams that if they lose it the organiser can copy
+   it again from the Teams page.
 
 ---
 
 ## Updating the live site
 
-Push to `main` and Vercel rebuilds automatically. Pull requests get their own preview URL, so
+Push to `master` and Vercel rebuilds automatically. Pull requests get their own preview URL, so
 you can try a change before it reaches the public address.
 
 **Database changes work differently now.** Until the first `db push`, the single migration file
@@ -160,7 +179,10 @@ npx supabase db push                        # apply to the hosted database
   limit is looser in production than locally. The links are long random strings, so guessing
   one is not a practical attack, but this is why the limit exists rather than being the only
   defence.
-- **Replacing a team in a bracket slot is not transactional.** If the follow-up cleanup fails
-  the match keeps the new team, and you may need to re-enter its result.
+- **Result saves are several database calls, not one transaction.** They are serialised by the
+  result lock, so they cannot interleave with each other, but a network failure midway can leave
+  a meeting half-saved. Saving the same score again repairs it.
+- **Starting the knockout cannot be undone**, and if it fails midway (a network error while the
+  bracket is being written) it needs a manual database fix. Take a backup first.
 - **A tie for a place other than the qualification line is not always flagged** when more than
   two teams advance from each pool. With two advancing (the club format) this cannot happen.

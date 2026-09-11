@@ -75,7 +75,12 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
               </summary>
               <div className="p-5"><Bracket matches={preview.matches} teams={teams} games={{}} /></div>
             </details>
-            <form action={start}><SubmitButton className={ui.primary}>Start knockout with this bracket</SubmitButton></form>
+            <form action={start}>
+              <SubmitButton
+                confirmMessage="Start the knockout with this bracket? Pool results are frozen from now on and the pools can no longer be unlocked."
+                className={ui.primary}
+              >Start knockout with this bracket</SubmitButton>
+            </form>
           </>
         )}
       </div>
@@ -123,7 +128,10 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
                   <select id={`team-${m.id}`} name="teamId" defaultValue={m.teamAId ?? selectable[0]?.id} className={ui.fieldSm}>
                     {selectable.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                   </select>
-                  <SubmitButton className={ui.tiny}>Replace</SubmitButton>
+                  <SubmitButton
+                    confirmMessage={`Replace a team in ${teamName(teams, m.teamAId)} v ${teamName(teams, m.teamBId)}? Only an unplayed match can be changed.`}
+                    className={ui.tiny}
+                  >Replace</SubmitButton>
                 </form>
               </li>
             ))}

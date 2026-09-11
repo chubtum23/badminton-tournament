@@ -31,6 +31,11 @@ describe('planGameCourt', () => {
     if ('error' in r) throw new Error(r.error);
     expect(r).toEqual({ court: 2, started_at: running.started_at, paused_at: null, paused_ms: 0 });
   });
+  it('moving a paused game keeps it paused, so the stoppage is not counted as playing time', () => {
+    const paused = { ...running, paused_at: '2026-10-03T09:06:00.000Z', paused_ms: 30_000 };
+    const r = planGameCourt([paused, idle], 'm1', 1, 2, 4);
+    expect(r).toEqual({ court: 2, started_at: running.started_at, paused_at: paused.paused_at, paused_ms: 30_000 });
+  });
   it('taking a game off court clears the clock', () => {
     expect(planGameCourt([running], 'm1', 1, null, 4)).toEqual({ court: null, started_at: null, paused_at: null, paused_ms: 0 });
   });

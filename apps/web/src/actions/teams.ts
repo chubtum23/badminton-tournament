@@ -2,7 +2,8 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
-import { listMatches } from '@/lib/db/queries';
+import { listGames, listMatches } from '@/lib/db/queries';
+import { withResultLock } from '@/lib/results/lock';
 import type { MatchRow } from '@/lib/db/types';
 import { revalidateTournament } from './revalidate';
 import { awardMatch } from './matches';
@@ -106,30 +107,41 @@ export async function getEditTokens(slug: string): Promise<Record<string, string
 /**
  * Marks a team as withdrawn and forfeits every match of theirs that is still open with a known
  * opponent. Matches still waiting on an opponent (pending, one side empty) are left alone: the
- * bracket fills them later, and the organiser can award or replace then.
+ * bracket fills them later, and the organiser can award or replace then. A match that already has
+ * game scores is left alone too — forfeiting it would erase them — and the organiser is told.
  */
 export async function withdrawTeam(slug: string, teamId: string): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
-  // Conditional on the flag so two clicks cannot forfeit the same matches twice.
-  const upd = await ctx.sb.from('teams').update({ withdrawn: true })
-    .eq('id', teamId).eq('tournament_id', ctx.tournament.id).eq('withdrawn', false).select('id');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'Team not found or already withdrawn');
+  if (ctx.tournament.status === 'finished') return fail('stale_state', 'The tournament is finished, so its results are no longer forfeited');
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    // Conditional on the flag so two clicks cannot forfeit the same matches twice.
+    const upd = await ctx.sb.from('teams').update({ withdrawn: true })
+      .eq('id', teamId).eq('tournament_id', ctx.tournament.id).eq('withdrawn', false).select('id');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'Team not found or already withdrawn');
 
-  const open: MatchRow['status'][] = ['ready', 'live', 'submitted', 'disputed'];
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const problems: string[] = [];
-  for (const m of rows) {
-    if (m.team_a_id !== teamId && m.team_b_id !== teamId) continue;
-    if (!open.includes(m.status) || m.team_a_id === null || m.team_b_id === null) continue;
-    const opponent = m.team_a_id === teamId ? m.team_b_id : m.team_a_id;
-    const r = await awardMatch(slug, m.id, opponent, 'forfeit');
-    if (!r.ok) problems.push(r.message ?? r.error);
-  }
-  revalidateTournament(slug);
-  if (problems.length) return fail('invalid_input', `Team withdrawn, but some matches could not be forfeited: ${problems.join('; ')}`);
-  return ok(undefined);
+    const open: MatchRow['status'][] = ['ready', 'live', 'submitted', 'disputed'];
+    const [rows, gameRows] = await Promise.all([listMatches(ctx.sb, ctx.tournament.id), listGames(ctx.sb, ctx.tournament.id)]);
+    const scored = new Set(gameRows.filter((g) => g.score_a !== null).map((g) => g.match_id));
+    const problems: string[] = [];
+    let leftAlone = 0;
+    for (const m of rows) {
+      if (m.team_a_id !== teamId && m.team_b_id !== teamId) continue;
+      if (!open.includes(m.status) || m.team_a_id === null || m.team_b_id === null) continue;
+      if (scored.has(m.id)) { leftAlone += 1; continue; }
+      const opponent = m.team_a_id === teamId ? m.team_b_id : m.team_a_id;
+      // Runs inside this action's result lock; withResultLock lets the nested call straight through.
+      const r = await awardMatch(slug, m.id, opponent, 'forfeit');
+      if (!r.ok) problems.push(r.message ?? r.error);
+    }
+    revalidateTournament(slug);
+    if (problems.length) return fail('invalid_input', `Team withdrawn, but some matches could not be forfeited: ${problems.join('; ')}`);
+    if (leftAlone > 0) {
+      return fail('match_not_editable', `Team withdrawn. ${leftAlone} of their matches already had scores entered, so ${leftAlone === 1 ? 'it was' : 'they were'} left for you to settle on the Matches page.`);
+    }
+    return ok(undefined);
+  }, (message) => fail('stale_state', message));
 }
 
 /** Clears the withdrawn flag. Matches already forfeited stay forfeited; edit them individually. */

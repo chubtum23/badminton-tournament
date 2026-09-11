@@ -1,6 +1,6 @@
 import type { Match, Stage } from '@tournament/core';
 import type { GameRow, TournamentRow } from '@/lib/db/types';
-import { gameLabel } from '@/lib/db/mappers';
+import { stageGameLabel } from '@/lib/db/mappers';
 
 export interface ScheduledGame { match: Match; slot: GameRow; label: string }
 export interface Board { nowPlaying: ScheduledGame[]; upNext: ScheduledGame[] }
@@ -17,13 +17,13 @@ export function scheduleBoard(input: {
   tournament: TournamentRow; matches: readonly Match[]; slots: readonly GameRow[]; poolOrder: readonly string[]; stage: Stage;
 }): Board {
   const byId = new Map(input.matches.map((m) => [m.id, m]));
-  const label = (n: number) => gameLabel(input.tournament, n);
+  const label = (m: Match, n: number) => stageGameLabel(input.tournament, m.stage, n);
   const playable = (m: Match | undefined): m is Match =>
     m !== undefined && m.teamAId !== null && m.teamBId !== null && m.status !== 'done';
 
   const nowPlaying = input.slots
     .filter(isRunning)
-    .flatMap((slot) => { const m = byId.get(slot.match_id); return m ? [{ match: m, slot, label: label(slot.game_no) }] : []; })
+    .flatMap((slot) => { const m = byId.get(slot.match_id); return m ? [{ match: m, slot, label: label(m, slot.game_no) }] : []; })
     .sort((x, y) => (x.slot.court ?? Number.MAX_SAFE_INTEGER) - (y.slot.court ?? Number.MAX_SAFE_INTEGER));
 
   const groupKey = (m: Match) => (input.stage === 'pool' ? `pool:${m.poolId}` : `round:${m.round}`);
@@ -32,7 +32,7 @@ export function scheduleBoard(input: {
     if (!isWaiting(slot)) continue;
     const m = byId.get(slot.match_id);
     if (!playable(m) || m.stage !== input.stage || m.stage === 'playoff') continue;
-    const candidate = { match: m, slot, label: label(slot.game_no) };
+    const candidate = { match: m, slot, label: label(m, slot.game_no) };
     const current = best.get(groupKey(m));
     const earlier = !current
       || m.slot < current.match.slot

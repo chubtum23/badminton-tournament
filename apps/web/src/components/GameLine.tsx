@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Match, Settings } from '@tournament/core';
 import type { GameRow, RosterPlayerRow, TeamRow, TournamentRow } from '@/lib/db/types';
-import { gameLabel } from '@/lib/db/mappers';
+import { pairingGameNo, stageGameLabel } from '@/lib/db/mappers';
 import { ratingSlots } from '@/lib/results/ratings';
 import { pairNames } from '@/lib/teams/roster';
 import type { ActionResult } from '@/actions/errors';
@@ -61,13 +61,15 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const [open, setOpen] = useState(false);
-  const label = gameLabel(tournament, slot.game_no);
+  const label = stageGameLabel(tournament, match.stage, slot.game_no);
+  // Whose pair is on court: a playoff's only game is the men's doubles.
+  const pairingNo = pairingGameNo(match.stage, slot.game_no);
   const nameOf = (id: string | null) => (id ? teams.find((x) => x.id === id)?.name ?? '?' : 'TBD');
   const a = nameOf(match.teamAId), b = nameOf(match.teamBId);
   // The two players of that team who play this game number, once the roster is loaded and complete.
   const pairOf = (id: string | null) => {
     const team = id ? teams.find((x) => x.id === id) : undefined;
-    return team?.players ? pairNames({ players: team.players }, slot.game_no) : null;
+    return team?.players ? pairNames({ players: team.players }, pairingNo) : null;
   };
   const pairA = pairOf(match.teamAId), pairB = pairOf(match.teamBId);
   const scored = slot.score_a !== null && slot.score_b !== null;
@@ -146,7 +148,9 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
                 <button type="button" onClick={() => setChanging((v) => !v)} className={ui.tiny}>Change</button>
                 <form action={() => run(() => clearGameScore(tournament.slug, match.id, slot.game_no))}>
                   <SubmitButton
-                    confirmMessage={`Clear the ${label} score? Any later match that depended on this meeting is reset.`}
+                    confirmMessage={match.status === 'done'
+                      ? `Clear the ${label} score? This meeting is decided, so its result is undone too, and any later match it sent a team to goes back to waiting.`
+                      : `Clear the ${label} score?`}
                     className={ui.tiny}
                   >Clear</SubmitButton>
                 </form>
@@ -163,7 +167,10 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
                   </form>
                 )}
                 <form action={() => run(() => takeGameOffCourt(tournament.slug, match.id, slot.game_no))}>
-                  <SubmitButton className={ui.tiny}>Take off court</SubmitButton>
+                  <SubmitButton
+                    confirmMessage={`Take ${label} off court? Its clock is thrown away and starts from the beginning next time.`}
+                    className={ui.tiny}
+                  >Take off court</SubmitButton>
                 </form>
               </>
             )}
@@ -192,7 +199,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               matchId={match.id} gameNo={slot.game_no} settings={settings} label={label} teamA={a} teamB={b}
               existing={scored ? { scoreA: slot.score_a!, scoreB: slot.score_b!, timeExpired: slot.time_expired } : undefined}
               action={saveGameScore.bind(null, tournament.slug, match.id, slot.game_no)}
-              slots={ratingSlots(teams.find((t) => t.id === match.teamAId), teams.find((t) => t.id === match.teamBId), slot.game_no)}
+              slots={ratingSlots(teams.find((t) => t.id === match.teamAId), teams.find((t) => t.id === match.teamBId), pairingNo)}
               confirmMessage={match.status === 'done' ? 'This meeting already has a result. Changing this score may reset every later match that depended on it. Continue?' : undefined}
             />
           )}

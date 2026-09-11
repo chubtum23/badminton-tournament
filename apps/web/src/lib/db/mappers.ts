@@ -31,6 +31,19 @@ export function gameLabel(t: Pick<TournamentRow, 'game_labels'>, gameNo: number)
   return t.game_labels[gameNo - 1] ?? `Game ${gameNo}`;
 }
 
+/** Game 3 of a meeting is the men's doubles, and a playoff's only game is played by that pair. */
+const MENS_DOUBLES_GAME = 3;
+
+/** Which game of a meeting decides who is on court for this slot: a playoff's game 1 is the men's pair. */
+export function pairingGameNo(stage: Stage, gameNo: number): number {
+  return stage === 'playoff' ? MENS_DOUBLES_GAME : gameNo;
+}
+
+/** The slot's name as the organiser sees it, e.g. "Men's doubles playoff". */
+export function stageGameLabel(t: Pick<TournamentRow, 'game_labels'>, stage: Stage, gameNo: number): string {
+  return stage === 'playoff' ? `${gameLabel(t, MENS_DOUBLES_GAME)} playoff` : gameLabel(t, gameNo);
+}
+
 /** The empty game rows a newly created match starts with, one per game of the meeting. */
 export function slotRowsFor(matchId: string, gamesPerMatch: number): { match_id: string; game_no: number }[] {
   return Array.from({ length: gamesPerMatch }, (_, i) => ({ match_id: matchId, game_no: i + 1 }));
@@ -63,6 +76,8 @@ export function settingsFor(t: TournamentRow, stage: Stage): Settings {
     winByTwo: t.win_by_two, maxPoints: t.max_points, timeCapMinutes: t.time_cap_minutes,
     playAllGames: t.play_all_games,
   };
+  // A playoff settles a tie with one men's doubles game, not a whole meeting.
+  if (stage === 'playoff') return { ...pool, gamesPerMatch: 1, playAllGames: false };
   if (stage !== 'knockout') return pool;
   return {
     gamesPerMatch: t.ko_games_per_match ?? pool.gamesPerMatch,

@@ -29,7 +29,13 @@ export function decideSubmission(input: {
   }
   const result = matchResult(input.settings, games);
   if (!result.ok) return { error: 'invalid_score', message: result.reason };
-  if (!result.complete) return { error: 'invalid_score', message: 'Enter games until one side has won the match' };
+  if (!result.complete) {
+    // Under play-all a 2-0 lead is not a finished meeting, so "until one side has won" would be wrong.
+    const message = input.settings.playAllGames
+      ? `Enter all ${input.settings.gamesPerMatch} games`
+      : 'Enter games until one side has won the match';
+    return { error: 'invalid_score', message };
+  }
   const theirs = side === 'a' ? latest.b : latest.a;
   if (!theirs) return { outcome: 'submitted' };
   return sameGames(theirs.games, games) ? { outcome: 'confirmed' } : { outcome: 'disputed' };

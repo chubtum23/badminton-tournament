@@ -77,6 +77,11 @@ export async function applyResultPlan(
   if (named.length > 0) blankOwn = blankOwn.not('game_no', 'in', `(${named.join(',')})`);
   const blankedOwn = await blankOwn;
   if (blankedOwn.error) return fail('invalid_input', blankedOwn.error.message);
+  // The blanked slots' ratings go with them, or an awarded meeting keeps counting on the leaderboard.
+  let unrateOwn = sb.from('player_ratings').delete().eq('match_id', matchId);
+  if (named.length > 0) unrateOwn = unrateOwn.not('game_no', 'in', `(${named.join(',')})`);
+  const unratedOwn = await unrateOwn;
+  if (unratedOwn.error) return fail('invalid_input', unratedOwn.error.message);
   // The slots already exist, so the scores are written into them rather than the rows being
   // replaced: deleting them would throw away the court and clock of the meeting's other games,
   // and a meeting must always have its full set of slots.

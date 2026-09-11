@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
@@ -20,6 +21,11 @@ export function SubmitButton({ children, className, confirmMessage, onClick, ...
   onClick?: ComponentPropsWithoutRef<'button'>['onClick'];
 }) {
   const { pending } = useFormStatus();
+  // Server-action forms submit as plain HTML before the page's JavaScript has loaded, which on slow
+  // venue wifi would skip the confirm entirely. A guarded button stays disabled until it is live.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+  const waiting = confirmMessage !== undefined && !hydrated;
   // `disabled` sits after the spread so a caller's own reason to disable the button (a hub action
   // whose preconditions are not met) survives, and combines with the form's pending state.
   return (
@@ -32,7 +38,7 @@ export function SubmitButton({ children, className, confirmMessage, onClick, ...
       }}
       className={`inline-flex items-center justify-center gap-1.5 disabled:cursor-wait disabled:opacity-60 ${className ?? ''}`}
       {...rest}
-      disabled={pending || rest.disabled}
+      disabled={pending || waiting || rest.disabled}
     >
       {pending && (
         <span

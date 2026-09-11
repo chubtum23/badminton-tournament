@@ -42,4 +42,11 @@ describe('decideSubmission', () => {
     expect(decideSubmission({ settings: CLASSIC_BEST_OF_THREE, match: { ...match, status: 'done' }, side: 'a', games: win, latest: {} })).toMatchObject({ error: 'match_not_editable' });
     expect(decideSubmission({ settings: CLASSIC_BEST_OF_THREE, match: { ...match, status: 'pending', teamBId: null }, side: 'a', games: win, latest: {} })).toMatchObject({ error: 'match_not_editable' });
   });
+  it('asks for every game when all games must be played, even with a 2-0 lead', () => {
+    const club = { ...CLASSIC_BEST_OF_THREE, playAllGames: true };
+    expect(decideSubmission({ settings: club, match, side: 'a', games: win, latest: {} }))
+      .toEqual({ error: 'invalid_score', message: 'Enter all 3 games' });
+    expect(decideSubmission({ settings: CLASSIC_BEST_OF_THREE, match, side: 'a', games: win.slice(0, 1), latest: {} }))
+      .toEqual({ error: 'invalid_score', message: 'Enter games until one side has won the match' });
+  });
 });

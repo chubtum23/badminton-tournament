@@ -127,7 +127,7 @@ export function TeamsAdmin({ slug, tournament: t, teams, tokens, baseUrl, joinCo
                         {x.withdrawn ? (
                           <form action={reinstate}><input type="hidden" name="teamId" value={x.id} /><SubmitButton className={ui.secondary}>Reinstate</SubmitButton></form>
                         ) : (
-                          <form action={withdraw}><input type="hidden" name="teamId" value={x.id} /><SubmitButton confirmMessage={`Withdraw ${x.name}? Their open matches are forfeited to the opponent.`} className={ui.danger}>Withdraw</SubmitButton></form>
+                          <form action={withdraw}><input type="hidden" name="teamId" value={x.id} /><SubmitButton confirmMessage={`Withdraw ${x.name}? Their unplayed matches are forfeited to the opponent. Matches that already have scores are left for you to settle.`} className={ui.danger}>Withdraw</SubmitButton></form>
                         )}
                         {!locked && (
                           <form action={remove}><input type="hidden" name="teamId" value={x.id} /><SubmitButton confirmMessage={`Remove ${x.name} and their players? This cannot be undone.`} className={ui.danger}>Remove team</SubmitButton></form>

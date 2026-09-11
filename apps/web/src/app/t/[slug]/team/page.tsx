@@ -4,7 +4,8 @@ import { updateMyTeam, updateMyRoster, swapMixed, submitScoresForm } from '@/act
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { gameSlotsByMatch, listGames, listMatches, listPools, listSubmissions, listTeamsWithPlayers, latestByMatch } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
+import { gamesByMatch, rowToMatch, settingsFor, stageGameLabel } from '@/lib/db/mappers';
+import { roundTitle } from '@/lib/draw/model';
 import { MatchCard, pendingFor, teamName } from '@/components/MatchCard';
 import { SubmitScoresForm } from '@/components/SubmitScoresForm';
 import { FlashMessage } from '@/components/FlashMessage';
@@ -15,6 +16,7 @@ import { RosterFields } from '@/components/RosterFields';
 import { TeamAvatar } from '@/components/TeamAvatar';
 import { LimitedField } from '@/components/LimitedField';
 import { PhotoField } from '@/components/PhotoField';
+import { PhotoForm } from '@/components/PhotoForm';
 import { poolTone, ui } from '@/components/ui';
 import { siteOrigin } from '@/lib/siteUrl';
 import { validateRoster } from '@tournament/core';
@@ -23,16 +25,34 @@ import { PROFILE_LIMITS } from '@/lib/participant/profile';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MyTeamPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ welcome?: string }> }) {
+const LOST_LINK = 'Lost your link? Ask the organiser — they can copy it from their Teams page.';
+
+/** Why the private-link route sent the player here instead of letting them in (`?link=`). */
+const LINK_PROBLEM: Record<string, string> = {
+  invalid: "That team link isn't valid. It may have been cut short when it was copied, or the team may have been removed.",
+  limited: 'Too many team links have been tried from this network in the last minute. Wait a minute, then open your link again.',
+};
+
+export default async function MyTeamPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ welcome?: string; link?: string }> }) {
   const { slug } = await params;
-  const { welcome } = await searchParams;
+  const { welcome, link } = await searchParams;
+  const linkProblem = link ? LINK_PROBLEM[link] : undefined;
+  const linkNotice = linkProblem && (
+    <p data-testid="link-problem" role="alert" className={`${ui.alarm} max-w-prose`}>{linkProblem}</p>
+  );
   const me = await currentParticipant(slug);
   if (!me) {
     return (
-      <section className={`${ui.card} max-w-prose`}>
-        <div className={ui.head}><h2 className={ui.eyebrow}>My team</h2></div>
-        <p className={`${ui.body} text-sm`}>Open the private link your organiser gave you to unlock this page. It is unique to your team; do not share it.</p>
-      </section>
+      <div className="space-y-4">
+        {linkNotice}
+        <section className={`${ui.card} max-w-prose`}>
+          <div className={ui.head}><h2 className={ui.eyebrow}>My team</h2></div>
+          <div className={`${ui.body} space-y-3 text-sm`}>
+            <p>Open your team&apos;s private link to unlock this page. You got it when you signed your team up, or from the organiser if they entered your team for you. It is unique to your team, so share it only with your own players.</p>
+            <p className="font-semibold">{LOST_LINK}</p>
+          </div>
+        </section>
+      </div>
     );
   }
   const sb = await createServerSupabase();
@@ -44,12 +64,15 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   // Each meeting is three labelled games, so the cards list them rather than one score column.
   const slots = gameSlotsByMatch(gameRows);
   const latest = latestByMatch(subs);
-  const mine = matchRows.map(rowToMatch).filter((m) => m.teamAId === me.team.id || m.teamBId === me.team.id);
+  const all = matchRows.map(rowToMatch);
+  const mine = all.filter((m) => m.teamAId === me.team.id || m.teamBId === me.team.id);
   const next = mine.find((m) => m.status === 'live') ?? mine.find((m) => m.status === 'ready' || m.status === 'submitted' || m.status === 'disputed');
   const poolName = (m: typeof mine[number]) => pools.find((p) => p.id === m.poolId)?.name ?? 'Pool';
+  // Named like the Bracket page ("Semi-finals", "Final"), which needs the depth of the whole draw.
+  const totalRounds = Math.max(0, ...all.filter((m) => m.stage === 'knockout').map((m) => m.round ?? 1));
   const label = (m: typeof mine[number]) => m.stage === 'pool' ? poolName(m)
     : m.stage === 'playoff' ? `${poolName(m)} · playoff`
-    : `Round ${m.round}`;
+    : roundTitle(m.round ?? 1, totalRounds);
   // Rules are per stage, so each match card is rendered against its own settings.
   const settingsOf = (m: typeof mine[number]) => settingsFor(me!.tournament, m.stage);
   // Pool colour, matching the Pools and Live pages. A knockout meeting has no pool.
@@ -67,7 +90,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
     !me.team.withdrawn && (m.status === 'ready' || m.status === 'live' || m.status === 'submitted' || m.status === 'disputed');
 
   // The private link is rebuilt from this request's own cookie, so it is only ever rendered for
-  // the team that already holds the token.
+  // the team that already holds the token, and only on this page.
   const token = (await cookies()).get(cookieName(slug))?.value ?? '';
   const privateLink = `${siteOrigin(await headers())}/t/${slug}/team/${token}`;
   const myTeam = teams.find((x) => x.id === me.team.id);
@@ -90,10 +113,17 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
     redirectWithMsg(`/t/${slug}/team`, await swapMixed(slug), 'Mixed pairs swapped');
   }
 
+  const scoreForm = (m: typeof mine[number]) => (
+    <SubmitScoresForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
+      teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores"
+      gameLabels={Array.from({ length: settingsOf(m).gamesPerMatch }, (_, i) => stageGameLabel(me!.tournament, m.stage, i + 1))} />
+  );
+
   return (
     <div className="space-y-4">
       <FlashMessage />
       <RecentOutcome />
+      {linkNotice}
       {me.team.withdrawn && (
         <p className={ui.alarm}>Your team has been withdrawn by the organiser.</p>
       )}
@@ -101,7 +131,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
         <div data-testid="welcome" className={`${ui.card} border-orange`}>
           <div className={`${ui.head} ${ui.headOrange} border-orange`}><span className={ui.eyebrow}>You&apos;re in</span></div>
           <div className={ui.body}>
-            <p className="text-sm font-semibold">Save this private link — it is the only way back to your team page.</p>
+            <p className="text-sm font-semibold">Save this private link — it is how you get back to your team page on another phone. You can always find it again below while this phone stays signed in.</p>
             <div className="mt-3 flex flex-wrap items-center gap-2.5">
               <code className={ui.code}>{privateLink}</code>
               <CopyButton text={privateLink} className={ui.primary} label="Copy link" />
@@ -117,7 +147,8 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
           </h2>
           <span className={`${ui.eyebrow} text-muted`}>Your team</span>
         </div>
-        <form action={save} className={`${ui.body} grid gap-4 md:grid-cols-2`}>
+        {/* PhotoForm holds the save while a photo is resizing and reports a failed save inline. */}
+        <PhotoForm action={save} className={`${ui.body} grid gap-4 md:grid-cols-2`} footerClassName="md:col-span-2" submitLabel="Save team">
           <label className={ui.label}>Team name<LimitedField name="name" defaultValue={me.team.name} limit={PROFILE_LIMITS.name} required className={ui.field} /></label>
           <label className={ui.label}>Tagline<LimitedField name="tagline" defaultValue={me.team.tagline} limit={PROFILE_LIMITS.tagline} className={ui.field} /></label>
           <label className={ui.label}>Colour<input name="colour" type="color" defaultValue={me.team.colour} className="colour-dot mt-2 block" /></label>
@@ -125,9 +156,25 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
             <PhotoField teamName={me.team.name} colour={me.team.colour} currentPath={me.team.photo_path} />
           </label>
           <label className={`${ui.label} md:col-span-2`}>About your team<LimitedField name="description" defaultValue={me.team.description} limit={PROFILE_LIMITS.description} rows={2} className={`${ui.field} resize-y font-normal normal-case tracking-normal`} /></label>
-          <div className="md:col-span-2"><SubmitButton className={ui.primary}>Save team</SubmitButton></div>
-        </form>
+        </PhotoForm>
       </section>
+
+      {/* Always here, folded away: a team that closed the welcome card, or wants its link on a
+          second phone, would otherwise have no way to see it again. */}
+      <details data-testid="private-link" className={`${ui.card} group`}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-7 py-4 [&::-webkit-details-marker]:hidden">
+          <h2 className={ui.eyebrow}>Your team&apos;s private link</h2>
+          <span className={`${ui.eyebrow} text-muted`}><span className="group-open:hidden">Show</span><span className="hidden group-open:inline">Hide</span></span>
+        </summary>
+        <div className={`${ui.body} border-t-2 border-navy`}>
+          <p className="text-sm">Open it on any phone to get back to this page. Share it only with your own players: anyone holding it can edit your team and submit your scores.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <code className={ui.code}>{privateLink}</code>
+            <CopyButton text={privateLink} className={ui.secondary} label="Copy link" />
+          </div>
+          <p className={ui.help}>{LOST_LINK}</p>
+        </div>
+      </details>
 
       <section className={ui.card}>
         <div className={ui.head}>
@@ -176,7 +223,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
             <MatchCard match={next} teams={teams} games={games[next.id] ?? []} label={label(next)} tone={tone(next)} pending={pending(next)} tournament={me.tournament} slots={slots[next.id]} />
             {canSubmit(next) && (
               <div className={`${ui.card} ${ui.body} space-y-3`}>
-                <SubmitScoresForm matchId={next.id} settings={settingsOf(next)} existing={(latest[next.id]?.[mySide] ?? { games: [] }).games} teamA={teamName(teams, next.teamAId)} teamB={teamName(teams, next.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
+                {scoreForm(next)}
                 <p className="text-xs text-muted">Your scores show as unconfirmed until the other team submits the same result or an organiser confirms them.</p>
               </div>
             )}
@@ -188,10 +235,9 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
         <h2 className={ui.h2}>Your matches <span className="text-muted-soft">({mine.length})</span></h2>
         <div className="grid gap-6 md:grid-cols-2">{mine.map((m) => (
           <MatchCard key={m.id} match={m} teams={teams} games={games[m.id] ?? []} label={label(m)} tone={tone(m)} pending={pending(m)} tournament={me.tournament} slots={slots[m.id]}>
-            {canSubmit(m) && (
-              <SubmitScoresForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
-                teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores" />
-            )}
+            {/* The next match already has its form above; two copies of one form on a page would
+                each keep their own half-typed scores and read as two separate submissions. */}
+            {canSubmit(m) && m.id !== next?.id && scoreForm(m)}
           </MatchCard>
         ))}</div>
       </section>

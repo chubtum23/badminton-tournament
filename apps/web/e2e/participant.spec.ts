@@ -69,12 +69,15 @@ test('participants submit, confirm and dispute scores; admins resolve and announ
 
   // public live page shows the banner and the realtime pill
   await page.goto(`/t/${slug}`);
-  await expect(page.getByText('Courts open at 7pm')).toBeVisible();
+  // The header banner repeats a new announcement, so look for the pinned card in the page body.
+  await expect(page.getByRole('main').getByText('Courts open at 7pm')).toBeVisible();
   await expect(page.getByTestId('realtime-status')).toHaveText(/live/, { timeout: 15000 });
 
-  // invalid token is rejected and the link is rate limited
-  const badRes = await page.request.get(`/t/${slug}/team/000000000000000000000000`);
-  expect(badRes.status()).toBe(404);
+  // an invalid token is refused with a redirect to the team page's own explanation, not a cookie
+  const badRes = await page.request.get(`/t/${slug}/team/000000000000000000000000`, { maxRedirects: 0 });
+  expect(badRes.status()).toBe(303);
+  expect(badRes.headers()['location']).toContain(`/t/${slug}/team?link=invalid`);
+  expect(badRes.headers()['set-cookie']).toBeUndefined();
 
   // team Ann & Bo opens its link, renames itself
   const ann = await openAsTeam(browser, links['Ann & Bo']!);

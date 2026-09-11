@@ -53,6 +53,9 @@ export function StandingsTable({ rows, teams, advance, manual, ties, actionHeade
 }) {
   return (
     <>
+      {/* The scroller is the backstop for a phone: a table cell grows to fit its content, so one
+          unbreakable name would otherwise widen the whole page past the screen. */}
+      <div className="overflow-x-auto">
       <table className="w-full text-base">
         <thead>
           <tr className="border-b-hair border-line text-left">
@@ -81,7 +84,9 @@ export function StandingsTable({ rows, teams, advance, manual, ties, actionHeade
                     {r.tieUnresolved && <span className="bg-red-100 px-1.5 text-[11px] font-bold uppercase tracking-label text-red-800">tie</span>}
                     {t?.withdrawn && <span className="bg-line-soft px-1.5 text-[11px] font-bold uppercase tracking-label text-muted">withdrawn</span>}
                   </span>
-                  {t?.tagline && <span className="block truncate text-xs font-normal text-muted">{t.tagline}</span>}
+                  {/* Clamped rather than truncated: `truncate` is nowrap, and a nowrap line sets the
+                      cell's minimum width, which pushed the table wider than a 375px phone. */}
+                  {t?.tagline && <span className="line-clamp-2 break-words text-xs font-normal text-muted">{t.tagline}</span>}
                 </td>
                 <td className={num}>{r.played}</td>
                 <td className={num}>{r.won}</td>
@@ -93,6 +98,7 @@ export function StandingsTable({ rows, teams, advance, manual, ties, actionHeade
           })}
         </tbody>
       </table>
+      </div>
       <StatKey />
       {manual && <p className="mt-2 text-xs font-bold uppercase tracking-label text-muted">Order set by organiser</p>}
       {ties && ties.length > 0 && (

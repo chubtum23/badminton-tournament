@@ -6,6 +6,7 @@ import { listMatches, listSubmissions, latestByMatch, type LatestSubmissions } f
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planResult } from '@/lib/results/apply';
 import { applyResultPlan } from '@/lib/results/persist';
+import { withResultLock } from '@/lib/results/lock';
 import { decideSubmission } from './decide';
 
 export type SubmissionOutcome = 'submitted' | 'confirmed' | 'disputed';
@@ -37,8 +38,15 @@ const fail = (error: ActionError, message: string): ApplySubmissionResult => ({ 
  * we insert first because `applyResultPlan` is itself the guarded claim and it deletes the match's
  * submissions on success anyway — the row has to exist beforehand only so an admin still sees both
  * sides if the plan fails. A lost race is retried exactly once against freshly read state.
+ *
+ * All of it runs under the tournament's result lock, so an organiser saving the same meeting (or a
+ * neighbouring one that feeds the same next-round match) cannot interleave with it.
  */
 export async function applySubmission(sb: SupabaseClient, input: ApplySubmissionInput): Promise<ApplySubmissionResult> {
+  return withResultLock(sb, input.tournament.id, () => applySubmissionLocked(sb, input), (message) => fail('stale_state', message));
+}
+
+async function applySubmissionLocked(sb: SupabaseClient, input: ApplySubmissionInput): Promise<ApplySubmissionResult> {
   const { tournament, teamId, matchId, games } = input;
 
   const read = async (): Promise<{ rows: MatchRow[]; latest: LatestSubmissions }> => {

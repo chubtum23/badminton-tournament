@@ -2,7 +2,7 @@ import type { Game, Match } from '@tournament/core';
 import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
-import { gameLabel } from '@/lib/db/mappers';
+import { stageGameLabel } from '@/lib/db/mappers';
 import { TeamAvatar } from './TeamAvatar';
 import { ui } from './ui';
 
@@ -86,6 +86,12 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
   // The loser is dimmed rather than the winner emphasised: both names are already at display
   // weight, so there is no heavier step left to take, and dimming one is the clearer signal.
   const lost = (id: string | null) => match.winnerId !== null && id !== null && match.winnerId !== id;
+  const gameName = (n: number) => (tournament ? stageGameLabel(tournament, match.stage, n) : `Game ${n}`);
+  /**
+   * One side's unconfirmed claim spelled out per game. The per-game rows only fill in from
+   * official scores, so without this a single team's submission left every row reading "—".
+   */
+  const claim = (gs: Game[]) => gs.map((g) => `${gameName(g.gameNo)} ${g.scoreA}–${g.scoreB}`).join(' · ');
 
   /**
    * The right-hand word in the header: how far through the meeting is, and where it is being
@@ -149,6 +155,11 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
               {pending.by} says {compact(pending.games)} · {pending.other.by} says {compact(pending.other.games)}
             </p>
           )}
+          {!pending.other && perGame && gameList && pending.games.length > 0 && (
+            <p data-testid="pending-claim" className="mt-1.5 text-xs tabular-nums text-muted">
+              {pending.by} says {claim(pending.games)}
+            </p>
+          )}
         </div>
       )}
 
@@ -156,7 +167,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
         <ul className="flex flex-col gap-2.5 px-7 pb-7 pt-3">
           {slots!.map((s) => {
             const scored = s.score_a !== null && s.score_b !== null;
-            const name = tournament ? gameLabel(tournament, s.game_no) : `Game ${s.game_no}`;
+            const name = gameName(s.game_no);
             return (
               <li
                 key={s.game_no}

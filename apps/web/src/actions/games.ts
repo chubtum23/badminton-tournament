@@ -4,49 +4,58 @@ import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 import { matchResult, rollback, validateGame } from '@tournament/core';
 import { listGames, listMatches, listTeamsWithPlayers } from '@/lib/db/queries';
-import { matchToRow, rowToMatch, settingsFor } from '@/lib/db/mappers';
+import { matchToRow, pairingGameNo, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planResult } from '@/lib/results/apply';
 import { parseRatings, ratingSlots } from '@/lib/results/ratings';
 import { applyResultPlan, BLANK_GAME } from '@/lib/results/persist';
+import { withResultLock } from '@/lib/results/lock';
+import { POOL_RESULTS_FROZEN, poolResultsFrozen } from '@/lib/results/freeze';
 import { firstFreeCourt, planGameCourt } from '@/lib/schedule/plan';
 import { syncMatchStatus } from '@/lib/schedule/status';
+
+const busy = (message: string): ActionResult => fail('stale_state', message);
 
 /**
  * Sends one game of a meeting to a court and starts its clock. With no court given it takes the
  * lowest court no running game is holding, which is what an organiser calling the next game wants.
+ * Held under the result lock so two people pressing Start at once cannot both get the same court.
  */
 export async function startGame(slug: string, matchId: string, gameNo: number, court: number | null): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
-  const slots = await listGames(ctx.sb, ctx.tournament.id);
-  const chosen = court ?? firstFreeCourt(slots, ctx.tournament.court_count);
-  if (chosen === null) return fail('invalid_input', 'Every court is in use');
-  const planned = planGameCourt(slots, matchId, gameNo, chosen, ctx.tournament.court_count);
-  if ('error' in planned) return fail(planned.error.includes('court must be between') ? 'invalid_input' : 'match_not_editable', planned.error);
-  // Repeating the "not yet scored" guard in the filter means a concurrent score entry wins.
-  const upd = await ctx.sb.from('games').update(planned)
-    .eq('match_id', matchId).eq('game_no', gameNo).is('score_a', null).select('game_no');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
-  await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
-  revalidateTournament(slug);
-  return ok(undefined);
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const slots = await listGames(ctx.sb, ctx.tournament.id);
+    const chosen = court ?? firstFreeCourt(slots, ctx.tournament.court_count);
+    if (chosen === null) return fail('invalid_input', 'Every court is in use');
+    const planned = planGameCourt(slots, matchId, gameNo, chosen, ctx.tournament.court_count);
+    if ('error' in planned) return fail(planned.error.includes('court must be between') ? 'invalid_input' : 'match_not_editable', planned.error);
+    // Repeating the "not yet scored" guard in the filter means a concurrent score entry wins.
+    const upd = await ctx.sb.from('games').update(planned)
+      .eq('match_id', matchId).eq('game_no', gameNo).is('score_a', null).select('game_no');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+    await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
 }
 
 /** Takes a game off its court. The clock is thrown away, because the game will start again. */
 export async function takeGameOffCourt(slug: string, matchId: string, gameNo: number): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
-  const slots = await listGames(ctx.sb, ctx.tournament.id);
-  const planned = planGameCourt(slots, matchId, gameNo, null, ctx.tournament.court_count);
-  if ('error' in planned) return fail('match_not_editable', planned.error);
-  const upd = await ctx.sb.from('games').update(planned)
-    .eq('match_id', matchId).eq('game_no', gameNo).is('score_a', null).select('game_no');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
-  await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
-  revalidateTournament(slug);
-  return ok(undefined);
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const slots = await listGames(ctx.sb, ctx.tournament.id);
+    const planned = planGameCourt(slots, matchId, gameNo, null, ctx.tournament.court_count);
+    if ('error' in planned) return fail('match_not_editable', planned.error);
+    const upd = await ctx.sb.from('games').update(planned)
+      .eq('match_id', matchId).eq('game_no', gameNo).is('score_a', null).select('game_no');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+    await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
 }
 
 /**
@@ -98,65 +107,68 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (!['pools', 'knockout', 'finished'].includes(ctx.tournament.status)) return fail('stale_state', 'The tournament is not in play');
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const row = rows.find((r) => r.id === matchId);
-  if (!row || row.status === 'pending' || !row.team_a_id || !row.team_b_id) return fail('match_not_editable', 'That meeting cannot take a score yet');
-  const settings = settingsFor(ctx.tournament, row.stage);
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const rows = await listMatches(ctx.sb, ctx.tournament.id);
+    const row = rows.find((r) => r.id === matchId);
+    if (!row || row.status === 'pending' || !row.team_a_id || !row.team_b_id) return fail('match_not_editable', 'That meeting cannot take a score yet');
+    if (poolResultsFrozen(row.stage, ctx.tournament.status)) return fail('match_not_editable', POOL_RESULTS_FROZEN);
+    const settings = settingsFor(ctx.tournament, row.stage);
 
-  const scoreA = Number(String(formData.get('scoreA') ?? '').trim());
-  const scoreB = Number(String(formData.get('scoreB') ?? '').trim());
-  const timeExpired = formData.get('timeExpired') !== null;
-  const check = validateGame(settings, scoreA, scoreB, timeExpired);
-  if (!check.ok) return fail('invalid_score', check.reason);
+    const scoreA = Number(String(formData.get('scoreA') ?? '').trim());
+    const scoreB = Number(String(formData.get('scoreB') ?? '').trim());
+    const timeExpired = formData.get('timeExpired') !== null;
+    const check = validateGame(settings, scoreA, scoreB, timeExpired);
+    if (!check.ok) return fail('invalid_score', check.reason);
 
-  // Ratings are parsed before the score is written, so a bad rating fails the whole save and the
-  // organiser never ends up with a score whose ratings were silently dropped.
-  const teams = await listTeamsWithPlayers(ctx.sb, ctx.tournament.id);
-  const courtSlots = ratingSlots(teams.find((t) => t.id === row.team_a_id), teams.find((t) => t.id === row.team_b_id), gameNo);
-  const rated = parseRatings(formData, courtSlots);
-  if (!rated.ok) return fail('invalid_input', rated.reason);
+    // Ratings are parsed before the score is written, so a bad rating fails the whole save and the
+    // organiser never ends up with a score whose ratings were silently dropped.
+    const teams = await listTeamsWithPlayers(ctx.sb, ctx.tournament.id);
+    const courtSlots = ratingSlots(teams.find((t) => t.id === row.team_a_id), teams.find((t) => t.id === row.team_b_id), pairingGameNo(row.stage, gameNo));
+    const rated = parseRatings(formData, courtSlots);
+    if (!rated.ok) return fail('invalid_input', rated.reason);
 
-  // Writing the score also takes the game off court: it is finished, so it must not hold a
-  // court or keep counting down.
-  const upd = await ctx.sb.from('games')
-    .update({ score_a: scoreA, score_b: scoreB, time_expired: timeExpired, court: null, started_at: null, paused_at: null, paused_ms: 0 })
-    .eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
-  if (upd.error) return fail('invalid_input', upd.error.message);
-  if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+    // Writing the score also takes the game off court: it is finished, so it must not hold a
+    // court or keep counting down.
+    const upd = await ctx.sb.from('games')
+      .update({ score_a: scoreA, score_b: scoreB, time_expired: timeExpired, court: null, started_at: null, paused_at: null, paused_ms: 0 })
+      .eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
 
-  // Replaced wholesale rather than upserted: a box the organiser cleared has to leave the table,
-  // and this game's ratings are only ever written here.
-  const dropped = await ctx.sb.from('player_ratings').delete().eq('match_id', matchId).eq('game_no', gameNo);
-  if (dropped.error) return fail('invalid_input', dropped.error.message);
-  if (rated.value.length > 0) {
-    const added = await ctx.sb.from('player_ratings')
-      .insert(rated.value.map((r) => ({ match_id: matchId, game_no: gameNo, player_id: r.playerId, rating: r.rating })));
-    if (added.error) return fail('invalid_input', added.error.message);
-  }
+    // Replaced wholesale rather than upserted: a box the organiser cleared has to leave the table,
+    // and this game's ratings are only ever written here.
+    const dropped = await ctx.sb.from('player_ratings').delete().eq('match_id', matchId).eq('game_no', gameNo);
+    if (dropped.error) return fail('invalid_input', dropped.error.message);
+    if (rated.value.length > 0) {
+      const added = await ctx.sb.from('player_ratings')
+        .insert(rated.value.map((r) => ({ match_id: matchId, game_no: gameNo, player_id: r.playerId, rating: r.rating })));
+      if (added.error) return fail('invalid_input', added.error.message);
+    }
 
-  const slots = (await listGames(ctx.sb, ctx.tournament.id)).filter((g) => g.match_id === matchId);
-  const scored = slots
-    .filter((g) => g.score_a !== null && g.score_b !== null)
-    .sort((x, y) => x.game_no - y.game_no);
-  // Games can finish out of order, so a set with a gap in it (game 3 played before game 2)
-  // is simply not a result yet. Only a run starting at game 1 can be judged.
-  const contiguous = scored.every((g, i) => g.game_no === i + 1);
-  const games = scored.map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
-  const verdict = contiguous ? matchResult(settings, games) : null;
-  if (verdict && !verdict.ok) return fail('invalid_score', verdict.reason);
+    const slots = (await listGames(ctx.sb, ctx.tournament.id)).filter((g) => g.match_id === matchId);
+    const scored = slots
+      .filter((g) => g.score_a !== null && g.score_b !== null)
+      .sort((x, y) => x.game_no - y.game_no);
+    // Games can finish out of order, so a set with a gap in it (game 3 played before game 2)
+    // is simply not a result yet. Only a run starting at game 1 can be judged.
+    const contiguous = scored.every((g, i) => g.game_no === i + 1);
+    const games = scored.map((g) => ({ gameNo: g.game_no, scoreA: g.score_a!, scoreB: g.score_b!, timeExpired: g.time_expired }));
+    const verdict = contiguous ? matchResult(settings, games) : null;
+    if (verdict && !verdict.ok) return fail('invalid_score', verdict.reason);
 
-  if (!verdict || !verdict.complete) {
-    await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
+    if (!verdict || !verdict.complete) {
+      await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
+      revalidateTournament(slug);
+      return ok(undefined);
+    }
+    // The rules package says the meeting is decided: write the result and advance the winner.
+    const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games });
+    if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
+    const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status });
+    if (!persisted.ok) return fail(persisted.error, persisted.message);
     revalidateTournament(slug);
     return ok(undefined);
-  }
-  // The rules package says the meeting is decided: write the result and advance the winner.
-  const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games });
-  if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
-  const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status });
-  if (!persisted.ok) return fail(persisted.error, persisted.message);
-  revalidateTournament(slug);
-  return ok(undefined);
+  }, busy);
 }
 
 /**
@@ -164,67 +176,79 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
  * been played. A meeting that was already decided has to come undone first, because the winner it
  * sent through the bracket is no longer known — that is what `rollback` computes, and the matches
  * it resets lose their scores the same way (blanked, never deleted).
+ *
+ * Clearing refuses when that rollback would wipe a later match that has actually been played: one
+ * mis-click on a quarter-final must not erase the semi-final and the final. "Change" is the way to
+ * correct a score, and it only resets later rounds when the winner really changes.
  */
 export async function clearGameScore(slug: string, matchId: string, gameNo: number): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (!['pools', 'knockout', 'finished'].includes(ctx.tournament.status)) return fail('stale_state', 'The tournament is not in play');
-  const rows = await listMatches(ctx.sb, ctx.tournament.id);
-  const row = rows.find((r) => r.id === matchId);
-  if (!row) return fail('invalid_input', 'Unknown match');
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const rows = await listMatches(ctx.sb, ctx.tournament.id);
+    const row = rows.find((r) => r.id === matchId);
+    if (!row) return fail('invalid_input', 'Unknown match');
+    if (poolResultsFrozen(row.stage, ctx.tournament.status)) return fail('match_not_editable', POOL_RESULTS_FROZEN);
 
-  if (row.status === 'done' && row.winner_id !== null) {
-    const rb = rollback(rows.map(rowToMatch), matchId);
-    const byId = new Map(rb.changed.map((m) => [m.id, m]));
-    const undone = rows.map((r) => byId.get(r.id) ?? rowToMatch(r));
+    if (row.status === 'done' && row.winner_id !== null) {
+      const rb = rollback(rows.map(rowToMatch), matchId);
+      const played = new Set((await listGames(ctx.sb, ctx.tournament.id)).filter((g) => g.score_a !== null).map((g) => g.match_id));
+      const wiped = rb.resetMatchIds.filter((id) => id !== matchId && played.has(id)).length;
+      if (wiped > 0) {
+        return fail('match_not_editable', `Clearing this would also wipe ${wiped} later match${wiped === 1 ? ' that has' : 'es that have'} been played. Use Change to correct the score instead.`);
+      }
+      const byId = new Map(rb.changed.map((m) => [m.id, m]));
+      const undone = rows.map((r) => byId.get(r.id) ?? rowToMatch(r));
 
-    // Claim the meeting against the state we planned from, exactly as applyResultPlan does, so a
-    // concurrent edit loses instead of both writes landing half a rollback each.
-    const primary = byId.get(matchId);
-    if (!primary) return fail('stale_state', 'That meeting changed underneath you; reload');
-    const claim = await ctx.sb.from('matches')
-      .update({ status: primary.status, winner_id: null, finished_at: null })
-      .eq('id', matchId).eq('status', 'done').eq('winner_id', row.winner_id).select('id');
-    if (claim.error) return fail('invalid_input', claim.error.message);
-    if ((claim.data ?? []).length === 0) return fail('stale_state', 'That meeting changed underneath you; reload');
+      // Claim the meeting against the state we planned from, exactly as applyResultPlan does, so a
+      // concurrent edit loses instead of both writes landing half a rollback each.
+      const primary = byId.get(matchId);
+      if (!primary) return fail('stale_state', 'That meeting changed underneath you; reload');
+      const claim = await ctx.sb.from('matches')
+        .update({ status: primary.status, winner_id: null, finished_at: null })
+        .eq('id', matchId).eq('status', 'done').eq('winner_id', row.winner_id).select('id');
+      if (claim.error) return fail('invalid_input', claim.error.message);
+      if ((claim.data ?? []).length === 0) return fail('stale_state', 'That meeting changed underneath you; reload');
 
-    for (const m of rb.changed) {
-      if (m.id === matchId) continue; // already claimed above
-      const mapped = matchToRow(m, ctx.tournament.id);
-      const upd = await ctx.sb.from('matches').update({
-        team_a_id: mapped.team_a_id, team_b_id: mapped.team_b_id, status: mapped.status,
-        winner_id: mapped.winner_id, decided_by: mapped.decided_by, finished_at: null,
-      }).eq('id', m.id);
-      if (upd.error) return fail('invalid_input', upd.error.message);
+      for (const m of rb.changed) {
+        if (m.id === matchId) continue; // already claimed above
+        const mapped = matchToRow(m, ctx.tournament.id);
+        const upd = await ctx.sb.from('matches').update({
+          team_a_id: mapped.team_a_id, team_b_id: mapped.team_b_id, status: mapped.status,
+          winner_id: mapped.winner_id, decided_by: mapped.decided_by, finished_at: null,
+        }).eq('id', m.id);
+        if (upd.error) return fail('invalid_input', upd.error.message);
+      }
+      for (const id of rb.resetMatchIds) {
+        const blank = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', id);
+        if (blank.error) return fail('invalid_input', blank.error.message);
+        // The games rows are blanked rather than deleted, so the foreign key's cascade never fires
+        // and a reset match would otherwise keep ratings for scores that no longer exist.
+        const unrate = await ctx.sb.from('player_ratings').delete().eq('match_id', id);
+        if (unrate.error) return fail('invalid_input', unrate.error.message);
+        const subs = await ctx.sb.from('score_submissions').delete().eq('match_id', id);
+        if (subs.error) return fail('invalid_input', subs.error.message);
+      }
+
+      // Undoing a result can only ever un-finish a tournament, never finish one.
+      const terminal = undone.find((m) => m.stage === 'knockout' && m.nextMatchId === null);
+      if (ctx.tournament.status === 'finished' && terminal?.status !== 'done') {
+        const reopen = await ctx.sb.from('tournaments').update({ status: 'knockout' }).eq('id', ctx.tournament.id).eq('status', 'finished');
+        if (reopen.error) return fail('invalid_input', reopen.error.message);
+      }
     }
-    for (const id of rb.resetMatchIds) {
-      const blank = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', id);
-      if (blank.error) return fail('invalid_input', blank.error.message);
-      // The games rows are blanked rather than deleted, so the foreign key's cascade never fires
-      // and a reset match would otherwise keep ratings for scores that no longer exist.
-      const unrate = await ctx.sb.from('player_ratings').delete().eq('match_id', id);
-      if (unrate.error) return fail('invalid_input', unrate.error.message);
-      const subs = await ctx.sb.from('score_submissions').delete().eq('match_id', id);
-      if (subs.error) return fail('invalid_input', subs.error.message);
-    }
 
-    // Undoing a result can only ever un-finish a tournament, never finish one.
-    const terminal = undone.find((m) => m.stage === 'knockout' && m.nextMatchId === null);
-    if (ctx.tournament.status === 'finished' && terminal?.status !== 'done') {
-      const reopen = await ctx.sb.from('tournaments').update({ status: 'knockout' }).eq('id', ctx.tournament.id).eq('status', 'finished');
-      if (reopen.error) return fail('invalid_input', reopen.error.message);
-    }
-  }
-
-  // score_submissions is left alone here (unlike applyResultPlan, which clears it on a fresh
-  // result): the teams' report still stands even though the organiser has withdrawn the
-  // confirmed result, so it can be judged again once the meeting is redecided.
-  const cleared = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
-  if (cleared.error) return fail('invalid_input', cleared.error.message);
-  if ((cleared.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
-  const unrated = await ctx.sb.from('player_ratings').delete().eq('match_id', matchId).eq('game_no', gameNo);
-  if (unrated.error) return fail('invalid_input', unrated.error.message);
-  await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
-  revalidateTournament(slug);
-  return ok(undefined);
+    // score_submissions is left alone here (unlike applyResultPlan, which clears it on a fresh
+    // result): the teams' report still stands even though the organiser has withdrawn the
+    // confirmed result, so it can be judged again once the meeting is redecided.
+    const cleared = await ctx.sb.from('games').update(BLANK_GAME).eq('match_id', matchId).eq('game_no', gameNo).select('game_no');
+    if (cleared.error) return fail('invalid_input', cleared.error.message);
+    if ((cleared.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+    const unrated = await ctx.sb.from('player_ratings').delete().eq('match_id', matchId).eq('game_no', gameNo);
+    if (unrated.error) return fail('invalid_input', unrated.error.message);
+    await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
 }

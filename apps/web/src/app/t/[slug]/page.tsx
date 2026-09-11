@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { gameSlotsByMatch, loadTournamentBundle, latestByMatch } from '@/lib/db/queries';
-import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
+import { gamesByMatch, pairingGameNo, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { scheduleBoard } from '@/lib/schedule/board';
 import { pairNames } from '@/lib/teams/roster';
 import { MatchCard, pendingFor } from '@/components/MatchCard';
@@ -49,7 +49,8 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   // "Alex & Priya · Sam & Jo" for the pair each side fields in that game; null until both rosters are set.
   const pairLine = (m: typeof matches[number], gameNo: number) => {
     const a = teams.find((x) => x.id === m.teamAId), b = teams.find((x) => x.id === m.teamBId);
-    const pa = a ? pairNames(a, gameNo) : null, pb = b ? pairNames(b, gameNo) : null;
+    const on = pairingGameNo(m.stage, gameNo);
+    const pa = a ? pairNames(a, on) : null, pb = b ? pairNames(b, on) : null;
     return pa || pb ? `${pa ?? '—'} · ${pb ?? '—'}` : null;
   };
 

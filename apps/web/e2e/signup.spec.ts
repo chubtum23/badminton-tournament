@@ -67,7 +67,7 @@ test('teams sign themselves up, the organiser locks, and every game names its pa
 
   // locking closes sign-ups and freezes every roster
   await visitor.goto(`/t/${slug}/join`);
-  await expect(visitor.getByText('Sign-ups are closed. Ask the organiser to add your team.')).toBeVisible();
+  await expect(visitor.getByText('Sign-ups are closed: the draw has been made, so no more teams can join.')).toBeVisible();
   await visitor.goto(`/t/${slug}/team`);
   await expect(visitor.getByText("The draw is locked, so players can't change. Ask the organiser if someone is injured.")).toBeVisible();
 

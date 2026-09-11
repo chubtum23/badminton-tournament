@@ -9,7 +9,7 @@ export function firstFreeCourt(slots: readonly GameRow[], courtCount: number): n
   return null;
 }
 
-export type CourtPlan = { court: number | null; started_at: string | null; paused_at: null; paused_ms: number };
+export type CourtPlan = { court: number | null; started_at: string | null; paused_at: string | null; paused_ms: number };
 
 /**
  * Where one game goes next. Sending an idle game to a court starts its clock; moving a game
@@ -26,5 +26,9 @@ export function planGameCourt(
   if (!Number.isInteger(court) || court < 1 || court > courtCount) return { error: `court must be between 1 and ${courtCount}` };
   const holder = slots.find((g) => isRunning(g) && g.court === court && !(g.match_id === matchId && g.game_no === gameNo));
   if (holder) return { error: `court ${court} is in use` };
-  return { court, started_at: slot.started_at ?? now, paused_at: null, paused_ms: slot.started_at ? slot.paused_ms : 0 };
+  // A paused game moved to another court stays paused: clearing paused_at here would count the
+  // whole stoppage so far as playing time.
+  return slot.started_at
+    ? { court, started_at: slot.started_at, paused_at: slot.paused_at, paused_ms: slot.paused_ms }
+    : { court, started_at: now, paused_at: null, paused_ms: 0 };
 }

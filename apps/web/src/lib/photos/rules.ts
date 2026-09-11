@@ -14,6 +14,9 @@ export const STORED = { side: 512, quality: 0.82, maxBytes: 400 * 1024 } as cons
 
 /** The sentence to show, or null if the file is fine. */
 export function checkPickedFile(file: { size: number; type: string }): string | null {
+  // No type at all is what a browser that cannot decode the file hands over, typically HEIC in
+  // Chrome or Firefox. "Has to be a JPEG, PNG… or HEIC" would read as nonsense for a HEIC.
+  if (file.type === '') return "This browser can't read that photo — try a JPEG or PNG";
   if (!PICK_LIMITS.types.includes(file.type as typeof PICK_LIMITS.types[number])) {
     return 'That has to be a JPEG, PNG, WEBP or HEIC photo';
   }

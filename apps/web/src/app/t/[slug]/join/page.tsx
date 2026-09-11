@@ -21,7 +21,12 @@ export default async function JoinPage({ params }: { params: Promise<{ slug: str
           <h2 className={ui.eyebrow}>Sign your team up</h2>
           <span className={ui.eyebrow}>Closed</span>
         </div>
-        <p className={`${ui.body} text-[15px]`}>Sign-ups are closed. Ask the organiser to add your team.</p>
+        {/* Before the draw the organiser can still enter a team by hand; after it nobody can. */}
+        <p className={`${ui.body} text-[15px]`}>
+          {t.status === 'setup'
+            ? 'Sign-ups are closed. Ask the organiser to add your team.'
+            : 'Sign-ups are closed: the draw has been made, so no more teams can join.'}
+        </p>
       </section>
     );
   }

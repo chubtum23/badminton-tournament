@@ -79,7 +79,10 @@ export default async function PoolsAdminPage({ params }: { params: Promise<{ slu
           <label className={ui.label}>Number of pools
             <input name="poolCount" type="number" min={1} max={teams.length} defaultValue={Math.max(1, Math.round(teams.length / 4))} className={`${ui.field} w-24`} />
           </label>
-          <SubmitButton className={ui.solid}>{pools.length ? 'Re-deal randomly' : 'Generate pools'}</SubmitButton>
+          <SubmitButton
+            confirmMessage={pools.length ? 'Re-deal the pools? Every team is placed again at random, and any moves you made are lost.' : undefined}
+            className={ui.solid}
+          >{pools.length ? 'Re-deal randomly' : 'Generate pools'}</SubmitButton>
           <span className="text-[15px] text-muted">{teams.length} teams. Placement is random; seeds are labels only.</span>
         </form>
       )}

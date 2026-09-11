@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { validateRoster } from '@tournament/core';
 import { requireAdmin } from '@/actions/guard';
 import { lockPools, unlockPools } from '@/actions/pools';
+import { UNLOCK_WORD } from '@/lib/results/freeze';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { listMatches, listPools, listTeamsWithPlayers } from '@/lib/db/queries';
 import { settingsFor } from '@/lib/db/mappers';
@@ -34,6 +35,8 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   const strandedByLateSignup = pools.length > 0 && unpooled.length > 0;
   const canLock = t.status === 'setup' && teamsTile.pill === 'Done' && pools.length > 0 && !strandedByLateSignup;
   const resultCount = matches.filter((m) => m.status === 'done').length;
+  // Anything past 'ready' may have a game scored on it, and then unlockPools wants the typed word.
+  const hasResults = matches.some((m) => m.status !== 'ready' && m.status !== 'pending');
   const pill = (p: string) => (p === 'Done' ? ui.pillDone : p === 'Locked' ? ui.pillLocked : ui.pillTodo);
   // The tiles are a real sequence — you cannot draw pools before you have teams — so the step
   // number is set as a figure rather than left buried in the title.
@@ -43,7 +46,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   };
 
   async function lock() { 'use server'; redirectWithMsg(`/admin/${slug}`, await lockPools(slug), 'Pools locked and matches created'); }
-  async function unlock() { 'use server'; redirectWithMsg(`/admin/${slug}`, await unlockPools(slug), 'Pools unlocked'); }
+  async function unlock(fd: FormData) { 'use server'; redirectWithMsg(`/admin/${slug}`, await unlockPools(slug, String(fd.get('confirm') ?? '')), 'Pools unlocked'); }
 
   return (
     <div className="space-y-6">
@@ -88,10 +91,37 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
       {t.status === 'pools' && (
         <div className="flex flex-wrap gap-3">
           <Link href={`/admin/${slug}/draw`} className={ui.primary}>Start the knockout</Link>
-          <form action={unlock}>
-            <SubmitButton confirmMessage={`Unlock the pools? This deletes the draw${resultCount ? ` and ${resultCount} entered result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup.`} className={ui.danger}>Unlock pools</SubmitButton>
-          </form>
         </div>
+      )}
+
+      {/* Taking a copy costs nothing, and nothing that gets wiped can be brought back otherwise. */}
+      <section className={`${ui.card} flex flex-wrap items-center justify-between gap-4 px-7 py-6`}>
+        <span>
+          <span className="block font-display text-lg font-extrabold uppercase tracking-tight">Backup</span>
+          <span className="mt-1 block text-[15px] text-muted">Download everything as a file. Take one before locking the pools, and again before the knockout.</span>
+        </span>
+        <a href={`/admin/${slug}/export`} data-testid="download-backup" className={ui.secondary}>Download a backup</a>
+      </section>
+
+      {/* Kept out of the way of Start the knockout, and closed by default, so it is never one stray tap. */}
+      {t.status === 'pools' && (
+        <details className={`${ui.card} border-red-300`}>
+          <summary className={`${ui.head} disclosure`}><span className={`${ui.eyebrow} text-red-700`}>Danger zone</span></summary>
+          <form action={unlock} className="space-y-3 px-7 py-6">
+            <p className="text-[15px] text-muted-strong">
+              Unlocking deletes the draw{resultCount ? ` and all ${resultCount} finished result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup. This cannot be undone.
+            </p>
+            {hasResults && (
+              <label className={ui.label}>Type {UNLOCK_WORD} to confirm
+                <input name="confirm" autoComplete="off" autoCapitalize="characters" spellCheck={false} className={`${ui.field} w-40`} />
+              </label>
+            )}
+            <SubmitButton
+              confirmMessage={`Unlock the pools? This deletes the draw${resultCount ? ` and ${resultCount} entered result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup.`}
+              className={ui.danger}
+            >Unlock pools</SubmitButton>
+          </form>
+        </details>
       )}
     </div>
   );

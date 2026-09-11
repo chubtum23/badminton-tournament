@@ -4,12 +4,16 @@ import { randomUUID } from 'node:crypto';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { planLock, planPools } from '@/lib/pools/plan';
-import { listMatches, listPools, listTeams, listTeamsWithPlayers } from '@/lib/db/queries';
+import { listGames, listMatches, listPools, listTeams, listTeamsWithPlayers } from '@/lib/db/queries';
+import { withResultLock } from '@/lib/results/lock';
+import { UNLOCK_WORD } from '@/lib/results/freeze';
 import type { MatchRow } from '@/lib/db/types';
 import { matchToRow, settingsFor, slotRowsFor } from '@/lib/db/mappers';
 import { revalidateTournament } from './revalidate';
 import { validateRoster } from '@tournament/core';
 import { rosterOf } from '@/lib/teams/roster';
+
+const busy = (message: string): ActionResult => fail('stale_state', message);
 
 export async function generatePools(slug: string, poolCount: number): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
@@ -96,26 +100,34 @@ export async function lockPools(slug: string): Promise<ActionResult> {
 
 /**
  * Reverses lockPools: throws the draw away and returns the tournament to setup so the organiser
- * can change teams, settings and pools again. Every entered result goes with the matches.
+ * can change teams, settings and pools again. Every entered result goes with the matches, so once
+ * anything has been played the organiser has to type UNLOCK as well as confirm.
  */
-export async function unlockPools(slug: string): Promise<ActionResult> {
+export async function unlockPools(slug: string, confirmation = ''): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (ctx.tournament.status !== 'pools') return fail('stale_state', 'The pools are not locked');
-  // Deleting before the status change keeps a retry safe: a second attempt deletes nothing
-  // and still completes. games and score_submissions cascade from matches.
-  const del = await ctx.sb.from('matches').delete().eq('tournament_id', ctx.tournament.id);
-  if (del.error) return fail('invalid_input', del.error.message);
-  const cleared = await ctx.sb.from('teams').update({ pool_rank_override: null }).eq('tournament_id', ctx.tournament.id);
-  if (cleared.error) return fail('invalid_input', cleared.error.message);
-  const unlocked = await ctx.sb.from('pools').update({ locked: false }).eq('tournament_id', ctx.tournament.id);
-  if (unlocked.error) return fail('invalid_input', unlocked.error.message);
-  // lockPools closed sign-ups; unlocking puts the tournament back in setup, which is exactly when
-  // teams may join, so the public Join tab comes back with it rather than silently staying hidden.
-  const back = await ctx.sb.from('tournaments').update({ status: 'setup', signup_open: true }).eq('id', ctx.tournament.id).eq('status', 'pools');
-  if (back.error) return fail('invalid_input', back.error.message);
-  revalidateTournament(slug);
-  return ok(undefined);
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const [rows, gameRows] = await Promise.all([listMatches(ctx.sb, ctx.tournament.id), listGames(ctx.sb, ctx.tournament.id)]);
+    const hasResults = rows.some((m) => m.status === 'done') || gameRows.some((g) => g.score_a !== null);
+    if (hasResults && confirmation.trim().toUpperCase() !== UNLOCK_WORD) {
+      return fail('invalid_input', `Results have been entered. Type ${UNLOCK_WORD} in the box to confirm deleting them all.`);
+    }
+    // Deleting before the status change keeps a retry safe: a second attempt deletes nothing
+    // and still completes. games and score_submissions cascade from matches.
+    const del = await ctx.sb.from('matches').delete().eq('tournament_id', ctx.tournament.id);
+    if (del.error) return fail('invalid_input', del.error.message);
+    const cleared = await ctx.sb.from('teams').update({ pool_rank_override: null }).eq('tournament_id', ctx.tournament.id);
+    if (cleared.error) return fail('invalid_input', cleared.error.message);
+    const unlocked = await ctx.sb.from('pools').update({ locked: false }).eq('tournament_id', ctx.tournament.id);
+    if (unlocked.error) return fail('invalid_input', unlocked.error.message);
+    // lockPools closed sign-ups; unlocking puts the tournament back in setup, which is exactly when
+    // teams may join, so the public Join tab comes back with it rather than silently staying hidden.
+    const back = await ctx.sb.from('tournaments').update({ status: 'setup', signup_open: true }).eq('id', ctx.tournament.id).eq('status', 'pools');
+    if (back.error) return fail('invalid_input', back.error.message);
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
 }
 
 /**
@@ -128,29 +140,37 @@ export async function createPlayoff(slug: string, poolId: string, teamXId: strin
   if ('error' in ctx) return fail('not_admin');
   if (ctx.tournament.status !== 'pools') return fail('stale_state', 'Playoffs can only be recorded during the pool stage');
   if (teamXId === teamYId) return fail('invalid_input', 'Pick two different teams');
-  const [pools, teams, matchRows] = await Promise.all([
-    listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id), listMatches(ctx.sb, ctx.tournament.id),
-  ]);
-  if (!pools.some((p) => p.id === poolId)) return fail('invalid_input', 'Unknown pool');
-  const inPool = (id: string) => teams.some((t) => t.id === id && t.pool_id === poolId);
-  if (!inPool(teamXId) || !inPool(teamYId)) return fail('invalid_input', 'Both teams must be in this pool');
-  const playoffs = matchRows.filter((m) => m.stage === 'playoff' && m.pool_id === poolId);
-  const between = (m: MatchRow) => (m.team_a_id === teamXId && m.team_b_id === teamYId) || (m.team_a_id === teamYId && m.team_b_id === teamXId);
-  if (playoffs.some((m) => between(m) && m.status !== 'done')) return fail('stale_state', 'A playoff between these teams is already waiting to be played');
+  // Under the result lock so a double click cannot slip two playoffs past the "already waiting" check.
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const [pools, teams, matchRows] = await Promise.all([
+      listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id), listMatches(ctx.sb, ctx.tournament.id),
+    ]);
+    if (!pools.some((p) => p.id === poolId)) return fail('invalid_input', 'Unknown pool');
+    const inPool = (id: string) => teams.some((t) => t.id === id && t.pool_id === poolId);
+    if (!inPool(teamXId) || !inPool(teamYId)) return fail('invalid_input', 'Both teams must be in this pool');
+    const playoffs = matchRows.filter((m) => m.stage === 'playoff' && m.pool_id === poolId);
+    const between = (m: MatchRow) => (m.team_a_id === teamXId && m.team_b_id === teamYId) || (m.team_a_id === teamYId && m.team_b_id === teamXId);
+    if (playoffs.some((m) => between(m) && m.status !== 'done')) return fail('stale_state', 'A playoff between these teams is already waiting to be played');
 
-  const ins = await ctx.sb.from('matches').insert({
-    tournament_id: ctx.tournament.id, stage: 'playoff', pool_id: poolId, round: null,
-    // Playoff slots start at 101 so they sort after the pool's scheduled matches.
-    slot: 100 + playoffs.length + 1,
-    team_a_id: teamXId, team_b_id: teamYId, status: 'ready',
-    winner_id: null, decided_by: 'played', next_match_id: null, next_match_side: null,
-  }).select('id').single();
-  if (ins.error) return fail('invalid_input', ins.error.message);
-  const insSlots = await ctx.sb.from('games')
-    .insert(slotRowsFor(ins.data.id, settingsFor(ctx.tournament, 'pool').gamesPerMatch));
-  if (insSlots.error) return fail('invalid_input', insSlots.error.message);
-  revalidateTournament(slug);
-  return ok(undefined);
+    const ins = await ctx.sb.from('matches').insert({
+      tournament_id: ctx.tournament.id, stage: 'playoff', pool_id: poolId, round: null,
+      // Playoff slots start at 101 so they sort after the pool's scheduled matches.
+      slot: 100 + playoffs.length + 1,
+      team_a_id: teamXId, team_b_id: teamYId, status: 'ready',
+      winner_id: null, decided_by: 'played', next_match_id: null, next_match_side: null,
+    }).select('id').single();
+    if (ins.error) return fail('invalid_input', ins.error.message);
+    // One slot: the playoff is a single men's doubles game (see settingsFor).
+    const insSlots = await ctx.sb.from('games')
+      .insert(slotRowsFor(ins.data.id, settingsFor(ctx.tournament, 'playoff').gamesPerMatch));
+    if (insSlots.error) {
+      // Without its game the playoff could never be scored, and it would block a new one.
+      await ctx.sb.from('matches').delete().eq('id', ins.data.id);
+      return fail('invalid_input', insSlots.error.message);
+    }
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
 }
 
 /**

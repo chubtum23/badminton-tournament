@@ -4,8 +4,8 @@ import { parseProfileForm } from '@/lib/participant/profile';
 import { createServiceSupabase } from '@/lib/supabase/service';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
-import { settingsFor } from '@/lib/db/mappers';
-import { gamesFromForm } from '@/lib/results/form';
+import { settingsFor, stageGameLabel } from '@/lib/db/mappers';
+import { parseGamesForm } from '@/lib/submissions/parseGames';
 import { applySubmission, type SubmissionOutcome } from '@/lib/submissions/applySubmission';
 import { parseRosterForm, rosterErrorMessage, rosterOf, photoBlobFrom, keptPathFrom } from '@/lib/teams/roster';
 import { listTeamsWithPlayers } from '@/lib/db/queries';
@@ -26,8 +26,12 @@ export async function updateMyTeam(slug: string, formData: FormData): Promise<Ac
   const photo = blob ? (await uploadPhoto(sb, me.tournament.id, blob)) ?? keep : keep;
   const upd = await sb.from('teams').update({ ...parsed.value, photo_path: photo }).eq('id', me.team.id).eq('tournament_id', me.tournament.id).select('id');
   if (upd.error) {
-    // The form was already validated, so a DB error here is ours, not the participant's: keep the
-    // detail server-side and give the player something actionable.
+    // A photo uploaded above is referenced by nothing now the update has failed.
+    if (photo && photo !== held) await deletePhotos(sb, [photo]);
+    // Team names are unique per tournament; that one is the player's to fix, so say so.
+    if (upd.error.code === '23505') return fail('invalid_input', 'That team name is already taken in this tournament');
+    // Anything else is ours, not the participant's: keep the detail server-side and give the
+    // player something actionable.
     console.error('updateMyTeam failed', { slug, teamId: me.team.id, message: upd.error.message });
     return fail('stale_state', 'Could not save; try again');
   }
@@ -76,6 +80,7 @@ export async function submitScores(slug: string, matchId: string, formData: Form
   const me = await currentParticipant(slug);
   if (!me) return fail('not_participant', 'Open your team link again to submit scores');
   if (me.tournament.status !== 'pools' && me.tournament.status !== 'knockout') return fail('stale_state', 'Tournament is not in play');
+  if (me.team.withdrawn) return fail('stale_state', 'Your team has withdrawn, so it cannot submit scores');
   const sb = createServiceSupabase();
   // Cheap authorisation read before doing any work: the match must belong to this tournament and
   // to this team. applySubmission re-derives the side from its own read of the match rows.
@@ -83,8 +88,11 @@ export async function submitScores(slug: string, matchId: string, formData: Form
   if (row.error || !row.data) return fail('invalid_input', 'Unknown match');
   if (row.data.team_a_id !== me.team.id && row.data.team_b_id !== me.team.id) return fail('not_your_match', 'Your team is not in this match');
 
-  const games = gamesFromForm(formData, settingsFor(me.tournament, row.data.stage).gamesPerMatch);
-  const applied = await applySubmission(sb, { tournament: me.tournament, teamId: me.team.id, matchId, games });
+  // Strict: a row with one box left blank is refused by name rather than read as a 0.
+  const stage = row.data.stage;
+  const parsed = parseGamesForm(formData, settingsFor(me.tournament, stage).gamesPerMatch, (n) => stageGameLabel(me.tournament, stage, n));
+  if (!parsed.ok) return fail('invalid_input', parsed.message);
+  const applied = await applySubmission(sb, { tournament: me.tournament, teamId: me.team.id, matchId, games: parsed.games });
   if (!applied.ok) return fail(applied.error, applied.message);
   revalidateTournament(slug);
   return ok({ outcome: applied.outcome });

@@ -58,12 +58,22 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   /** Hands the meeting to one side without a score (walkover, no-show, organiser's call). */
   async function award(formData: FormData) {
     'use server';
-    redirectWithMsg(here, await awardMatch(slug, String(formData.get('matchId')), String(formData.get('winnerId'))), 'Match awarded');
+    redirectWithMsg(here, await awardMatch(slug, String(formData.get('matchId')), String(formData.get('winnerId')), 'awarded', {
+      eraseScores: formData.get('eraseScores') === '1',
+    }), 'Match awarded');
   }
 
   /** The playable card: the award buttons and one row per game. Finished meetings get the same one
       so a score entered by mistake can still be changed. */
-  const card = (m: typeof matches[number]) => (
+  const card = (m: typeof matches[number]) => {
+    // An award writes no games, so the warning has to say exactly what it throws away.
+    const scoredCount = (slots[m.id] ?? []).filter((s) => s.score_a !== null).length;
+    const awardWarning = (id: string | null) => [
+      `Award this match to ${teamName(teams, id)} without a score?`,
+      scoredCount > 0 ? `This ERASES the ${scoredCount} game score${scoredCount === 1 ? '' : 's'} already entered.` : '',
+      m.status === 'done' ? 'Any later match that depended on it is reset.' : '',
+    ].filter(Boolean).join(' ');
+    return (
     <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} tone={tone(m)} slots={slots[m.id]} gameList={false}>
       {m.teamAId && m.teamBId ? (
         <div className="flex flex-col gap-2.5">
@@ -78,10 +88,8 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
                 <form key={side} action={award}>
                   <input type="hidden" name="matchId" value={m.id} />
                   <input type="hidden" name="winnerId" value={id!} />
-                  <SubmitButton
-                    confirmMessage={`Award this match to ${teamName(teams, id)} without a score? Any later match that depended on it is reset.`}
-                    className={ui.tiny}
-                  >Award to {teamName(teams, id)}</SubmitButton>
+                  {scoredCount > 0 && <input type="hidden" name="eraseScores" value="1" />}
+                  <SubmitButton confirmMessage={awardWarning(id)} className={ui.tiny}>Award to {teamName(teams, id)}</SubmitButton>
                 </form>
               ))}
             </div>
@@ -89,7 +97,8 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
         </div>
       ) : <p className="text-xs font-bold uppercase tracking-label text-muted">Waiting on both teams.</p>}
     </MatchCard>
-  );
+    );
+  };
 
   /** A heading with the count set apart, as the design has it: "Ready to play (6)". */
   const heading = (text: string, n: number) => (

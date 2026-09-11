@@ -7,10 +7,12 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest, ctx: { params: Promise<{ slug: string; token: string }> }) {
   const { slug, token } = await ctx.params;
   const participant = await resolveTeamByToken(slug, token, clientKeyFrom(req.headers));
-  if (participant === RATE_LIMITED) {
-    return new NextResponse('Too many attempts. Try again in a minute.', { status: 429 });
+  // A player who taps a bad or over-used link gets the team page's own explanation, in the site's
+  // clothes, rather than a bare line of text. The token itself is never carried forward.
+  if (participant === RATE_LIMITED || !participant) {
+    const why = participant === RATE_LIMITED ? 'limited' : 'invalid';
+    return NextResponse.redirect(new URL(`/t/${slug}/team?link=${why}`, req.url), 303);
   }
-  if (!participant) return new NextResponse('This team link is not valid.', { status: 404 });
   const res = NextResponse.redirect(new URL(`/t/${slug}/team${req.nextUrl.search}`, req.url), 303);
   res.cookies.set(cookieName(slug), token, {
     httpOnly: true, sameSite: 'lax', path: `/t/${slug}`, maxAge: 60 * 60 * 24 * 30, secure: req.nextUrl.protocol === 'https:',

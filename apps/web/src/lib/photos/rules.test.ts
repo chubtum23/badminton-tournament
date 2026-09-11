@@ -8,6 +8,8 @@ describe('checkPickedFile', () => {
   it('accepts heic, which iPhones sometimes hand over', () => expect(checkPickedFile({ size: 4_000_000, type: 'image/heic' })).toBeNull());
   it('rejects over 15 MB', () => expect(checkPickedFile({ size: 15 * 1024 * 1024 + 1, type: 'image/jpeg' })).toMatch(/too large/i));
   it('rejects under 2 KB', () => expect(checkPickedFile({ size: 1024, type: 'image/jpeg' })).toMatch(/too small/i));
+  it('says plainly when the browser could not even type the file (HEIC off Safari)', () =>
+    expect(checkPickedFile({ size: 4_000_000, type: '' })).toMatch(/can't read that photo.*JPEG or PNG/));
   it('rejects a video dressed as a profile picture', () => expect(checkPickedFile({ size: 100_000, type: 'video/mp4' })).toMatch(/JPEG, PNG/));
 });
 
