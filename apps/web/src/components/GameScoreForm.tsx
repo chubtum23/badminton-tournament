@@ -1,10 +1,21 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { suggestRating, validateGame, type Settings } from '@tournament/core';
 import type { ActionResult } from '@/actions/errors';
 import { RATING_FIELD_PREFIX, type RatingSlot } from '@/lib/results/ratings';
 import { OUTCOME_EVENT, OUTCOME_PREFIX } from './RecentOutcome';
+import { ScoreSheet, sheetStorageKey } from './ScoreSheet';
+
+/** The sheet's four row labels: the players on court when both pairs are known, else placeholders. */
+function sheetNames(slots: readonly RatingSlot[] | undefined, teamA: string, teamB: string): [string, string, string, string] {
+  const side = (s: 'a' | 'b', team: string) => {
+    const pair = (slots ?? []).filter((x) => x.side === s);
+    return pair.length === 2 ? [pair[0]!.name, pair[1]!.name] : [`${team} 1`, `${team} 2`];
+  };
+  const [a1, a2] = side('a', teamA), [b1, b2] = side('b', teamB);
+  return [a1!, a2!, b1!, b2!];
+}
 
 /** Scores are the numbers on this screen that matter, so they are set in the display face. */
 const scoreBox = 'w-16 border-hair bg-white px-2 py-1.5 text-center font-display text-lg font-black tabular-nums text-ink outline-none focus:border-navy';
@@ -56,6 +67,13 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
   // is edited, so correcting a typo does not leave four stale suggestions behind.
   const [ratings, setRatings] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, true>>({});
+  // The sheet is opt-in: most organisers just type the final score.
+  const [sheet, setSheet] = useState(false);
+  const hasExisting = existing !== undefined;
+  // A sheet already under way (the page was refreshed mid-game) reopens by itself.
+  useEffect(() => {
+    try { if (!hasExisting && localStorage.getItem(sheetStorageKey(matchId, gameNo))) setSheet(true); } catch { /* storage blocked */ }
+  }, [hasExisting, matchId, gameNo]);
   const clocked = settings.timeCapMinutes !== null;
 
   const typed = a.trim() !== '' && b.trim() !== '';
@@ -80,6 +98,8 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
           const text = outcomeText(r.data) ?? successText;
           setOutcome({ ok: true, text });
           try { sessionStorage.setItem(`${OUTCOME_PREFIX}${matchId}:${gameNo}`, JSON.stringify({ text, at: Date.now() })); } catch { /* storage blocked */ }
+          // A saved game's tally is spent; a cleared and replayed game starts a fresh sheet.
+          try { localStorage.removeItem(sheetStorageKey(matchId, gameNo)); } catch { /* storage blocked */ }
           window.dispatchEvent(new Event(OUTCOME_EVENT));
           router.refresh();
         });
@@ -87,6 +107,23 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
       data-testid="game-score-form"
       className="flex flex-wrap items-center gap-2 text-sm"
     >
+      {!existing && (
+        <div className="w-full">
+          <button
+            type="button" data-testid="score-sheet-toggle" aria-expanded={sheet} onClick={() => setSheet((v) => !v)}
+            className="border-hair border-line-strong px-3 py-1.5 text-xs font-bold uppercase tracking-label text-muted-strong hover:border-navy hover:text-navy"
+          >
+            {sheet ? 'Hide score sheet' : 'Score point by point'}
+          </button>
+        </div>
+      )}
+      {!existing && sheet && (
+        <ScoreSheet
+          matchId={matchId} gameNo={gameNo} settings={settings} teamA={teamA} teamB={teamB}
+          names={sheetNames(slots, teamA, teamB)}
+          onScore={(x, y) => { setA(String(x)); setB(String(y)); }}
+        />
+      )}
       <input
         name="scoreA" inputMode="numeric" value={a} onChange={(e) => setA(e.target.value)}
         aria-label={`${label} · ${teamA}`} className={`${scoreBox} ${a.trim() !== '' && !check.ok ? 'border-red-400' : 'border-line'}`}
