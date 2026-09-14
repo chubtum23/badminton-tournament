@@ -68,13 +68,13 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
   const point = (side: Side) => { if (!state.finished) setRallies((r) => [...r, side]); };
   const begun = rallies.length > 0;
   // The sheet has a box for every rally the longest possible game could need (29 for a 15-point
-  // game), growing if win-by-two with no cap runs past that. It is one row when the screen fits it,
-  // and wraps into aligned strips on a narrow one.
+  // game), growing if win-by-two with no cap runs past that. It is always one row, like the paper
+  // sheet: the boxes stretch to fill a wide screen and scroll sideways on a narrow one.
   const total = Math.max(2 * (settings.maxPoints ?? settings.pointsPerGame) - 1, state.cells.length + (state.finished ? 0 : 1));
-  const wrap = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    const el = wrap.current;
+    const el = scroller.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => setWidth(entry!.contentRect.width));
     ro.observe(el);
@@ -83,9 +83,20 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
   const phone = width > 0 && width < 520;
   const nameW = phone ? NAME_W_PHONE : NAME_W;
   const markW = phone ? MARK_W_PHONE : MARK_W;
-  const fit = width > 0 ? Math.max(4, Math.floor((width - nameW - markW) / (phone ? MIN_CELL_PHONE : MIN_CELL))) : total;
-  const cols = Math.min(total, fit);
-  const strips = Math.ceil(total / cols);
+  const minWidth = nameW + markW + total * (phone ? MIN_CELL_PHONE : MIN_CELL);
+
+  // Keep the box being played into in view: scroll along as the rallies pass the right edge, and
+  // back if an undo takes it under the pinned name column.
+  const focus = Math.min(state.cells.length, total - 1);
+  useEffect(() => {
+    const el = scroller.current;
+    const td = el?.querySelector<HTMLElement>(`[data-col="${focus}"]`);
+    if (!el || !td) return;
+    const w = td.offsetWidth;
+    const pinned = nameW + markW;
+    if (td.offsetLeft + 3 * w > el.scrollLeft + el.clientWidth) el.scrollLeft = td.offsetLeft + 3 * w - el.clientWidth;
+    else if (td.offsetLeft - w < el.scrollLeft + pinned) el.scrollLeft = Math.max(0, td.offsetLeft - w - pinned);
+  }, [focus, width, nameW, markW]);
   const teamOf = (side: Side) => (side === 'a' ? teamA : teamB);
 
   const pickServer = (server: number) => {
@@ -94,7 +105,7 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
     setStart((s) => ({ server, receiver: sideOf(s.receiver) !== sideOf(server) ? s.receiver : receiverSide }));
   };
 
-  const cellBase = 'h-9 border-hair border-navy/40 p-0 text-center font-display text-sm font-black tabular-nums';
+  const cellBase = 'h-9 p-0 text-center font-display text-sm font-black tabular-nums';
 
   return (
     // On a phone the sheet breaks out of the card padding to the full screen width: every box counts.
@@ -116,50 +127,47 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
         </div>
       )}
 
-      <div ref={wrap} className="w-full">
-        <div className="space-y-2">
-          {Array.from({ length: strips }, (_, strip) => (
-            <table key={strip} className="w-full table-fixed border-collapse border-2 border-navy">
-              <colgroup>
-                <col style={{ width: nameW }} />
-                <col style={{ width: markW }} />
-                {Array.from({ length: cols }, (_, c) => <col key={c} />)}
-              </colgroup>
-              <tbody>
-                {names.map((name, row) => {
-                  const shaded = sideOf(row) === 'b';
-                  return (
-                    <tr key={row} className={`${shaded ? 'bg-line-soft' : 'bg-white'} ${row === 2 ? 'border-t-2 border-navy' : ''}`}>
-                      <th scope="row" className="truncate border-hair border-navy/40 px-2 text-left text-xs font-bold uppercase tracking-label text-ink">
-                        {name}
-                      </th>
-                      {/* Every strip keeps the S/R column so the rally boxes line up down the sheet. */}
-                      <td className={`${cellBase} border-r-2 border-r-navy text-orange-ink`}>
-                        {strip === 0 ? (row === start.server ? 'S' : row === start.receiver ? 'R' : '') : ''}
+      <div ref={scroller} className="overflow-x-auto border-2 border-navy">
+        <table className="w-full table-fixed border-separate border-spacing-0" style={{ minWidth }}>
+          <colgroup>
+            <col style={{ width: nameW }} />
+            <col style={{ width: markW }} />
+            {Array.from({ length: total }, (_, c) => <col key={c} />)}
+          </colgroup>
+          <tbody>
+            {names.map((name, row) => {
+              const bg = sideOf(row) === 'b' ? 'bg-line-soft' : 'bg-white';
+              // A heavier line between the two sides; none under the last row, where the frame is.
+              const under = row === 1 ? 'border-b-2 border-b-navy' : row === 3 ? '' : 'border-b-hair border-b-navy/30';
+              return (
+                <tr key={row}>
+                  {/* The names and S/R stay pinned while the rallies scroll under them. */}
+                  <th scope="row" className={`${bg} ${under} sticky left-0 z-10 truncate border-r-hair border-r-navy/30 px-2 text-left text-xs font-bold uppercase tracking-label text-ink`}>
+                    {name}
+                  </th>
+                  <td className={`${bg} ${under} ${cellBase} sticky z-10 border-r-2 border-r-navy text-orange-ink`} style={{ left: nameW }}>
+                    {row === start.server ? 'S' : row === start.receiver ? 'R' : ''}
+                  </td>
+                  {Array.from({ length: total }, (_, i) => {
+                    const cell = state.cells[i];
+                    const next = i === state.cells.length && !state.finished;
+                    return (
+                      <td
+                        key={i}
+                        data-col={row === 0 ? i : undefined}
+                        onClick={next ? () => point(sideOf(row)) : undefined}
+                        title={next ? `Point to ${teamOf(sideOf(row))}` : undefined}
+                        className={`${cellBase} ${under} ${next ? 'cursor-pointer bg-orange-wash hover:bg-orange-tint' : bg} ${cell?.interval ? 'border-r-2 border-r-orange' : i === total - 1 ? '' : 'border-r-hair border-r-navy/30'}`}
+                      >
+                        {cell?.row === row ? cell.score : ''}
                       </td>
-                      {Array.from({ length: cols }, (_, c) => {
-                        const i = strip * cols + c;
-                        if (i >= total) return <td key={c} className="border-0 bg-white" />;
-                        const cell = state.cells[i];
-                        const next = i === state.cells.length && !state.finished;
-                        return (
-                          <td
-                            key={c}
-                            onClick={next ? () => point(sideOf(row)) : undefined}
-                            title={next ? `Point to ${teamOf(sideOf(row))}` : undefined}
-                            className={`${cellBase} ${next ? 'cursor-pointer bg-orange-wash/60 hover:bg-orange-tint' : ''} ${cell?.interval ? 'border-r-2 border-r-orange' : ''}`}
-                          >
-                            {cell?.row === row ? cell.score : ''}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ))}
-        </div>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <p className="text-sm text-muted" aria-live="polite">
