@@ -1,10 +1,13 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Settings } from '@tournament/core';
 import { replay, sideOf, validStart, type SheetStart, type Side } from '@/lib/results/scoresheet';
 
-/** Rallies per strip of the sheet; strips stack like the rows of the paper form. */
-const COLS = 20;
+/** Fixed widths of the name and S/R columns, and the narrowest a rally box may get (px). */
+const NAME_W = 144;
+const NAME_W_PHONE = 84;
+const MARK_W = 36;
+const MIN_CELL = 32;
 
 /** Where a sheet in progress is kept, so a refresh or a dropped phone does not lose the tally. */
 export const sheetStorageKey = (matchId: string, gameNo: number) => `scoresheet:${matchId}:${gameNo}`;
@@ -62,7 +65,23 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
 
   const point = (side: Side) => { if (!state.finished) setRallies((r) => [...r, side]); };
   const begun = rallies.length > 0;
-  const strips = Math.max(2, Math.ceil((state.cells.length + 1) / COLS));
+  // The sheet has a box for every rally the longest possible game could need (29 for a 15-point
+  // game), growing if win-by-two with no cap runs past that. It is one row when the screen fits it,
+  // and wraps into aligned strips on a narrow one.
+  const total = Math.max(2 * (settings.maxPoints ?? settings.pointsPerGame) - 1, state.cells.length + (state.finished ? 0 : 1));
+  const wrap = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setWidth(entry!.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const nameW = width > 0 && width < 520 ? NAME_W_PHONE : NAME_W;
+  const fit = width > 0 ? Math.max(4, Math.floor((width - nameW - MARK_W) / MIN_CELL)) : total;
+  const cols = Math.min(total, fit);
+  const strips = Math.ceil(total / cols);
   const teamOf = (side: Side) => (side === 'a' ? teamA : teamB);
 
   const pickServer = (server: number) => {
@@ -71,7 +90,7 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
     setStart((s) => ({ server, receiver: sideOf(s.receiver) !== sideOf(server) ? s.receiver : receiverSide }));
   };
 
-  const cellBase = 'h-8 w-8 min-w-8 border-hair border-navy/40 text-center font-display text-sm font-black tabular-nums';
+  const cellBase = 'h-9 border-hair border-navy/40 p-0 text-center font-display text-sm font-black tabular-nums';
 
   return (
     <div data-testid="score-sheet" className="w-full space-y-4 border-hair border-line bg-white p-4">
@@ -92,25 +111,30 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <div className="inline-block space-y-2">
+      <div ref={wrap} className="w-full">
+        <div className="space-y-2">
           {Array.from({ length: strips }, (_, strip) => (
-            <table key={strip} className="border-collapse border-2 border-navy">
+            <table key={strip} className="w-full table-fixed border-collapse border-2 border-navy">
+              <colgroup>
+                <col style={{ width: nameW }} />
+                <col style={{ width: MARK_W }} />
+                {Array.from({ length: cols }, (_, c) => <col key={c} />)}
+              </colgroup>
               <tbody>
                 {names.map((name, row) => {
                   const shaded = sideOf(row) === 'b';
                   return (
                     <tr key={row} className={`${shaded ? 'bg-line-soft' : 'bg-white'} ${row === 2 ? 'border-t-2 border-navy' : ''}`}>
-                      <th scope="row" className="max-w-[9rem] truncate border-hair border-navy/40 px-2 text-left text-xs font-bold uppercase tracking-label text-ink">
+                      <th scope="row" className="truncate border-hair border-navy/40 px-2 text-left text-xs font-bold uppercase tracking-label text-ink">
                         {name}
                       </th>
-                      {strip === 0 && (
-                        <td className={`${cellBase} border-r-2 border-r-navy text-orange-ink`}>
-                          {row === start.server ? 'S' : row === start.receiver ? 'R' : ''}
-                        </td>
-                      )}
-                      {Array.from({ length: COLS }, (_, c) => {
-                        const i = strip * COLS + c;
+                      {/* Every strip keeps the S/R column so the rally boxes line up down the sheet. */}
+                      <td className={`${cellBase} border-r-2 border-r-navy text-orange-ink`}>
+                        {strip === 0 ? (row === start.server ? 'S' : row === start.receiver ? 'R' : '') : ''}
+                      </td>
+                      {Array.from({ length: cols }, (_, c) => {
+                        const i = strip * cols + c;
+                        if (i >= total) return <td key={c} className="border-0 bg-white" />;
                         const cell = state.cells[i];
                         const next = i === state.cells.length && !state.finished;
                         return (
