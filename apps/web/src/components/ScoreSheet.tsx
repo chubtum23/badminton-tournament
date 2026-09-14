@@ -96,7 +96,20 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
     const pinned = nameW + markW;
     if (td.offsetLeft + 3 * w > el.scrollLeft + el.clientWidth) el.scrollLeft = td.offsetLeft + 3 * w - el.clientWidth;
     else if (td.offsetLeft - w < el.scrollLeft + pinned) el.scrollLeft = Math.max(0, td.offsetLeft - w - pinned);
+    measure();
+    // measure only reads the scroller, so it need not be a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, width, nameW, markW]);
+
+  // Which ends of the rally row are scrolled out of sight, for the fades and the swipe hint.
+  const [hidden, setHidden] = useState({ left: false, right: false });
+  const measure = () => {
+    const el = scroller.current;
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setHidden((h) => (h.left === left && h.right === right ? h : { left, right }));
+  };
   const teamOf = (side: Side) => (side === 'a' ? teamA : teamB);
 
   const pickServer = (server: number) => {
@@ -128,7 +141,17 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
         </div>
       )}
 
-      <div ref={scroller} className="overflow-x-auto border-2 border-navy">
+      <div className="relative">
+      {/* Fades over whichever end is scrolled out of sight; the left one starts past the pinned columns. */}
+      {hidden.left && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-[2px] z-20 w-6 bg-gradient-to-r from-navy/25 to-transparent" style={{ left: nameW + markW + 2 }} />
+      )}
+      {hidden.right && (
+        <div aria-hidden className="pointer-events-none absolute inset-y-[2px] right-[2px] z-20 flex w-10 items-center justify-end bg-gradient-to-l from-navy/30 to-transparent pr-0.5">
+          <svg viewBox="0 0 16 16" width="18" height="18" className="border-hair border-navy bg-white p-0.5 text-navy"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="square" /></svg>
+        </div>
+      )}
+      <div ref={scroller} onScroll={measure} className="overflow-x-auto border-2 border-navy">
         <table className="w-full table-fixed border-separate border-spacing-0" style={{ minWidth }}>
           <colgroup>
             <col style={{ width: nameW }} />
@@ -170,6 +193,14 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
           </tbody>
         </table>
       </div>
+      </div>
+      {(hidden.left || hidden.right) && (
+        <p data-testid="score-sheet-swipe" className="-mt-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-label text-muted">
+          <span aria-hidden>{hidden.left ? '←' : ''}</span>
+          Swipe the sheet to see {hidden.right && hidden.left ? 'more' : hidden.right ? 'more rallies' : 'earlier rallies'}
+          <span aria-hidden>{hidden.right ? '→' : ''}</span>
+        </p>
+      )}
 
       <p className="text-sm text-muted" aria-live="polite">
         {state.finished
