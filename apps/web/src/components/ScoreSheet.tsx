@@ -5,9 +5,11 @@ import { replay, sideOf, validStart, type SheetStart, type Side } from '@/lib/re
 
 /** Fixed widths of the name and S/R columns, and the narrowest a rally box may get (px). */
 const NAME_W = 144;
-const NAME_W_PHONE = 84;
+const NAME_W_PHONE = 76;
 const MARK_W = 36;
 const MIN_CELL = 32;
+const MIN_CELL_PHONE = 26;
+const MARK_W_PHONE = 26;
 
 /** Where a sheet in progress is kept, so a refresh or a dropped phone does not lose the tally. */
 export const sheetStorageKey = (matchId: string, gameNo: number) => `scoresheet:${matchId}:${gameNo}`;
@@ -78,8 +80,10 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const nameW = width > 0 && width < 520 ? NAME_W_PHONE : NAME_W;
-  const fit = width > 0 ? Math.max(4, Math.floor((width - nameW - MARK_W) / MIN_CELL)) : total;
+  const phone = width > 0 && width < 520;
+  const nameW = phone ? NAME_W_PHONE : NAME_W;
+  const markW = phone ? MARK_W_PHONE : MARK_W;
+  const fit = width > 0 ? Math.max(4, Math.floor((width - nameW - markW) / (phone ? MIN_CELL_PHONE : MIN_CELL))) : total;
   const cols = Math.min(total, fit);
   const strips = Math.ceil(total / cols);
   const teamOf = (side: Side) => (side === 'a' ? teamA : teamB);
@@ -93,7 +97,8 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
   const cellBase = 'h-9 border-hair border-navy/40 p-0 text-center font-display text-sm font-black tabular-nums';
 
   return (
-    <div data-testid="score-sheet" className="w-full space-y-4 border-hair border-line bg-white p-4">
+    // On a phone the sheet breaks out of the card padding to the full screen width: every box counts.
+    <div data-testid="score-sheet" className="w-full space-y-4 border-hair border-line bg-white p-4 max-sm:ml-[calc(50%-50vw)] max-sm:w-screen max-sm:border-x-0 max-sm:px-2">
       {!begun && (
         <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-label text-muted-strong">
           <label className="flex items-center gap-2">
@@ -117,7 +122,7 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
             <table key={strip} className="w-full table-fixed border-collapse border-2 border-navy">
               <colgroup>
                 <col style={{ width: nameW }} />
-                <col style={{ width: MARK_W }} />
+                <col style={{ width: markW }} />
                 {Array.from({ length: cols }, (_, c) => <col key={c} />)}
               </colgroup>
               <tbody>
