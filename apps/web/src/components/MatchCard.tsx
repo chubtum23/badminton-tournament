@@ -164,7 +164,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
       )}
 
       {perGame && gameList ? (
-        <ul className="flex flex-col gap-2.5 px-7 pb-7 pt-3">
+        <ul className="flex flex-col gap-2.5 px-3 pb-4 pt-3 sm:px-7 sm:pb-7">
           {slots!.map((s) => {
             const scored = s.score_a !== null && s.score_b !== null;
             const name = gameName(s.game_no);

@@ -117,7 +117,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
             <h2 className={ui.eyebrow}>Needs attention</h2>
             <span data-testid="attention-count" className={ui.eyebrow}>{attention.length}</span>
           </div>
-          <div className="grid gap-6 p-7 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 p-4 sm:p-7 lg:grid-cols-2">
             {attention.map((m) => (
               <MatchCard key={m.id} match={m} teams={teams} games={[]} label={`${label(m)} · ${m.status}`} tone={tone(m)} slots={slots[m.id]} gameList={false}>
                 <SubmissionCompare a={latest[m.id]?.a} b={latest[m.id]?.b} teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)}
@@ -150,7 +150,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
           ))}
         </nav>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {ready.map((m) => card(m))}
         {ready.length === 0 && <p className={`${ui.empty} lg:col-span-2`}>Nothing waiting.</p>}
       </div>
@@ -158,7 +158,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
       {waiting.length > 0 && (
         <section className="space-y-4">
           {heading('Waiting on an earlier result', waiting.length)}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {waiting.map((m) => <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} tone={tone(m)} slots={slots[m.id]} gameList={false} />)}
           </div>
         </section>
@@ -169,7 +169,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
           <span className={ui.eyebrow}>Finished</span>
           <span data-testid="finished-count" className={`${ui.eyebrow} ml-auto text-muted`}>{finished.length}</span>
         </summary>
-        <div className="grid gap-6 p-7 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 p-4 sm:p-7 lg:grid-cols-2">
           {finished.map((m) => card(m))}
         </div>
       </details>

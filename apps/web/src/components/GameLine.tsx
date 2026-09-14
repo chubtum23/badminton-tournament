@@ -93,7 +93,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   );
 
   const summary = (
-    <div className={`flex flex-wrap items-center justify-between gap-4 px-5 py-4 ${scored ? 'bg-navy text-bone' : ''}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-4 px-3 py-4 sm:px-5 ${scored ? 'bg-navy text-bone' : ''}`}>
       <span className="min-w-0">
         <span className={`block text-base font-bold uppercase tracking-wide ${scored ? 'text-orange-bright' : ''}`}>
           {label}{scored ? ' — Final' : ''}{scored && slot.time_expired ? ' · time' : ''}
@@ -141,7 +141,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
       {summary}
 
       {admin && expanded && (
-        <div className={`space-y-3 px-5 pb-4 ${collapsible ? 'border-t-hair border-line pt-4' : 'pb-3'}`}>
+        <div className={`space-y-3 px-3 pb-4 sm:px-5 ${collapsible ? 'border-t-hair border-line pt-4' : 'pb-3'}`}>
           <div className="flex flex-wrap items-center gap-2.5">
             {scored && (
               <>

@@ -108,8 +108,9 @@ export function ScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onS
   const cellBase = 'h-9 p-0 text-center font-display text-sm font-black tabular-nums';
 
   return (
-    // On a phone the sheet breaks out of the card padding to the full screen width: every box counts.
-    <div data-testid="score-sheet" className="w-full space-y-4 border-hair border-line bg-white p-4 max-sm:ml-[calc(50%-50vw)] max-sm:w-screen max-sm:border-x-0 max-sm:px-2">
+    // min-w-0 lets this flex item shrink to the screen, so the rally row scrolls inside it instead of
+    // stretching the page past the edge of a phone.
+    <div data-testid="score-sheet" className="w-full min-w-0 max-w-full space-y-4 border-hair border-line bg-white p-4 max-sm:p-2.5">
       {!begun && (
         <div className="flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-label text-muted-strong">
           <label className="flex items-center gap-2">
