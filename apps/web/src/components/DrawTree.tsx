@@ -149,7 +149,7 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
             {final ? <div className="w-full">{box(final)}</div> : (
               <>
                 <p className="w-full border-2 border-dashed border-line-strong bg-white px-6 py-5 text-center text-[15px] text-muted">
-                  Winner Pool A<br />vs<br />Winner Pool B
+                  TBD<br />vs<br />TBD
                 </p>
                 <p className="text-center text-xs font-bold uppercase tracking-label text-orange-ink">
                   {totalRounds === 0 ? 'Locks in after pool play' : 'Waiting on the semi-finals'}
