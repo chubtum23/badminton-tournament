@@ -4,7 +4,9 @@ import { signOut } from '@/app/login/actions';
 import { SubmitButton } from '@/components/SubmitButton';
 import { LocalDateTime } from '@/components/LocalDateTime';
 import { Shell, ShellLink } from '@/components/Shell';
-import { listGames, listMatches, listTeams } from '@/lib/db/queries';
+import { LiveGamesProvider } from '@/components/LiveGames';
+import { RealtimeRefresh } from '@/components/RealtimeRefresh';
+import { listGames, listLiveGames, listMatches, listTeams } from '@/lib/db/queries';
 import { statusLine } from '@/lib/admin/hub';
 
 const tabs = [
@@ -16,7 +18,7 @@ export default async function AdminLayout({ children, params }: { children: Reac
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
-  const [teams, matches, games] = await Promise.all([listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id)]);
+  const [teams, matches, games, live] = await Promise.all([listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id), listLiveGames(ctx.sb, t.id)]);
   const final = matches.find((m) => m.stage === 'knockout' && m.next_match_id === null);
   const line = statusLine({
     status: t.status,
@@ -33,6 +35,8 @@ export default async function AdminLayout({ children, params }: { children: Reac
       status={<>{line}{when && <> · {when}</>}{t.venue && <> · {t.venue}</>}</>}
       links={
         <>
+          {/* Several organisers score at once on the night, so their screens follow each other's saves. */}
+          <RealtimeRefresh tournamentId={t.id} />
           <ShellLink href="/admin" tone="quiet">All tournaments</ShellLink>
           <ShellLink href={`/t/${slug}`}>Public page</ShellLink>
           <form action={signOut}><SubmitButton className="uppercase tracking-label text-onnavy-soft hover:text-bone">Sign out</SubmitButton></form>
@@ -40,7 +44,7 @@ export default async function AdminLayout({ children, params }: { children: Reac
       }
       tabs={tabs.map(([path, label]) => ({ href: `/admin/${slug}${path}`, label }))}
     >
-      {children}
+      <LiveGamesProvider tournamentId={t.id} initial={live}>{children}</LiveGamesProvider>
     </Shell>
   );
 }

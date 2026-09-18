@@ -9,7 +9,10 @@ import { pairNames } from '@/lib/teams/roster';
 import type { ActionResult } from '@/actions/errors';
 import { clearGameScore, pauseGame, resumeGame, saveGameScore, startGame, takeGameOffCourt } from '@/actions/games';
 import { CourtClock } from './CourtClock';
-import { GameScoreForm } from './GameScoreForm';
+import { GameScoreForm, sheetNames } from './GameScoreForm';
+import { useLiveGame } from './LiveGames';
+import { LiveScore } from './LiveScore';
+import { ScoreSheet } from './ScoreSheet';
 import { SubmitButton } from './SubmitButton';
 import { ui } from './ui';
 
@@ -76,6 +79,11 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   const running = slot.started_at !== null && !scored;
   // Uncollapsible lines (the Now playing box) are simply always open.
   const expanded = !collapsible || open;
+  // Someone is scoring this game point by point; everyone else can follow the sheet.
+  const live = useLiveGame(match.id, slot.game_no);
+  const followable = !scored && live !== null && live.rallies.length > 0;
+  const [watching, setWatching] = useState(false);
+  const courtSlots = ratingSlots(teams.find((t) => t.id === match.teamAId), teams.find((t) => t.id === match.teamBId), pairingNo);
 
   /** Runs one of the court actions inside the form's own pending state, then refreshes. */
   const run = async (fn: () => Promise<ActionResult>) => {
@@ -107,6 +115,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
       </span>
       <span className="flex shrink-0 items-center gap-3">
         {scored && <span className="font-display text-3xl font-black tabular-nums">{slot.score_a}–{slot.score_b}</span>}
+        {!scored && <LiveScore matchId={match.id} gameNo={slot.game_no} />}
         {running && (
           <>
             {slot.court !== null && <span className={ui.pillLive}>Court {slot.court}</span>}
@@ -139,6 +148,22 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
       className={collapsible ? (scored ? 'border-hair border-navy' : 'border-hair border-line') : 'border-t-hair border-line first:border-t-0'}
     >
       {summary}
+
+      {/* The organiser follows (and can take over) the sheet in the score form below; everyone
+          else gets a read-only copy that fills in as the scorer taps. */}
+      {!admin && followable && (
+        <div className="space-y-3 px-3 pb-4 sm:px-5">
+          <button type="button" data-testid="follow-sheet-toggle" aria-expanded={watching} onClick={() => setWatching((v) => !v)} className={ui.tiny}>
+            {watching ? 'Hide score sheet' : 'Follow point by point'}
+          </button>
+          {watching && (
+            <ScoreSheet
+              settings={settings} teamA={a} teamB={b} names={sheetNames(courtSlots, a, b)}
+              start={live.start} rallies={live.rallies}
+            />
+          )}
+        </div>
+      )}
 
       {admin && expanded && (
         <div className={`space-y-3 px-3 pb-4 sm:px-5 ${collapsible ? 'border-t-hair border-line pt-4' : 'pb-3'}`}>
@@ -199,7 +224,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               matchId={match.id} gameNo={slot.game_no} settings={settings} label={label} teamA={a} teamB={b}
               existing={scored ? { scoreA: slot.score_a!, scoreB: slot.score_b!, timeExpired: slot.time_expired } : undefined}
               action={saveGameScore.bind(null, tournament.slug, match.id, slot.game_no)}
-              slots={ratingSlots(teams.find((t) => t.id === match.teamAId), teams.find((t) => t.id === match.teamBId), pairingNo)}
+              slots={courtSlots}
               confirmMessage={match.status === 'done' ? 'This meeting already has a result. Changing this score may reset every later match that depended on it. Continue?' : undefined}
             />
           )}

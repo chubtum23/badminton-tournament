@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AnnouncementRow, GameRow, MatchRow, PoolRow, RatingRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
+import type { AnnouncementRow, GameRow, LiveGameRow, MatchRow, PoolRow, RatingRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
 import { TEAM_PUBLIC_COLUMNS, TOURNAMENT_PUBLIC_COLUMNS } from './types';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -166,4 +166,14 @@ export async function loadTournamentBundle(sb: SupabaseClient, slug: string): Pr
     listSubmissions(sb, tournament.id), listAnnouncements(sb, tournament.id), listPlayerRatings(sb, tournament.id),
   ]);
   return { tournament, pools, teams, matches, games, submissions, announcements, ratings };
+}
+
+/**
+ * The score sheets being kept right now, for the first paint; the page follows them over realtime
+ * after that. Not `must`: a sheet is a nicety on top of the page, so a failed read (say, the
+ * migration not yet applied) shows no live scores rather than breaking every tournament page.
+ */
+export async function listLiveGames(sb: SupabaseClient, tournamentId: string): Promise<LiveGameRow[]> {
+  const res = await sb.from('live_games').select('match_id, game_no, server, receiver, rallies, rev').eq('tournament_id', tournamentId);
+  return res.error ? [] : ((res.data ?? []) as LiveGameRow[]);
 }

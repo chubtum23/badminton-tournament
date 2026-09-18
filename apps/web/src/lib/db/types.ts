@@ -151,3 +151,6 @@ export interface AnnouncementRow {
   pinned: boolean;
   created_at: string;
 }
+
+/** A score sheet being kept point by point; see lib/results/liveSheet.ts. */
+export interface LiveGameRow { match_id: string; game_no: number; server: number; receiver: number; rallies: string; rev: number }

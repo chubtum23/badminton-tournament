@@ -158,7 +158,18 @@ Public pages, including the participant's, refresh via a Supabase realtime chann
 tournament; the `games` and `score_submissions` subscriptions are unfiltered by
 tournament, which is acceptable for v1 since they only trigger a refetch. Team profile
 edits are deliberately not pushed live: `teams` is outside the realtime publication, so
-a renamed team appears on other people's screens at their next refresh.
+a renamed team appears on other people's screens at their next refresh. The organiser's
+pages refresh the same way, so several organisers scoring at once see each other's saves.
+
+Point-by-point scoring is shared live. Each tap on the score sheet is written to
+`live_games` (one row per game being scored) through the `push_live_game` function, and
+every page follows those rows over realtime without refetching: a running score with a
+pulsing dot on the game, and a read-only sheet behind "Follow point by point" on the public
+pages. Any organiser can open the same sheet and carry on. Each write names the revision it
+was based on, so when two devices tap at once one of them is refused and shown the other's
+sheet. The scorer's phone also keeps its own copy, so taps made without signal are sent
+when it comes back. A game's sheet is deleted as soon as the game gets a final score, by
+whatever route that score arrives.
 
 ## Tests
 

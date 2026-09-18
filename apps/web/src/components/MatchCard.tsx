@@ -3,6 +3,7 @@ import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
 import { stageGameLabel } from '@/lib/db/mappers';
+import { LiveScore } from './LiveScore';
 import { TeamAvatar } from './TeamAvatar';
 import { ui } from './ui';
 
@@ -177,7 +178,9 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
                   <span className="block truncate">{name}{s.time_expired ? ' — time' : ''}</span>
                 </span>
                 <span className={`shrink-0 tabular-nums ${scored ? 'font-display text-3xl font-black' : 'text-base font-semibold text-muted'}`}>
-                  {scored ? `${s.score_a}–${s.score_b}` : s.started_at !== null ? `Court ${s.court ?? '?'}` : '—'}
+                  {scored
+                    ? `${s.score_a}–${s.score_b}`
+                    : <LiveScore matchId={s.match_id} gameNo={s.game_no} fallback={s.started_at !== null ? `Court ${s.court ?? '?'}` : '—'} />}
                 </span>
               </li>
             );

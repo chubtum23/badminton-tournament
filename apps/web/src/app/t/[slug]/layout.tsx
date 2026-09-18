@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { getTournamentBySlug, listAnnouncements } from '@/lib/db/queries';
+import { getTournamentBySlug, listAnnouncements, listLiveGames } from '@/lib/db/queries';
+import { LiveGamesProvider } from '@/components/LiveGames';
 import { AnnouncementBanner } from '@/components/AnnouncementBanner';
 import { currentParticipant } from '@/lib/participant/token';
 import { RealtimeRefresh } from '@/components/RealtimeRefresh';
@@ -16,7 +17,7 @@ export default async function PublicLayout({ children, params }: { children: Rea
   const sb = await createServerSupabase();
   const t = await getTournamentBySlug(sb, slug);
   if (!t) notFound();
-  const [me, announcements] = await Promise.all([currentParticipant(slug), listAnnouncements(sb, t.id)]);
+  const [me, announcements, live] = await Promise.all([currentParticipant(slug), listAnnouncements(sb, t.id), listLiveGames(sb, t.id)]);
   // The list comes pinned-first, so the newest post has to be picked out rather than taken from the top.
   const latest = announcements.reduce<(typeof announcements)[number] | null>((a, b) => (!a || b.created_at > a.created_at ? b : a), null);
   const tabs: Array<readonly [string, string]> = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket'], ['/teams', 'Teams'], ['/players', 'Power leaderboard'], ['/announcements', 'Announcements']];
@@ -36,7 +37,7 @@ export default async function PublicLayout({ children, params }: { children: Rea
       tabs={tabs.map(([path, label]) => ({ href: `/t/${slug}${path}`, label }))}
       notice={<AnnouncementBanner slug={slug} latest={latest && { created_at: latest.created_at, body: latest.body }} />}
     >
-      {children}
+      <LiveGamesProvider tournamentId={t.id} initial={live}>{children}</LiveGamesProvider>
     </Shell>
   );
 }

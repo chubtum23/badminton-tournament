@@ -5,10 +5,11 @@ import { suggestRating, validateGame, type Settings } from '@tournament/core';
 import type { ActionResult } from '@/actions/errors';
 import { RATING_FIELD_PREFIX, type RatingSlot } from '@/lib/results/ratings';
 import { OUTCOME_EVENT, OUTCOME_PREFIX } from './RecentOutcome';
-import { ScoreSheet, sheetStorageKey } from './ScoreSheet';
+import { SharedScoreSheet, sheetStorageKey } from './SharedScoreSheet';
+import { useLiveGame } from './LiveGames';
 
 /** The sheet's four row labels: the players on court when both pairs are known, else placeholders. */
-function sheetNames(slots: readonly RatingSlot[] | undefined, teamA: string, teamB: string): [string, string, string, string] {
+export function sheetNames(slots: readonly RatingSlot[] | undefined, teamA: string, teamB: string): [string, string, string, string] {
   const side = (s: 'a' | 'b', team: string) => {
     const pair = (slots ?? []).filter((x) => x.side === s);
     return pair.length === 2 ? [pair[0]!.name, pair[1]!.name] : [`${team} 1`, `${team} 2`];
@@ -70,10 +71,14 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
   // The sheet is opt-in: most organisers just type the final score.
   const [sheet, setSheet] = useState(false);
   const hasExisting = existing !== undefined;
-  // A sheet already under way (the page was refreshed mid-game) reopens by itself.
+  // A sheet already under way — on this phone before a refresh, or on another organiser's —
+  // opens by itself, so picking up someone else's scoring is one tap on the chevron.
+  const underWay = (useLiveGame(matchId, gameNo)?.rallies.length ?? 0) > 0;
   useEffect(() => {
-    try { if (!hasExisting && localStorage.getItem(sheetStorageKey(matchId, gameNo))) setSheet(true); } catch { /* storage blocked */ }
-  }, [hasExisting, matchId, gameNo]);
+    if (hasExisting) return;
+    if (underWay) { setSheet(true); return; }
+    try { if (localStorage.getItem(sheetStorageKey(matchId, gameNo))) setSheet(true); } catch { /* storage blocked */ }
+  }, [hasExisting, underWay, matchId, gameNo]);
   const clocked = settings.timeCapMinutes !== null;
 
   const typed = a.trim() !== '' && b.trim() !== '';
@@ -118,7 +123,7 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
         </div>
       )}
       {!existing && sheet && (
-        <ScoreSheet
+        <SharedScoreSheet
           matchId={matchId} gameNo={gameNo} settings={settings} teamA={teamA} teamB={teamB}
           names={sheetNames(slots, teamA, teamB)}
           onScore={(x, y) => { setA(String(x)); setB(String(y)); }}
