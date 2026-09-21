@@ -78,11 +78,14 @@ describe('poolStandings', () => {
     expect(rows[3]).toMatchObject({ teamId: 'D', tieUnresolved: false });
   });
 
-  it('ignores matches that are not done', () => {
+  it('counts the games of a match still being played, but not the match itself', () => {
     const matches = [makeMatch({ id: 'm1', teamAId: 'A', teamBId: 'B', status: 'live' })];
     const rows = poolStandings(teams, matches, { m1: [{ gameNo: 1, scoreA: 15, scoreB: 3 }] });
-    expect(rows.every((r) => r.played === 0)).toBe(true);
-    expect(rows.map((r) => r.teamId)).toEqual(['A', 'B', 'C', 'D']); // alphabetical by name
+    // The meeting is not over, so nobody has played or won one; the game just scored is a point.
+    expect(rows.every((r) => r.played === 0 && r.won === 0)).toBe(true);
+    expect(rows.find((r) => r.teamId === 'A')).toMatchObject({ points: 1, gamesWon: 1, pointDiff: 12 });
+    expect(rows.find((r) => r.teamId === 'B')).toMatchObject({ points: 0, gamesLost: 1, pointDiff: -12 });
+    expect(rows.map((r) => r.teamId)).toEqual(['A', 'C', 'D', 'B']);
   });
 });
 
@@ -98,6 +101,23 @@ describe('club format ordering', () => {
     const { matches, games } = build([done('m1', 'A', 'B', 15, 9), done('m2', 'C', 'D', 15, 3), done('m3', 'A', 'C', 15, 14)]);
     const rows = poolStandings(four, matches, games);
     expect(rows.map((r) => [r.teamId, r.points])).toEqual([['A', 2], ['C', 1], ['B', 0], ['D', 0]]);
+  });
+
+  it('splits a three-game meeting between the two sides, and a playoff wins nobody a point', () => {
+    const three = (id: string, a: string, b: string, results: [number, number][], winner: string): [Match, Game[]] => [
+      makeMatch({ id, stage: 'pool', poolId: 'P', teamAId: a, teamBId: b, status: 'done', winnerId: winner }),
+      results.map(([sa, sb], i) => ({ gameNo: i + 1, scoreA: sa, scoreB: sb })),
+    ];
+    const { matches, games } = build([
+      three('m1', 'A', 'B', [[15, 9], [9, 15], [15, 12]], 'A'), // A takes the meeting 2-1
+      three('m2', 'C', 'D', [[15, 9], [15, 9], [15, 9]], 'C'), // C takes it 3-0
+      done('po', 'B', 'D', 15, 9, 'playoff'),
+    ]);
+    const rows = poolStandings(four, matches, games);
+    expect(rows.map((r) => [r.teamId, r.points])).toEqual([['C', 3], ['A', 2], ['B', 1], ['D', 0]]);
+    // Winning the meeting is worth nothing on its own, and the playoff is worth nothing at all.
+    expect(rows.find((r) => r.teamId === 'A')).toMatchObject({ played: 1, won: 1, points: 2 });
+    expect(rows.find((r) => r.teamId === 'B')).toMatchObject({ played: 1, won: 0, points: 1 });
   });
 
   it('a recorded playoff between two tied teams decides before head-to-head', () => {

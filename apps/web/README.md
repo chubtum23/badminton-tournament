@@ -91,7 +91,10 @@ banner at the top of the page, because saving a match usually drops its card out
 "open" list and takes the inline message with it. Dates and times are rendered in the
 server's timezone for now, not the viewer's.
 
-**Standings and ties.** Pool tables are ordered by team points (one per win), then by a
+**Standings and ties.** A point is won per game, not per meeting: a meeting of three games
+is worth three points, split the way the games went, and each one counts from the moment it
+is scored rather than waiting for the meeting to finish (the Played and Won columns still
+count whole, finished meetings). Pool tables are ordered by those points, then by a
 recorded playoff between the tied teams, then head-to-head (two teams only), then score
 difference, and finally name order — a position settled only by name is flagged `tie`.
 Ties that span the qualification line (or decide first place) are called out above the

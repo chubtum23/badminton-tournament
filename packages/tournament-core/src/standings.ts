@@ -6,7 +6,7 @@ export interface StandingRow {
   played: number;
   won: number;
   lost: number;
-  /** Team points: one per match win. */
+  /** Team points: one per game won, so a meeting is worth up to gamesPerMatch. */
   points: number;
   gamesWon: number;
   gamesLost: number;
@@ -23,10 +23,14 @@ export interface StandingsOptions {
 }
 
 /**
- * Standings for one pool from done matches only. Order: points desc, then within a tie:
- * a playoff match between exactly the two tied teams, head-to-head (two-way), score
- * difference, and finally name order with `tieUnresolved` set. Playoff matches are not
- * counted in played/points/score. Pass only this pool's teams and matches.
+ * Standings for one pool. A point is won per game, not per meeting: a meeting of three games is
+ * worth three points, split the way the games were. So a game counts as soon as it is scored,
+ * rather than waiting for the meeting it belongs to — the table moves through the night as the
+ * courts finish — while played/won/lost still count whole meetings, and only finished ones.
+ *
+ * Order: points desc, then within a tie: a playoff match between exactly the two tied teams,
+ * head-to-head (two-way), score difference, and finally name order with `tieUnresolved` set.
+ * Playoff matches are not counted in played/points/score. Pass only this pool's teams and matches.
  */
 export function poolStandings(
   teams: readonly TeamRef[],
@@ -48,13 +52,20 @@ export function poolStandings(
     if (!a || !b) continue;
     a.played++; b.played++;
     if (m.winnerId === a.teamId) { a.won++; b.lost++; } else { b.won++; a.lost++; }
+  }
+  // Games counted off every ordinary meeting of the pool, finished or still being played.
+  for (const m of matches) {
+    if (m.stage === 'playoff' || m.teamAId === null || m.teamBId === null) continue;
+    const a = rows.get(m.teamAId);
+    const b = rows.get(m.teamBId);
+    if (!a || !b) continue;
     for (const g of gamesByMatch[m.id] ?? []) {
       a.pointsFor += g.scoreA; a.pointsAgainst += g.scoreB;
       b.pointsFor += g.scoreB; b.pointsAgainst += g.scoreA;
       if (g.scoreA > g.scoreB) { a.gamesWon++; b.gamesLost++; } else { b.gamesWon++; a.gamesLost++; }
     }
   }
-  for (const r of rows.values()) { r.points = r.won; r.pointDiff = r.pointsFor - r.pointsAgainst; }
+  for (const r of rows.values()) { r.points = r.gamesWon; r.pointDiff = r.pointsFor - r.pointsAgainst; }
 
   if (options.manualOrder) {
     const pos = new Map(options.manualOrder.map((id, i) => [id, i]));

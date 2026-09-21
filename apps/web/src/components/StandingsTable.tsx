@@ -16,7 +16,7 @@ const num = 'px-1 text-center tabular-nums text-muted-strong';
 const STAT_COLS = [
   { short: 'P', full: 'Played', title: 'Matches played', width: 'w-10 sm:w-16' },
   { short: 'W', full: 'Won', title: 'Matches won', width: 'w-10 sm:w-14' },
-  { short: 'Pts', full: 'Points', title: 'Table points — one per match won', width: 'w-12 sm:w-16' },
+  { short: 'Pts', full: 'Points', title: 'Table points — one per game won', width: 'w-12 sm:w-16' },
   { short: '±', full: '+/−', title: 'Points scored minus points conceded', width: 'w-10 sm:w-14' },
 ] as const;
 
@@ -34,8 +34,8 @@ export function StatHeaders({ th }: { th: string }) {
 export function StatKey() {
   return (
     <p className="mt-3 text-xs text-muted" data-testid="standings-key">
-      <span className="sm:hidden">P played · W won · Pts one per win · ± points scored minus conceded</span>
-      <span className="hidden sm:inline">Points: one per match won · +/−: points scored minus points conceded, which splits teams level on wins</span>
+      <span className="sm:hidden">P played · W matches won · Pts one per game won · ± points scored minus conceded</span>
+      <span className="hidden sm:inline">Points: one per game won, so a match of three games is worth three points and counts as each game is scored · +/−: points scored minus points conceded, which splits teams level on points</span>
     </p>
   );
 }
