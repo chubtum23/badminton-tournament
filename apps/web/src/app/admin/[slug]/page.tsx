@@ -9,6 +9,7 @@ import { listMatches, listPools, listTeamsWithPlayers } from '@/lib/db/queries';
 import { settingsFor } from '@/lib/db/mappers';
 import { rosterOf } from '@/lib/teams/roster';
 import { hubTiles } from '@/lib/admin/hub';
+import { ConfirmStep } from '@/components/ConfirmStep';
 import { FlashMessage } from '@/components/FlashMessage';
 import { SubmitButton } from '@/components/SubmitButton';
 import { ui } from '@/components/ui';
@@ -103,25 +104,29 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
         <a href={`/admin/${slug}/export`} data-testid="download-backup" className={ui.secondary}>Download a backup</a>
       </section>
 
-      {/* Kept out of the way of Start the knockout, and closed by default, so it is never one stray tap. */}
+      {/* Named for what it does rather than hidden behind a "Danger zone" disclosure nobody opens.
+          It is still the last thing on the page, and the consequence is read before the Yes. */}
       {t.status === 'pools' && (
-        <details className={`${ui.card} border-red-300`}>
-          <summary className={`${ui.head} disclosure`}><span className={`${ui.eyebrow} text-red-700`}>Danger zone</span></summary>
+        <section className={`${ui.card} border-red-300`}>
+          <div className={ui.head}><h2 className={`${ui.eyebrow} text-red-700`}>Unlock pools</h2></div>
           <form action={unlock} className="space-y-3 px-7 py-6">
+            {/* What it is for, not what it costs: the confirmation below spells that out, and saying
+                it twice on one card reads as a warning to skim past rather than one to read. */}
             <p className="text-[15px] text-muted-strong">
-              Unlocking deletes the draw{resultCount ? ` and all ${resultCount} finished result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup. This cannot be undone.
+              Go back to setup to change the teams or re-deal the pools.
             </p>
-            {hasResults && (
-              <label className={ui.label}>Type {UNLOCK_WORD} to confirm
-                <input name="confirm" autoComplete="off" autoCapitalize="characters" spellCheck={false} className={`${ui.field} w-40`} />
-              </label>
-            )}
-            <SubmitButton
-              confirmMessage={`Unlock the pools? This deletes the draw${resultCount ? ` and ${resultCount} entered result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup.`}
+            <ConfirmStep
+              label="Unlock pools"
               className={ui.danger}
-            >Unlock pools</SubmitButton>
+              question={`Are you sure? This deletes the draw${resultCount ? ` and all ${resultCount} finished result${resultCount === 1 ? '' : 's'}` : ''}, and returns the tournament to setup. It cannot be undone.`}
+            >
+              {/* unlockPools still asks for the word when results exist, so that a stray call cannot
+                  wipe a night's scores; answering Yes here is what supplies it. */}
+              {hasResults && <input type="hidden" name="confirm" value={UNLOCK_WORD} />}
+              <SubmitButton className={ui.danger}>Yes, unlock pools</SubmitButton>
+            </ConfirmStep>
           </form>
-        </details>
+        </section>
       )}
     </div>
   );

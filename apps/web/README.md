@@ -124,7 +124,11 @@ The admin area opens on a **hub** at `/admin/[slug]`: a four-step checklist — 
 Rules, Teams, Pools and draw — each a tile showing a one-line summary and a Done, To do or
 Locked pill, and each opening one focused page. The stage buttons live under the tiles:
 **Lock pools and create matches** while in setup (disabled, with the reason, until the teams
-and the draw are ready), then **Start the knockout** and **Unlock pools**.
+and the draw are ready), then **Start the knockout** and **Unlock pools**. Unlock pools is a
+named section at the foot of the hub rather than a "Danger zone" disclosure, because an
+organiser who needs it has to be able to find it; it takes two taps, the second spelling out
+the draw and the results it deletes. `unlockPools` still refuses without the confirmation
+word once results exist, so a stray call cannot wipe a night's scores.
 
 The nav is **Home · Teams · Matches · Standings · Draw · Announcements**, and the header
 carries a status line such as `Setup · 6 teams signed up` or `Pool stage · 3 games on court`.
