@@ -59,8 +59,11 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
           <form action={createTournament} className={`${ui.body} space-y-4`}>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className={ui.label}>Name<input name="name" required className={ui.field} placeholder="Spring Club Night" /></label>
-              <label className={ui.label}>URL slug <span className="font-normal normal-case tracking-normal text-muted">(optional)</span>
-                <input name="slug" className={ui.field} placeholder="spring-club-night" />
+              {/* Asked for outright rather than derived from the name: it is the address on every
+                  private team link and every poster, so the organiser should choose it knowingly. */}
+              <label className={ui.label}>URL slug
+                <input name="slug" required minLength={3} className={ui.field} placeholder="spring-club-night" />
+                <span className={ui.help}>The address people visit: /t/spring-club-night</span>
               </label>
               <label className={ui.label}>Date and time <span className="font-normal normal-case tracking-normal text-muted">(optional)</span>
                 <LocalDateTimeInput name="startsAt" className={ui.field} />
