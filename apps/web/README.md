@@ -69,8 +69,12 @@ A new tournament starts on the club-night format: three games to 15, win by one,
 cap, every game played, a 13-minute clock, 4 courts, top 2 per pool. Settings are **per stage** — the pool
 stage and the knockout each have their own games per match, points per game, point cap,
 clock and win-by-two, with "same as the pool stage" ticked by default on the knockout.
-Rules lock when the pools do; the date and venue stay editable afterwards and show under
-the tournament name on every public page.
+The two stages lock at different moments. Pool scoring, the game names and the court count
+lock when the pools do, because changing them would rewrite results already entered. The
+knockout rules and "advance per pool" stay editable all through the pool stage and lock when
+the knockout is started — nothing has been played under them until then, so the organiser can
+decide the finals format on the night. The date and venue stay editable throughout and show
+under the tournament name on every public page.
 
 **The clock.** A stage with `timeCapMinutes` set counts down from the moment a **game** goes
 to court ("Start now", optionally onto a chosen court). The end time is derived from that
@@ -113,6 +117,17 @@ that depended on it are reset. Withdrawing a team forfeits every open match of t
 the opponent (matches still waiting on an opponent are left alone); reinstating clears the
 flag but leaves forfeits standing. Every match records how it was decided — `played`,
 `awarded` or `forfeit` — and the label shows on the card and in the bracket.
+
+**The draw.** Between the pools and the knockout, the Draw page shows who would play who and
+lets the organiser change it: **Randomise the draw** (a straight shuffle, server-side so every
+organiser's screen agrees), a dropdown per first-round place, or **Back to the seeded draw**.
+Picking a team for a place swaps it with wherever that team already stood, so the draw always
+holds every qualifier exactly once. It is stored on the tournament as `ko_seed_order` — the
+team in each seed's place, null for a bye — and no match exists until the knockout is started;
+pool tables and results are never touched. A draw is used only while it still holds exactly
+the teams that qualified, so one left over from an earlier table (a corrected score, a playoff,
+a changed "advance per pool") is ignored in favour of the seeded draw, and unlocking the pools
+clears it.
 
 **Replacing a team in the bracket.** A withdrawal or a corrected pool table can leave the
 wrong team in an unplayed knockout slot. "Replace a team" on the admin Bracket page swaps

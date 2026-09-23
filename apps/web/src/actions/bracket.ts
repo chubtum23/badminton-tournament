@@ -1,6 +1,9 @@
 'use server';
 import { revalidatePath } from 'next/cache';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TournamentRow } from '@/lib/db/types';
+import { randomSeats, seatsMatch, seededSeats, swapSeats, type Seats } from '@/lib/bracket/draw';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
@@ -54,6 +57,63 @@ export async function startKnockout(slug: string): Promise<ActionResult> {
     for (const p of [`/admin/${slug}`, `/admin/${slug}/draw`, `/admin/${slug}/matches`, `/t/${slug}`, `/t/${slug}/bracket`]) revalidatePath(p);
     return ok(undefined);
   }, busy);
+}
+
+/**
+ * The qualifiers as the pools now stand, with the draw the organiser has arranged (or the seeded
+ * one). Shared by the three draw actions so they all read the same tables the same way.
+ */
+async function currentDraw(ctx: { sb: SupabaseClient; tournament: TournamentRow }): Promise<{ qualifiers: string[]; seats: Seats } | { error: string }> {
+  const [pools, teams, matchRows, gameRows] = await Promise.all([
+    listPools(ctx.sb, ctx.tournament.id), listTeams(ctx.sb, ctx.tournament.id),
+    listMatches(ctx.sb, ctx.tournament.id), listGames(ctx.sb, ctx.tournament.id),
+  ]);
+  const input = knockoutInput({ tournament: ctx.tournament, pools, teams, matchRows, gameRows });
+  const plan = planKnockout({ ...input, newId: () => 'x' });
+  if ('error' in plan) return { error: plan.error };
+  const qualifiers = plan.qualifiers.flatMap((q) => q.ranked);
+  const stored = ctx.tournament.ko_seed_order;
+  return {
+    qualifiers,
+    seats: seatsMatch(stored, qualifiers) ? [...stored!] : seededSeats(plan.qualifiers, input.advancePerPool),
+  };
+}
+
+/** Writes a draw, or clears it back to the seeded one with null. Only before the knockout starts. */
+async function writeDraw(slug: string, make: (current: { qualifiers: string[]; seats: Seats }) => Seats | null): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'pools') return fail('stale_state', 'The draw can only be set between the pools and the knockout');
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const current = await currentDraw(ctx);
+    if ('error' in current) return fail('invalid_input', current.error);
+    const seats = make(current);
+    if (seats !== null && !seatsMatch(seats, current.qualifiers)) {
+      return fail('invalid_input', 'That draw does not hold exactly the teams that qualified; reload the page');
+    }
+    const upd = await ctx.sb.from('tournaments').update({ ko_seed_order: seats })
+      .eq('id', ctx.tournament.id).eq('status', 'pools').select('id');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'The tournament moved on; reload');
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
+}
+
+/** A fresh random draw. Shuffled on the server, so every organiser's screen sees the same one. */
+export async function randomiseDraw(slug: string): Promise<ActionResult> {
+  return writeDraw(slug, ({ qualifiers }) => randomSeats(qualifiers, () => randomInt(1_000_000) / 1_000_000));
+}
+
+/** Back to the seeded draw: pool winners against runners-up. */
+export async function useSeededDraw(slug: string): Promise<ActionResult> {
+  return writeDraw(slug, () => null);
+}
+
+/** Moves one team to one place in the draw, swapping it with whoever is already there. */
+export async function moveInDraw(slug: string, index: number, teamId: string | null): Promise<ActionResult> {
+  if (!Number.isInteger(index) || index < 0) return fail('invalid_input', 'Unknown place in the draw');
+  return writeDraw(slug, ({ seats }) => swapSeats(seats, index, teamId));
 }
 
 /**

@@ -30,6 +30,8 @@ export interface TournamentRow {
   ko_max_points: number | null;
   /** null = same as the pool stage; 0 = the knockout has no clock. */
   ko_time_cap_minutes: number | null;
+  /** The organiser's knockout draw: the team in each seed's place, null for a bye. Null until they set one. */
+  ko_seed_order: (string | null)[] | null;
   court_count: number;
   advance_per_pool: number;
   /** Teams may still sign themselves up through /t/[slug]/join. lockPools turns this off. */
@@ -39,7 +41,7 @@ export interface TournamentRow {
 
 /** Every tournament column except `join_code`, which anon and authenticated cannot select. */
 export const TOURNAMENT_PUBLIC_COLUMNS =
-  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, court_count, advance_per_pool, signup_open, created_at';
+  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, ko_seed_order, court_count, advance_per_pool, signup_open, created_at';
 
 /** Public columns only. edit_token is never selected through this type. */
 export interface TeamRow {

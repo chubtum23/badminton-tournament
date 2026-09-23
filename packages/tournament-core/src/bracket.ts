@@ -69,10 +69,21 @@ export function seedQualifiers(pools: readonly PoolResult[], advancePerPool: num
   return best;
 }
 
+/** The seeded draw: pool winners against runners-up, same-pool meetings avoided where possible. */
 export function buildBracket(pools: readonly PoolResult[], advancePerPool: number, newId: () => string): Match[] {
-  const seeds = seedQualifiers(pools, advancePerPool);
-  if (seeds.length < 2) throw new Error('need at least two qualifiers');
-  const size = bracketSize(seeds.length);
+  return buildBracketFromSeats(seedQualifiers(pools, advancePerPool), newId);
+}
+
+/**
+ * The bracket from an explicit draw: `seats[i]` is the team in seed i+1's place, null for a bye.
+ *
+ * This is what the organiser's draw writes — randomised or arranged by hand — so which teams
+ * meet is a decision on the Draw page rather than something only the seeding can express. The
+ * shape of the bracket, the byes and the progression are the same either way.
+ */
+export function buildBracketFromSeats(seats: readonly (string | null)[], newId: () => string): Match[] {
+  if (seats.filter((s) => s !== null).length < 2) throw new Error('need at least two qualifiers');
+  const size = bracketSize(seats.length);
   const order = bracketOrder(size);
   const rounds = Math.log2(size);
 
@@ -99,8 +110,8 @@ export function buildBracket(pools: readonly PoolResult[], advancePerPool: numbe
   const byId = new Map(all.map((m) => [m.id, m]));
   const first = byRound[0]!;
   first.forEach((m, i) => {
-    m.teamAId = seeds[order[2 * i]! - 1] ?? null;
-    m.teamBId = seeds[order[2 * i + 1]! - 1] ?? null;
+    m.teamAId = seats[order[2 * i]! - 1] ?? null;
+    m.teamBId = seats[order[2 * i + 1]! - 1] ?? null;
   });
 
   for (const m of first) {

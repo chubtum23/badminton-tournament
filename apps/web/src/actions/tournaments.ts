@@ -36,8 +36,10 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
   const v = parsed.value;
 
   // The date and venue are event details, not rules: an organiser must be able to correct them
-  // once play has started. Everything that changes how a match is scored stays locked after setup.
+  // once play has started.
   const update: Record<string, unknown> = { starts_at: v.startsAt, venue: v.venue === '' ? null : v.venue };
+  // Anything that changes how a pool match is scored would rewrite results already entered, so it
+  // is fixed once the pools are locked.
   if (ctx.tournament.status === 'setup') {
     Object.assign(update, {
       games_per_match: v.pool.gamesPerMatch,
@@ -47,6 +49,13 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
       time_cap_minutes: v.pool.timeCapMinutes,
       play_all_games: v.pool.playAllGames,
       game_labels: v.labels,
+      court_count: v.courtCount,
+    });
+  }
+  // The knockout has not been played yet, so its format — and how many teams reach it — stays open
+  // through the pool stage and fixes when the knockout is started.
+  if (ctx.tournament.status === 'setup' || ctx.tournament.status === 'pools') {
+    Object.assign(update, {
       // null across the ko_* columns means "the knockout uses the pool rules"; 0 in
       // ko_time_cap_minutes is the sentinel for "the knockout has no clock".
       ko_games_per_match: v.knockout ? v.knockout.gamesPerMatch : null,
@@ -54,7 +63,6 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
       ko_win_by_two: v.knockout ? v.knockout.winByTwo : null,
       ko_max_points: v.knockout ? v.knockout.maxPoints : null,
       ko_time_cap_minutes: v.knockout ? v.knockout.timeCapMinutes ?? 0 : null,
-      court_count: v.courtCount,
       advance_per_pool: v.advancePerPool,
     });
   }

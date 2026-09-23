@@ -123,7 +123,8 @@ export async function unlockPools(slug: string, confirmation = ''): Promise<Acti
     if (unlocked.error) return fail('invalid_input', unlocked.error.message);
     // lockPools closed sign-ups; unlocking puts the tournament back in setup, which is exactly when
     // teams may join, so the public Join tab comes back with it rather than silently staying hidden.
-    const back = await ctx.sb.from('tournaments').update({ status: 'setup', signup_open: true }).eq('id', ctx.tournament.id).eq('status', 'pools');
+    // The draw named teams that qualified out of the pools being deleted, so it goes with them.
+    const back = await ctx.sb.from('tournaments').update({ status: 'setup', signup_open: true, ko_seed_order: null }).eq('id', ctx.tournament.id).eq('status', 'pools');
     if (back.error) return fail('invalid_input', back.error.message);
     revalidateTournament(slug);
     return ok(undefined);

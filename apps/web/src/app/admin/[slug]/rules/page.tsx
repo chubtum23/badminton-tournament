@@ -17,7 +17,11 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
+  // Two locks, not one: pool scoring would rewrite finished results the moment the pools start,
+  // but the knockout has not been played yet, so its rules (and how many teams advance to it) stay
+  // open right up until the knockout is started.
   const locked = t.status !== 'setup';
+  const koLocked = t.status === 'knockout' || t.status === 'finished';
 
   const pool = settingsFor(t, 'pool');
   const knockout = settingsFor(t, 'knockout');
@@ -42,7 +46,7 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
       <section className={ui.card}>
       <div className={`${ui.head} ${ui.headOrange}`}>
         <h2 className={ui.eyebrow}>Rules</h2>
-        <span className={ui.eyebrow}>{locked ? 'Locked — pools are drawn' : 'Step 2'}</span>
+        <span className={ui.eyebrow}>{koLocked ? 'Locked — the knockout has started' : locked ? 'Pool rules locked — the knockout is still open' : 'Step 2'}</span>
       </div>
       <form action={save} className={`${ui.body} space-y-6`}>
         <fieldset className={fieldset}>
@@ -71,13 +75,13 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
 
         <fieldset className={fieldset}>
           <legend className={legend}>Knockout stage</legend>
-          <label className={ui.check}><input name="ko_same" type="checkbox" className={ui.checkbox} defaultChecked={koSame} disabled={locked} /> Same as the pool stage</label>
+          <label className={ui.check}><input name="ko_same" type="checkbox" className={ui.checkbox} defaultChecked={koSame} disabled={koLocked} /> Same as the pool stage</label>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className={ui.label}>Games per match<input name="ko_gamesPerMatch" type="number" defaultValue={knockout.gamesPerMatch} disabled={locked} className={ui.field} /></label>
-            <label className={ui.label}>Points per game<input name="ko_pointsPerGame" type="number" defaultValue={knockout.pointsPerGame} disabled={locked} className={ui.field} /></label>
-            <label className={ui.label}>Points cap<input name="ko_maxPoints" type="number" defaultValue={knockout.maxPoints ?? ''} disabled={locked} className={ui.field} /><span className={ui.help}>Blank for none.</span></label>
-            <label className={ui.label}>Clock minutes per game<input name="ko_timeCap" type="number" defaultValue={knockout.timeCapMinutes ?? ''} disabled={locked} className={ui.field} /><span className={ui.help}>Blank for no clock.</span></label>
-            <label className={ui.check}><input name="ko_winByTwo" type="checkbox" className={ui.checkbox} defaultChecked={knockout.winByTwo} disabled={locked} /> Win by two</label>
+            <label className={ui.label}>Games per match<input name="ko_gamesPerMatch" type="number" defaultValue={knockout.gamesPerMatch} disabled={koLocked} className={ui.field} /></label>
+            <label className={ui.label}>Points per game<input name="ko_pointsPerGame" type="number" defaultValue={knockout.pointsPerGame} disabled={koLocked} className={ui.field} /></label>
+            <label className={ui.label}>Points cap<input name="ko_maxPoints" type="number" defaultValue={knockout.maxPoints ?? ''} disabled={koLocked} className={ui.field} /><span className={ui.help}>Blank for none.</span></label>
+            <label className={ui.label}>Clock minutes per game<input name="ko_timeCap" type="number" defaultValue={knockout.timeCapMinutes ?? ''} disabled={koLocked} className={ui.field} /><span className={ui.help}>Blank for no clock.</span></label>
+            <label className={ui.check}><input name="ko_winByTwo" type="checkbox" className={ui.checkbox} defaultChecked={knockout.winByTwo} disabled={koLocked} /> Win by two</label>
           </div>
           <p className={ui.help}>These are ignored while &ldquo;same as the pool stage&rdquo; is ticked.</p>
         </fieldset>
@@ -86,7 +90,7 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
           <legend className={legend}>Draw</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <label className={ui.label}>Courts<input name="courtCount" type="number" defaultValue={t.court_count} disabled={locked} className={ui.field} /></label>
-            <label className={ui.label}>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={locked} className={ui.field} /></label>
+            <label className={ui.label}>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={koLocked} className={ui.field} /><span className={ui.help}>How many of each pool reach the knockout.</span></label>
           </div>
         </fieldset>
 
@@ -106,6 +110,11 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
             {pool.winByTwo && <input type="hidden" name="pool_winByTwo" value="on" />}
             {pool.playAllGames && <input type="hidden" name="pool_playAllGames" value="on" />}
             {gameNumbers.map((n) => <input key={n} type="hidden" name={`gameLabel${n}`} value={gameLabel(t, n)} />)}
+            <input type="hidden" name="courtCount" value={t.court_count} />
+          </>
+        )}
+        {koLocked && (
+          <>
             {koSame ? <input type="hidden" name="ko_same" value="on" /> : (
               <>
                 <input type="hidden" name="ko_gamesPerMatch" value={knockout.gamesPerMatch} />
@@ -115,12 +124,11 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
                 {knockout.winByTwo && <input type="hidden" name="ko_winByTwo" value="on" />}
               </>
             )}
-            <input type="hidden" name="courtCount" value={t.court_count} />
             <input type="hidden" name="advancePerPool" value={t.advance_per_pool} />
           </>
         )}
 
-        {!locked && <SubmitButton className={ui.primary}>Save rules</SubmitButton>}
+        {!koLocked && <SubmitButton className={ui.primary}>Save rules</SubmitButton>}
       </form>
       </section>
     </div>

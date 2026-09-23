@@ -16,6 +16,7 @@ export function knockoutInput(input: {
   const advancePerPool = input.tournament.advance_per_pool;
   return {
     advancePerPool,
+    seats: input.tournament.ko_seed_order,
     unfinishedPoolMatches: matches.filter((m) => m.stage === 'pool' && m.status !== 'done').length,
     pools: input.pools.map((p) => {
       const { rows, ties } = computePool({ pool: p, teams: input.teams, matches, games, advancePerPool });

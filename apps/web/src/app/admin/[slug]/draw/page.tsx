@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { replaceTeamInMatch, startKnockout } from '@/actions/bracket';
+import { moveInDraw, randomiseDraw, replaceTeamInMatch, startKnockout, useSeededDraw } from '@/actions/bracket';
+import { roundTitle } from '@/lib/draw/model';
+import { firstRoundPairs, seatsMatch, seededSeats } from '@/lib/bracket/draw';
+import { DrawEditor } from '@/components/DrawEditor';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { gameSlotsByMatch, listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
@@ -41,6 +44,8 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     const side = String(formData.get('side')) === 'b' ? 'b' : 'a';
     redirectWithMsg(here, await replaceTeamInMatch(slug, String(formData.get('matchId')), side, String(formData.get('teamId'))), 'Team replaced');
   }
+  async function randomise() { 'use server'; redirectWithMsg(here, await randomiseDraw(slug), 'Draw randomised'); }
+  async function reseed() { 'use server'; redirectWithMsg(here, await useSeededDraw(slug), 'Back to the seeded draw'); }
 
   if (t.status === 'pools') {
     let n = 0;
@@ -56,7 +61,15 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
           standings={standings} settings={settingsFor(t, 'knockout')} />
         {'error' in preview ? (
           <p className={ui.warn}>Not ready to start the knockout: {preview.error}</p>
-        ) : (
+        ) : (() => {
+          // The draw as it stands: the organiser's own if it still holds exactly these qualifiers,
+          // otherwise the seeded one (their draw is stale once the pool tables move under it).
+          const qualifierIds = preview.qualifiers.flatMap((q) => q.ranked);
+          const drawSeats = seatsMatch(t.ko_seed_order, qualifierIds)
+            ? t.ko_seed_order!
+            : seededSeats(preview.qualifiers, t.advance_per_pool);
+          const firstRoundName = roundTitle(1, Math.log2(drawSeats.length));
+          return (
           <>
             <section className={ui.card}>
               <div className={`${ui.head} ${ui.headOrange}`}><h2 className={ui.eyebrow}>Qualifiers</h2></div>
@@ -68,6 +81,37 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
                   </li>
                 ))}
               </ul>
+            </section>
+            {/* Who plays who, before any of it exists. The pool tables above are not touched by
+                anything here: the draw only decides which qualifier stands in which bracket place. */}
+            <section className={ui.card}>
+              <div className={ui.head}>
+                <h2 className={ui.eyebrow}>Draw</h2>
+                <span className={`${ui.eyebrow} text-muted`}>{preview.custom ? 'Your own draw' : 'Seeded'}</span>
+              </div>
+              <div className="space-y-5 px-7 py-6">
+                <p className="text-[15px] text-muted-strong">
+                  {preview.custom
+                    ? 'Your own draw. Change any match below, randomise it again, or go back to the seeded draw.'
+                    : 'Pool winners meet runners-up, keeping teams from the same pool apart where it can. Randomise it or change any match below.'}
+                  {' '}Nothing is created until you start the knockout, and the pool tables are never affected.
+                </p>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <form action={randomise}><SubmitButton className={ui.secondary}>Randomise the draw</SubmitButton></form>
+                  {preview.custom && <form action={reseed}><SubmitButton className={ui.tiny}>Back to the seeded draw</SubmitButton></form>}
+                </div>
+                <DrawEditor
+                  pairs={firstRoundPairs(drawSeats).map(([a, b], i, all) => ({
+                    // "Semi-final 1" rather than "Semi-finals 1"; a one-match round is just "Final".
+                    label: all.length === 1 ? firstRoundName : `${firstRoundName.replace(/s$/, '')} ${i + 1}`,
+                    a: { index: a, teamId: drawSeats[a] ?? null },
+                    b: { index: b, teamId: drawSeats[b] ?? null },
+                  }))}
+                  options={qualifierIds.map((id) => ({ id, name: teamName(teams, id) }))}
+                  byes={drawSeats.some((s) => s === null)}
+                  move={moveInDraw.bind(null, slug)}
+                />
+              </div>
             </section>
             <details className={ui.card}>
               <summary className={`${ui.head} disclosure`}>
@@ -82,7 +126,8 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
               >Start knockout with this bracket</SubmitButton>
             </form>
           </>
-        )}
+          );
+        })()}
       </div>
     );
   }
