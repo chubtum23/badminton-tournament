@@ -57,6 +57,13 @@ comes back with **Take off court**. The three games of a meeting can therefore b
 different courts at once, or spread across the evening. Saving a game's score takes it off
 its court automatically.
 
+**There is no cap on how many games run at once.** The court count says where to send people,
+not how much may be under way: with every court busy, Start begins the game anyway with no
+court named (its clock runs as usual and it shows as "Playing" rather than "Court 3"), and
+"no court" is a choice in the court dropdown. A court still refuses to hold two games at
+once, because that one is true of the hall. The court count itself is editable at every
+stage, so a hall that opens another court mid-evening can say so.
+
 **Now playing.** The admin Matches screen and the public live page both open with a **Now
 playing** box above everything else, listing the games on court right now — the meeting's
 two teams, the game's name, its court and its clock — ordered by court number. The
@@ -69,8 +76,9 @@ A new tournament starts on the club-night format: three games to 15, win by one,
 cap, every game played, a 13-minute clock, 4 courts, top 2 per pool. Settings are **per stage** — the pool
 stage and the knockout each have their own games per match, points per game, point cap,
 clock and win-by-two, with "same as the pool stage" ticked by default on the knockout.
-The two stages lock at different moments. Pool scoring, the game names and the court count
-lock when the pools do, because changing them would rewrite results already entered. The
+The two stages lock at different moments. Pool scoring and the game names lock when the pools
+do, because changing them would rewrite results already entered (the court count does not: it
+is editable throughout). The
 knockout rules and "advance per pool" stay editable all through the pool stage and lock when
 the knockout is started — nothing has been played under them until then, so the organiser can
 decide the finals format on the night. The date and venue stay editable throughout and show

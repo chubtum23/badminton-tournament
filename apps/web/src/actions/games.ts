@@ -10,24 +10,26 @@ import { parseRatings, ratingSlots } from '@/lib/results/ratings';
 import { applyResultPlan, BLANK_GAME } from '@/lib/results/persist';
 import { withResultLock } from '@/lib/results/lock';
 import { POOL_RESULTS_FROZEN, poolResultsFrozen } from '@/lib/results/freeze';
-import { firstFreeCourt, planGameCourt } from '@/lib/schedule/plan';
+import { firstFreeCourt, planGameCourt, planGameStart } from '@/lib/schedule/plan';
 import { syncMatchStatus } from '@/lib/schedule/status';
 
 const busy = (message: string): ActionResult => fail('stale_state', message);
 
 /**
- * Sends one game of a meeting to a court and starts its clock. With no court given it takes the
- * lowest court no running game is holding, which is what an organiser calling the next game wants.
+ * Starts one game of a meeting and its clock. With no court given it takes the lowest court no
+ * running game is holding, which is what an organiser calling the next game wants — and when they
+ * are all busy it starts the game anyway, with no court named, because how many games can be under
+ * way at once is the hall's business rather than the app's.
  * Held under the result lock so two people pressing Start at once cannot both get the same court.
  */
-export async function startGame(slug: string, matchId: string, gameNo: number, court: number | null): Promise<ActionResult> {
+export async function startGame(slug: string, matchId: string, gameNo: number, court: number | null | 'none'): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   return withResultLock(ctx.sb, ctx.tournament.id, async () => {
     const slots = await listGames(ctx.sb, ctx.tournament.id);
-    const chosen = court ?? firstFreeCourt(slots, ctx.tournament.court_count);
-    if (chosen === null) return fail('invalid_input', 'Every court is in use');
-    const planned = planGameCourt(slots, matchId, gameNo, chosen, ctx.tournament.court_count);
+    // null: whichever court is free, or none if they are all busy. 'none': deliberately no court.
+    const chosen = court === 'none' ? null : court ?? firstFreeCourt(slots, ctx.tournament.court_count);
+    const planned = planGameStart(slots, matchId, gameNo, chosen, ctx.tournament.court_count);
     if ('error' in planned) return fail(planned.error.includes('court must be between') ? 'invalid_input' : 'match_not_editable', planned.error);
     // Repeating the "not yet scored" guard in the filter means a concurrent score entry wins.
     const upd = await ctx.sb.from('games').update(planned)

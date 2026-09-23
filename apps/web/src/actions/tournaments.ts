@@ -37,7 +37,9 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
 
   // The date and venue are event details, not rules: an organiser must be able to correct them
   // once play has started.
-  const update: Record<string, unknown> = { starts_at: v.startsAt, venue: v.venue === '' ? null : v.venue };
+  // The court count goes with them: it names where to send people, not how the game is scored, and
+  // a hall that opens another court mid-evening should be able to say so.
+  const update: Record<string, unknown> = { starts_at: v.startsAt, venue: v.venue === '' ? null : v.venue, court_count: v.courtCount };
   // Anything that changes how a pool match is scored would rewrite results already entered, so it
   // is fixed once the pools are locked.
   if (ctx.tournament.status === 'setup') {
@@ -49,7 +51,6 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
       time_cap_minutes: v.pool.timeCapMinutes,
       play_all_games: v.pool.playAllGames,
       game_labels: v.labels,
-      court_count: v.courtCount,
     });
   }
   // The knockout has not been played yet, so its format — and how many teams reach it — stays open

@@ -118,7 +118,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
         {!scored && <LiveScore matchId={match.id} gameNo={slot.game_no} />}
         {running && (
           <>
-            {slot.court !== null && <span className={ui.pillLive}>Court {slot.court}</span>}
+            <span className={ui.pillLive}>{slot.court !== null ? `Court ${slot.court}` : 'Playing'}</span>
             {settings.timeCapMinutes !== null && (
               <CourtClock startedAt={slot.started_at!} capMinutes={settings.timeCapMinutes} pausedAt={slot.paused_at} pausedMs={slot.paused_ms} />
             )}
@@ -203,7 +203,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               <form
                 action={(fd) => {
                   const raw = String(fd.get('court') ?? '');
-                  return run(() => startGame(tournament.slug, match.id, slot.game_no, raw === '' ? null : Number(raw)));
+                  return run(() => startGame(tournament.slug, match.id, slot.game_no, raw === '' ? null : raw === 'none' ? 'none' : Number(raw)));
                 }}
                 className="flex items-center gap-2"
               >
@@ -211,6 +211,8 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
                 <select id={`court-${match.id}-${slot.game_no}`} name="court" defaultValue="" className={ui.fieldSm}>
                   <option value="">first free</option>
                   {Array.from({ length: tournament.court_count }, (_, i) => i + 1).map((c) => <option key={c} value={c}>Court {c}</option>)}
+                  {/* However many courts the hall has, a game can always start without one. */}
+                  <option value="none">no court</option>
                 </select>
                 <SubmitButton className="bg-orange px-5 py-2 text-sm font-bold uppercase tracking-label text-ink hover:bg-orange-bright">Start now</SubmitButton>
               </form>

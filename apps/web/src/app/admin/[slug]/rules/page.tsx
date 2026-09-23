@@ -89,7 +89,7 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
         <fieldset className={fieldset}>
           <legend className={legend}>Draw</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className={ui.label}>Courts<input name="courtCount" type="number" defaultValue={t.court_count} disabled={locked} className={ui.field} /></label>
+            <label className={ui.label}>Courts<input name="courtCount" type="number" defaultValue={t.court_count} className={ui.field} /><span className={ui.help}>Editable at any time. A game can always start without a court, so this is not a limit on how many run at once.</span></label>
             <label className={ui.label}>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={koLocked} className={ui.field} /><span className={ui.help}>How many of each pool reach the knockout.</span></label>
           </div>
         </fieldset>
@@ -110,7 +110,6 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
             {pool.winByTwo && <input type="hidden" name="pool_winByTwo" value="on" />}
             {pool.playAllGames && <input type="hidden" name="pool_playAllGames" value="on" />}
             {gameNumbers.map((n) => <input key={n} type="hidden" name={`gameLabel${n}`} value={gameLabel(t, n)} />)}
-            <input type="hidden" name="courtCount" value={t.court_count} />
           </>
         )}
         {koLocked && (
@@ -128,7 +127,8 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
           </>
         )}
 
-        {!koLocked && <SubmitButton className={ui.primary}>Save rules</SubmitButton>}
+        {/* Courts stay editable at every stage, so there is always something to save. */}
+        <SubmitButton className={ui.primary}>Save rules</SubmitButton>
       </form>
       </section>
     </div>

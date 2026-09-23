@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { firstFreeCourt, planGameCourt } from './plan';
+import { firstFreeCourt, planGameCourt, planGameStart } from './plan';
 import type { GameRow } from '@/lib/db/types';
 
 const slot = (over: Partial<GameRow> & { match_id: string; game_no: number }): GameRow => ({
@@ -44,5 +44,32 @@ describe('planGameCourt', () => {
     expect(planGameCourt([running, idle], 'm1', 2, 9, 4)).toEqual({ error: 'court must be between 1 and 4' });
     expect(planGameCourt([running], 'm1', 7, 2, 4)).toEqual({ error: 'unknown game' });
     expect(planGameCourt([played], 'm1', 3, 2, 4)).toEqual({ error: 'that game already has a score' });
+  });
+});
+
+describe('planGameStart', () => {
+  it('starts a game with no court at all, clock running', () => {
+    const r = planGameStart([running, idle], 'm1', 2, null, 1);
+    expect(r).toMatchObject({ court: null, paused_at: null, paused_ms: 0 });
+    if ('error' in r) throw new Error(r.error);
+    expect(typeof r.started_at).toBe('string'); // unlike planGameCourt(null), which takes it off
+  });
+
+  it('is how a game starts when every court is busy: no court, not a refusal', () => {
+    const full = [running, slot({ match_id: 'm2', game_no: 1, court: 2, started_at: 'x' })];
+    expect(firstFreeCourt(full, 2)).toBeNull();
+    const r = planGameStart([...full, idle], 'm1', 2, firstFreeCourt(full, 2), 2);
+    expect('error' in r).toBe(false);
+    expect((r as { court: number | null }).court).toBeNull();
+  });
+
+  it('keeps the clock of a running game that gives up its court', () => {
+    const r = planGameStart([running], 'm1', 1, null, 4);
+    expect(r).toMatchObject({ court: null, started_at: running.started_at });
+  });
+
+  it('still refuses a court another game is holding, and a scored game', () => {
+    expect(planGameStart([running, idle], 'm1', 2, 1, 4)).toEqual({ error: 'court 1 is in use' });
+    expect(planGameStart([played], 'm1', 3, null, 4)).toEqual({ error: 'that game already has a score' });
   });
 });
