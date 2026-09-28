@@ -40,13 +40,15 @@ export function NowPlaying({ tournament, games, teams, settings, admin = false }
         </h2>
         <span className="text-xs font-bold uppercase tracking-label text-orange">{games.length} game{games.length === 1 ? '' : 's'}</span>
       </div>
-      <div className="px-3 py-3 sm:px-7">
+      {/* Each game in its own box with a gap between, so four courts at once never read as one list. */}
+      <div className="flex flex-col gap-5 px-3 py-4 sm:px-7 sm:py-6">
         {games.map((g) => (
-          <GameLine
-            key={`${g.slot.match_id}:${g.slot.game_no}`}
-            tournament={tournament} match={g.match} slot={g.slot} settings={settings(g.match)}
-            teams={teams} admin={admin} showTeams
-          />
+          <div key={`${g.slot.match_id}:${g.slot.game_no}`} className="border-hair border-line-strong">
+            <GameLine
+              tournament={tournament} match={g.match} slot={g.slot} settings={settings(g.match)}
+              teams={teams} admin={admin} showTeams
+            />
+          </div>
         ))}
       </div>
     </section>
