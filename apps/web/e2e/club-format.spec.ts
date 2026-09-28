@@ -175,16 +175,4 @@ test('club format: clock, time-expired results, awards, withdrawal, playoff, bra
   await page.goto(`/t/${slug}/bracket`);
   await expect(page.getByText(/Champions: Alpha & Ana/)).toBeVisible();
   await expect(page.getByText(/forfeit/i).first()).toBeVisible();
-
-  // override the done final: award it to Bravo (organiser decision) -> champion changes, label "awarded".
-  // Alpha and Bravo also met in the pool, and pool matches sort first, so the card is pinned by its
-  // knockout label ("Round 1 · #1") as well as by the two team names.
-  await page.goto(`/admin/${slug}/matches?pool=all`);
-  const finalCard = page.getByTestId('match-card')
-    .filter({ hasText: 'Round 1' }).filter({ hasText: 'Alpha & Ana' }).filter({ hasText: 'Bravo & Bea' }).first();
-  await finalCard.getByRole('button', { name: 'Award to Bravo & Bea' }).click();
-  await expect(page.getByText('Match awarded')).toBeVisible();
-  await page.goto(`/t/${slug}/bracket`);
-  await expect(page.getByText(/Champions: Bravo & Bea/)).toBeVisible();
-  await expect(page.getByText(/awarded/i).first()).toBeVisible();
 });

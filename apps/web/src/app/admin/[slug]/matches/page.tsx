@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { awardMatch, confirmSubmission } from '@/actions/matches';
+import { confirmSubmission } from '@/actions/matches';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { gameSlotsByMatch, listGames, listMatches, listPools, listSubmissions, listTeamsWithPlayers, latestByMatch } from '@/lib/db/queries';
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
@@ -55,50 +55,19 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
     'use server';
     redirectWithMsg(here, await confirmSubmission(slug, String(formData.get('matchId')), String(formData.get('submissionId'))), 'Result confirmed');
   }
-  /** Hands the meeting to one side without a score (walkover, no-show, organiser's call). */
-  async function award(formData: FormData) {
-    'use server';
-    redirectWithMsg(here, await awardMatch(slug, String(formData.get('matchId')), String(formData.get('winnerId')), 'awarded', {
-      eraseScores: formData.get('eraseScores') === '1',
-    }), 'Match awarded');
-  }
-
-  /** The playable card: the award buttons and one row per game. Finished meetings get the same one
-      so a score entered by mistake can still be changed. */
-  const card = (m: typeof matches[number]) => {
-    // An award writes no games, so the warning has to say exactly what it throws away.
-    const scoredCount = (slots[m.id] ?? []).filter((s) => s.score_a !== null).length;
-    const awardWarning = (id: string | null) => [
-      `Award this match to ${teamName(teams, id)} without a score?`,
-      scoredCount > 0 ? `This ERASES the ${scoredCount} game score${scoredCount === 1 ? '' : 's'} already entered.` : '',
-      m.status === 'done' ? 'Any later match that depended on it is reset.' : '',
-    ].filter(Boolean).join(' ');
-    return (
+  /** The playable card: one row per game. Finished meetings get the same one so a score entered by
+      mistake can still be changed. */
+  const card = (m: typeof matches[number]) => (
     <MatchCard key={m.id} match={m} teams={teams} games={[]} label={label(m)} tone={tone(m)} slots={slots[m.id]} gameList={false}>
       {m.teamAId && m.teamBId ? (
         <div className="flex flex-col gap-2.5">
           {(slots[m.id] ?? []).map((s) => (
             <GameLine key={s.game_no} tournament={t} match={m} slot={s} settings={settingsOf(m)} teams={teams} admin={m.status !== 'pending'} collapsible />
           ))}
-          {/* Walkovers and no-shows are rare and destructive, so they sit under the games rather
-              than above them, at the smallest weight the design has. */}
-          {m.status !== 'pending' && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {([['a', m.teamAId], ['b', m.teamBId]] as const).map(([side, id]) => (
-                <form key={side} action={award}>
-                  <input type="hidden" name="matchId" value={m.id} />
-                  <input type="hidden" name="winnerId" value={id!} />
-                  {scoredCount > 0 && <input type="hidden" name="eraseScores" value="1" />}
-                  <SubmitButton confirmMessage={awardWarning(id)} className={ui.tiny}>Award to {teamName(teams, id)}</SubmitButton>
-                </form>
-              ))}
-            </div>
-          )}
         </div>
       ) : <p className="text-xs font-bold uppercase tracking-label text-muted">Waiting on both teams.</p>}
     </MatchCard>
-    );
-  };
+  );
 
   /** A heading with the count set apart, as the design has it: "Ready to play (6)". */
   const heading = (text: string, n: number) => (

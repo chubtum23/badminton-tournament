@@ -119,9 +119,7 @@ place for every team in the standings table and press "Set finishing order". A m
 order wins outright, silences the tie flags and is labelled "Order set by organiser" to
 the public. "Clear manual order" puts the computed table back.
 
-**Awards, forfeits and withdrawals.** Any match with two known teams can be handed to one
-side without a score ("Award to <team>"), including one already played — later matches
-that depended on it are reset. Withdrawing a team forfeits every open match of theirs to
+**Forfeits and withdrawals.** Withdrawing a team forfeits every open match of theirs to
 the opponent (matches still waiting on an opponent are left alone); reinstating clears the
 flag but leaves forfeits standing. Every match records how it was decided — `played`,
 `awarded` or `forfeit` — and the label shows on the card and in the bracket.
