@@ -36,6 +36,10 @@ describe('initialsOf', () => {
   it('takes both ends of a full name', () => expect(initialsOf('Priya Raman')).toBe('PR'));
   it('takes one letter from a single name', () => expect(initialsOf('Priya')).toBe('P'));
   it('skips the middle name', () => expect(initialsOf('Alex John Chen')).toBe('AC'));
+  it('keeps a trailing number whole so Team 10 is not Team 1', () => {
+    expect(initialsOf('Team 1')).toBe('T1');
+    expect(initialsOf('Team 10')).toBe('T10');
+  });
   it('never comes back empty', () => expect(initialsOf('   ')).toBe('?'));
 });
 

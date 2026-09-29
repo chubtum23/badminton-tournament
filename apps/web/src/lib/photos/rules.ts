@@ -56,12 +56,16 @@ export function publicPhotoUrl(path: string): string {
   return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/player-photos/${path}`;
 }
 
-/** First and last initial: the fallback avatar's whole content, so it never comes back empty. */
+/**
+ * First and last initial: the fallback avatar's whole content, so it never comes back empty. A
+ * trailing number is kept whole so "Team 10" reads T10 rather than colliding with Team 1's T1.
+ */
 export function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
   const first = [...words[0]][0] ?? '';
-  const last = words.length > 1 ? [...words[words.length - 1]][0] ?? '' : '';
+  const end = words[words.length - 1]!;
+  const last = words.length > 1 ? (/^\d+$/.test(end) ? end : [...end][0] ?? '') : '';
   return (first + last).toUpperCase();
 }
 

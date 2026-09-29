@@ -16,10 +16,13 @@ export function TeamAvatar({ teamName, colour, path, size = 40 }: {
   // eating the photo at that size. Three pixels is right for the big ones, two for the rest.
   const box = { width: size, height: size, borderColor: colour, borderWidth: size >= 36 ? 3 : 2 };
   if (!path) {
+    const initials = initialsOf(teamName);
+    // "T10" is a character wider than "PR", so it steps down a size to stay inside the ring.
+    const scale = initials.length > 2 ? 0.28 : 0.36;
     return (
-      <span aria-hidden style={{ ...box, background: colour, color: inkOn(colour), fontSize: Math.round(size * 0.36) }}
+      <span aria-hidden style={{ ...box, background: colour, color: inkOn(colour), fontSize: Math.round(size * scale) }}
         className="inline-flex shrink-0 items-center justify-center rounded-full border-solid font-display font-black leading-none">
-        {initialsOf(teamName)}
+        {initials}
       </span>
     );
   }
