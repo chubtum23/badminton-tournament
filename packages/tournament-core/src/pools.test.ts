@@ -79,6 +79,12 @@ describe('roundRobin', () => {
     expect(new Set(sides).size).toBe(2);
   });
 
+  it('plays a pool of three as 1v2, 1v3, 2v3 with the lower-numbered team on the left', () => {
+    expect(roundRobin(teams(3)).map((p) => [p.slot, p.teamAId, p.teamBId])).toEqual([
+      [1, 't1', 't2'], [2, 't1', 't3'], [3, 't2', 't3'],
+    ]);
+  });
+
   it('returns nothing for fewer than two teams', () => {
     expect(roundRobin([])).toEqual([]);
     expect(roundRobin(['t1'])).toEqual([]);

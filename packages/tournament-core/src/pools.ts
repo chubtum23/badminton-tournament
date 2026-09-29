@@ -33,13 +33,15 @@ export interface Pairing {
 /**
  * Circle-method round robin. With n teams (n even, or n+1 with a bye) there are
  * n-1 rounds of n/2 matches; within a round no team appears twice.
+ *
+ * The bye goes at the front so an odd pool opens with its first two teams: a pool of three
+ * plays 1v2, 1v3, 2v3, the order the club's run sheet uses.
  */
 export function roundRobin(teamIds: readonly string[]): Pairing[] {
   if (teamIds.length < 2) return [];
-  const ids: (string | null)[] = [...teamIds];
-  if (ids.length % 2 === 1) ids.push(null); // bye marker
+  const ids: (string | null)[] = teamIds.length % 2 === 1 ? [null, ...teamIds] : [...teamIds]; // null = bye
   const n = ids.length;
-  const fixed = ids[0]!;
+  const fixed = ids[0] ?? null;
   let rest = ids.slice(1);
   const out: Pairing[] = [];
   let slot = 1;
