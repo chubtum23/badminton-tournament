@@ -20,7 +20,7 @@ const MARK_W_PHONE = 26;
  * It keeps no tally of its own. The scorer's copy lives in useSharedSheet, which shares it with
  * every other screen; without `onChange` this is a read-only view of that shared sheet.
  */
-export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onChange, onScore, sync }: {
+export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onChange, onScore, sync, doneNote }: {
   settings: Settings;
   teamA: string;
   teamB: string;
@@ -33,6 +33,8 @@ export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onCh
   onScore?: (a: number, b: number) => void;
   /** A line about the connection, under the scorer's buttons. */
   sync?: React.ReactNode;
+  /** Replaces the line after "Game over" for a sheet with no Save form under it. */
+  doneNote?: string;
 }) {
   const editable = onChange !== undefined;
   const state = useMemo(() => replay(settings, start, rallies), [settings, start, rallies]);
@@ -184,7 +186,7 @@ export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onCh
 
       <p className="text-sm text-muted" aria-live="polite">
         {state.finished
-          ? <><b className="text-orange-ink">Game over</b> — {teamOf(state.winner!)} win {Math.max(state.scoreA, state.scoreB)}–{Math.min(state.scoreA, state.scoreB)}.{editable ? ' The score is filled in below; hit Save.' : ' Waiting for the organiser to confirm it.'}</>
+          ? <><b className="text-orange-ink">Game over</b> — {teamOf(state.winner!)} win {Math.max(state.scoreA, state.scoreB)}–{Math.min(state.scoreA, state.scoreB)}.{doneNote ?? (editable ? ' The score is filled in below; hit Save.' : ' Waiting for the organiser to confirm it.')}</>
           : <>
               <b className="font-display text-base font-black tabular-nums text-ink">{state.scoreA}–{state.scoreB}</b>
               {' · '}{names[state.server]} to serve from the {state.court} court to {names[state.receiver]}

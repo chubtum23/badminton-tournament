@@ -10,7 +10,7 @@ import { listGames, listLiveGames, listMatches, listTeams } from '@/lib/db/queri
 import { statusLine } from '@/lib/admin/hub';
 
 const tabs = [
-  ['', 'Home'], ['/teams', 'Teams'], ['/matches', 'Matches'], ['/standings', 'Standings'], ['/draw', 'Draw'], ['/announcements', 'Announcements'],
+  ['', 'Home'], ['/teams', 'Teams'], ['/matches', 'Matches'], ['/standings', 'Standings'], ['/scoresheet', 'Score sheet'], ['/draw', 'Draw'], ['/announcements', 'Announcements'],
 ] as const;
 
 export default async function AdminLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
