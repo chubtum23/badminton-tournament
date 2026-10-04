@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TeamWithPlayers } from '@/lib/db/queries';
-import { blankSheet, decodeFreeSheet, decodeHistory, encodeFreeSheet, FREE_SHEET_SETTINGS, pastGameOf, sideFromTeam } from './freeSheet';
+import { blankSheet, decodeFreeGames, decodeFreeSheet, decodeHistory, encodeFreeGames, encodeFreeSheet, FREE_SHEET_SETTINGS, pastGameOf, sideFromTeam } from './freeSheet';
 
 const player = (id: string, name: string, gender: 'male' | 'female', role: 'mixed1' | 'mixed2' | 'woman') =>
   ({ id, tournament_id: 't', name, gender, role });
@@ -69,5 +69,29 @@ describe('decodeHistory', () => {
     const good = { id: 'g1', at: 'x', a: 'A', b: 'B', pairA: '', pairB: '', scoreA: 15, scoreB: 9, winner: 'A', byTime: false };
     expect(decodeHistory(JSON.stringify([good, 7, { no: 'id' }]))).toEqual([good]);
     expect(decodeHistory('nope')).toEqual([]);
+  });
+});
+
+describe('several games at once', () => {
+  let n = 0;
+  const newId = () => `new${++n}`;
+
+  it('round-trips a list of games, each with its own sheet', () => {
+    const games = [
+      { id: 'g1', sheet: { ...blankSheet(), a: sideFromTeam(team), rallies: ['a', 'b'] as ('a' | 'b')[] } },
+      { id: 'g2', sheet: blankSheet() },
+    ];
+    expect(decodeFreeGames(encodeFreeGames(games), null, newId)).toEqual(games);
+  });
+
+  it('turns an old single sheet in use into the first game', () => {
+    const legacy = encodeFreeSheet({ ...blankSheet(), rallies: ['a'] });
+    expect(decodeFreeGames(null, legacy, () => 'g0')).toEqual([{ id: 'g0', sheet: { ...blankSheet(), rallies: ['a'] } }]);
+  });
+
+  it('starts empty when there is nothing stored, or only an untouched old sheet', () => {
+    expect(decodeFreeGames(null, null, newId)).toEqual([]);
+    expect(decodeFreeGames(null, encodeFreeSheet(blankSheet()), newId)).toEqual([]);
+    expect(decodeFreeGames('[{"no":"id"}, 4]', null, newId)).toEqual([]);
   });
 });

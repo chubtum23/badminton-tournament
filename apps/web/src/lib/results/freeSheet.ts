@@ -106,3 +106,30 @@ export function decodeHistory(raw: string | null): PastGame[] {
     return [];
   }
 }
+
+/** Several games can be scored side by side; each keeps its own sides, sheet and clock. */
+export interface FreeGame { id: string; sheet: FreeSheet }
+
+export const FREE_GAMES_KEY = (slug: string) => `free-scoresheets:${slug}`;
+
+export const encodeFreeGames = (games: readonly FreeGame[]): string =>
+  JSON.stringify(games.map((g) => ({ id: g.id, ...(JSON.parse(encodeFreeSheet(g.sheet)) as object) })));
+
+/**
+ * Reads the games back. `legacy` is the one-game sheet stored before there could be several: if
+ * there is no list yet and it holds anything, it becomes the first game rather than vanishing.
+ */
+export function decodeFreeGames(raw: string | null, legacy: string | null, newId: () => string): FreeGame[] {
+  if (raw) {
+    try {
+      const v = JSON.parse(raw) as unknown;
+      if (Array.isArray(v)) {
+        return v.filter((x) => x && typeof x === 'object' && typeof x.id === 'string')
+          .map((x) => ({ id: x.id as string, sheet: decodeFreeSheet(JSON.stringify(x)) }));
+      }
+    } catch { /* fall through to the legacy sheet */ }
+  }
+  const old = decodeFreeSheet(legacy);
+  const used = old.rallies.length > 0 || old.a.teamId !== '' || old.b.teamId !== '' || old.clock.startedAt !== null;
+  return used ? [{ id: newId(), sheet: old }] : [];
+}
