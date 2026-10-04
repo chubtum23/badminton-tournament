@@ -5,8 +5,8 @@ import { TeamAvatar } from './TeamAvatar';
 
 function tieNote(tie: UnresolvedTie): string {
   return tie.affects === 'qualification'
-    ? 'Tie for the last qualifying place to be decided'
-    : 'Tie for first place to be decided';
+    ? "Tie for the last qualifying place: play a men's doubles playoff"
+    : "Tie for first place: play a men's doubles playoff";
 }
 
 const th = 'pb-3 pt-1 text-xs font-bold uppercase tracking-label text-muted';
@@ -35,7 +35,7 @@ export function StatKey() {
   return (
     <p className="mt-3 text-xs text-muted" data-testid="standings-key">
       <span className="sm:hidden">P played · W matches won · Pts one per game won · ± points scored minus conceded</span>
-      <span className="hidden sm:inline">Points: one per game won, so a match of three games is worth three points and counts as each game is scored · +/−: points scored minus points conceded, which splits teams level on points</span>
+      <span className="hidden sm:inline">Points: one per game won, so a match of three games is worth three points and counts as each game is scored · +/−: points scored minus points conceded, shown for interest only · teams level on points play a men's doubles playoff</span>
     </p>
   );
 }

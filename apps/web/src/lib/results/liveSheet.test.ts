@@ -49,6 +49,13 @@ describe('initialSync', () => {
     expect(s.dirty).toBe(false);
   });
 
+  it('keeps unsent taps on top of a revision its own lost send created', () => {
+    // The phone's last send landed as rev 3 but it never heard; it reopens still on rev 2.
+    const s = initialSync({ start, rallies: r('abab'), rev: 2, dirty: true }, row('aba', 3));
+    expect(s.sheet.rallies).toEqual(r('abab'));
+    expect(s).toMatchObject({ rev: 3, dirty: true });
+  });
+
   it('sends a sheet that never reached the server', () => {
     const s = initialSync({ start, rallies: r('ab'), rev: 0, dirty: true }, null);
     expect(s.sheet.rallies).toEqual(r('ab'));
@@ -86,6 +93,30 @@ describe('syncReducer', () => {
     s = syncReducer(s, { type: 'pushed', result: { kind: 'stale', row: row('aa', 2) } });
     expect(s.sheet.rallies).toEqual(r('aa'));
     expect(s).toMatchObject({ rev: 2, dirty: false, takenOver: true });
+  });
+
+  it('a reply lost on the way back does not cost the taps made since', () => {
+    // "ab" reached the server (rev 2) but the phone never heard, so it is still on rev 1.
+    let s = syncReducer(synced('a', 1), { type: 'edit', sheet: { start, rallies: r('ab') } });
+    s = syncReducer(s, { type: 'send', sheet: s.sheet });
+    s = syncReducer(s, { type: 'failed' });
+    s = syncReducer(s, { type: 'edit', sheet: { start, rallies: r('aba') } });
+    s = syncReducer(s, { type: 'send', sheet: s.sheet });
+    // The retry is a revision behind; the server's sheet is just the start of this phone's.
+    s = syncReducer(s, { type: 'pushed', result: { kind: 'stale', row: row('ab', 2) } });
+    expect(s.sheet.rallies).toEqual(r('aba'));
+    expect(s).toMatchObject({ rev: 2, dirty: true, takenOver: false, offline: false });
+    // The next send goes on top of rev 2 and lands.
+    s = syncReducer(s, { type: 'send', sheet: s.sheet });
+    s = syncReducer(s, { type: 'pushed', result: { kind: 'applied', row: row('aba', 3) } });
+    expect(s).toMatchObject({ rev: 3, dirty: false });
+  });
+
+  it('a stale reply that already holds everything settles the sheet', () => {
+    let s = syncReducer(synced('a', 1), { type: 'edit', sheet: { start, rallies: r('ab') } });
+    s = syncReducer(s, { type: 'send', sheet: s.sheet });
+    s = syncReducer(s, { type: 'pushed', result: { kind: 'stale', row: row('ab', 2) } });
+    expect(s).toMatchObject({ rev: 2, dirty: false, takenOver: false });
   });
 
   it('a dropped sheet is started again from this tally', () => {

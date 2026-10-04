@@ -28,8 +28,9 @@ export interface StandingsOptions {
  * rather than waiting for the meeting it belongs to — the table moves through the night as the
  * courts finish — while played/won/lost still count whole meetings, and only finished ones.
  *
- * Order: points desc, then within a tie: a playoff match between exactly the two tied teams,
- * head-to-head (two-way), score difference, and finally name order with `tieUnresolved` set.
+ * Order: points desc. Teams level on points are split only by a playoff match between exactly
+ * the two tied teams; otherwise they stay level, in name order, with `tieUnresolved` set. Neither
+ * head-to-head nor score difference ranks anyone (club rule).
  * Playoff matches are not counted in played/points/score. Pass only this pool's teams and matches.
  */
 export function poolStandings(
@@ -69,10 +70,10 @@ export function poolStandings(
 
   if (options.manualOrder) {
     const pos = new Map(options.manualOrder.map((id, i) => [id, i]));
-    const computed = orderComputed([...rows.values()], done, playoffs);
+    const computed = orderComputed([...rows.values()], playoffs);
     return computed.sort((x, y) => (pos.get(x.teamId) ?? Number.MAX_SAFE_INTEGER) - (pos.get(y.teamId) ?? Number.MAX_SAFE_INTEGER)).map((r) => ({ ...r, tieUnresolved: false }));
   }
-  return orderComputed([...rows.values()], done, playoffs);
+  return orderComputed([...rows.values()], playoffs);
 }
 
 function meetingWinner(list: readonly Match[], x: string, y: string): string | null {
@@ -81,7 +82,7 @@ function meetingWinner(list: readonly Match[], x: string, y: string): string | n
 }
 
 /** Sort by points, then resolve each equal-points group with the tie chain. */
-function orderComputed(rows: StandingRow[], done: readonly Match[], playoffs: readonly Match[]): StandingRow[] {
+function orderComputed(rows: StandingRow[], playoffs: readonly Match[]): StandingRow[] {
   const byPoints = new Map<number, StandingRow[]>();
   for (const r of rows) (byPoints.get(r.points) ?? byPoints.set(r.points, []).get(r.points)!).push(r);
   const out: StandingRow[] = [];
@@ -92,17 +93,12 @@ function orderComputed(rows: StandingRow[], done: readonly Match[], playoffs: re
       const [x, y] = group as [StandingRow, StandingRow];
       const po = meetingWinner(playoffs, x.teamId, y.teamId);
       if (po) { out.push(...(po === x.teamId ? [x, y] : [y, x])); continue; }
-      const h2h = meetingWinner(done, x.teamId, y.teamId);
-      if (h2h) { out.push(...(h2h === x.teamId ? [x, y] : [y, x])); continue; }
     }
-    // score difference, then unresolved name order (flag only the members still level after diff)
-    const byDiff = [...group].sort((a, b) => b.pointDiff - a.pointDiff || a.name.localeCompare(b.name));
-    for (let i = 0; i < byDiff.length; i++) {
-      const r = byDiff[i]!;
-      const prev = byDiff[i - 1], next = byDiff[i + 1];
-      r.tieUnresolved = (prev !== undefined && prev.pointDiff === r.pointDiff) || (next !== undefined && next.pointDiff === r.pointDiff);
-    }
-    out.push(...byDiff);
+    // Club rule: teams level on points are split by a men's doubles playoff and nothing else —
+    // not head-to-head, not score difference. Until one is played (or the organiser sets the
+    // order) the group stays level, listed by name and flagged.
+    for (const r of group) r.tieUnresolved = true;
+    out.push(...[...group].sort((a, b) => a.name.localeCompare(b.name)));
   }
   return out;
 }
@@ -116,7 +112,7 @@ export function unresolvedTies(rows: readonly StandingRow[], advancePerPool: num
   while (i < rows.length) {
     if (!rows[i]!.tieUnresolved) { i++; continue; }
     let j = i;
-    while (j + 1 < rows.length && rows[j + 1]!.tieUnresolved && rows[j + 1]!.points === rows[i]!.points && rows[j + 1]!.pointDiff === rows[i]!.pointDiff) j++;
+    while (j + 1 < rows.length && rows[j + 1]!.tieUnresolved && rows[j + 1]!.points === rows[i]!.points) j++;
     const first = i + 1, last = j + 1; // 1-based positions
     if (first <= advancePerPool && last > advancePerPool) out.push({ teamIds: rows.slice(i, j + 1).map((r) => r.teamId), affects: 'qualification' });
     else if (first === 1 && last >= 2) out.push({ teamIds: rows.slice(i, j + 1).map((r) => r.teamId), affects: 'seeding' });

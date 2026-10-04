@@ -85,10 +85,10 @@ describe('computePool', () => {
     expect(r.rows.every((x) => x.tieUnresolved === false)).toBe(true);
   });
 
-  it('lets a done playoff override the head-to-head in a finished pool', () => {
+  it('asks for a playoff between two teams level on points, ignoring the head-to-head', () => {
     // Four teams, all six fixtures played: Alpha and Clears finish on 2 points, Birdies and
-    // Drives on 1. Alpha beat Clears in the pool, so the head-to-head puts Alpha first until a
-    // playoff says otherwise.
+    // Drives on 1. Alpha beat Clears in the pool, but only a playoff separates teams level on
+    // points, so first place is a tie until it is played.
     const four = [...teams, team('A4', 'Drives')];
     const matches: Match[] = [
       match('f1', { teamAId: 'A1', teamBId: 'A2', winnerId: 'A1', slot: 1 }),
@@ -101,7 +101,7 @@ describe('computePool', () => {
     const games = Object.fromEntries(matches.map((m) => [m.id, g(15, 10)]));
     const before = computePool({ pool, teams: four, matches, games, advancePerPool: 2 });
     expect(before.complete).toBe(true);
-    expect(before.ties).toEqual([]);
+    expect(before.ties).toEqual([{ teamIds: ['A1', 'A3'], affects: 'seeding' }]);
     expect(before.rows.map((x) => x.teamId)).toEqual(['A1', 'A3', 'A2', 'A4']);
 
     const playoff = match('po1', { stage: 'playoff', slot: 101, teamAId: 'A1', teamBId: 'A3', winnerId: 'A3' });

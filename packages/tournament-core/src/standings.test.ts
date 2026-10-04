@@ -33,22 +33,27 @@ describe('poolStandings', () => {
       { id: 'm3', a: 'C', b: 'B', games: [[15, 0], [15, 0]] },   // C +34, B -54
     ]);
     const rows = poolStandings(teams, matches, games);
-    // C 2 wins, A 1 win, then D (0 wins, 0 diff) ahead of B (0 wins, -54)
-    expect(rows.map((r) => r.teamId)).toEqual(['C', 'A', 'D', 'B']);
+    // C 4 points, A 2, then B and D level on 0: score difference does not split them, names list them.
+    expect(rows.map((r) => r.teamId)).toEqual(['C', 'A', 'B', 'D']);
+    expect(rows.map((r) => r.tieUnresolved)).toEqual([false, false, true, true]);
     expect(rows[0]).toMatchObject({
       played: 2, won: 2, lost: 0, gamesWon: 4, gamesLost: 0, pointsFor: 60, pointsAgainst: 26, pointDiff: 34,
     });
   });
 
-  it('breaks equal wins by point difference', () => {
+  it('does not split teams level on points by point difference', () => {
     const { matches, games } = build([
-      { id: 'm1', a: 'A', b: 'C', games: [[15, 5], [15, 5]] },   // A +20, C -20
-      { id: 'm2', a: 'B', b: 'D', games: [[15, 13], [15, 13]] }, // B +4,  D -4
+      { id: 'm1', a: 'B', b: 'C', games: [[15, 13], [15, 13]] }, // B +4,  C -4
+      { id: 'm2', a: 'A', b: 'D', games: [[15, 5], [15, 5]] },   // A +20, D -20
     ]);
-    expect(poolStandings(teams, matches, games).map((r) => r.teamId)).toEqual(['A', 'B', 'D', 'C']);
+    const rows = poolStandings(teams, matches, games);
+    // A and B both have 2 points; A's bigger margin counts for nothing, so they stay level.
+    expect(rows.map((r) => r.teamId)).toEqual(['A', 'B', 'C', 'D']);
+    expect(rows.every((r) => r.tieUnresolved)).toBe(true);
+    expect(unresolvedTies(rows, 2)).toEqual([{ teamIds: ['A', 'B'], affects: 'seeding' }]);
   });
 
-  it('uses head-to-head when exactly two teams tie on wins and point difference', () => {
+  it('does not split teams level on points by head-to-head', () => {
     // Every result is 15-13, 15-13 (a +4 swing).
     const { matches, games } = build([
       { id: 'm1', a: 'B', b: 'A', games: [[15, 13], [15, 13]] }, // B beats A: B +4, A -4
@@ -61,8 +66,10 @@ describe('poolStandings', () => {
     expect(rows.find((r) => r.teamId === 'A')).toMatchObject({ won: 2, pointDiff: 4 });
     expect(rows.find((r) => r.teamId === 'B')).toMatchObject({ won: 2, pointDiff: 4 });
     expect(rows.find((r) => r.teamId === 'C')).toMatchObject({ won: 1, pointDiff: 0 });
-    // Only A and B are tied; B beat A, so B ranks above A even though "Aces" sorts first by name.
-    expect(rows.map((r) => r.teamId)).toEqual(['B', 'A', 'C', 'D']);
+    // A and B are level on points; B beat A, but only a playoff splits them, so names list them.
+    expect(rows.map((r) => r.teamId)).toEqual(['A', 'B', 'C', 'D']);
+    expect(rows.map((r) => r.tieUnresolved)).toEqual([true, true, false, false]);
+    expect(unresolvedTies(rows, 1)).toEqual([{ teamIds: ['A', 'B'], affects: 'qualification' }]);
   });
 
   it('falls back to name order for a three-way tie', () => {
@@ -85,7 +92,7 @@ describe('poolStandings', () => {
     expect(rows.every((r) => r.played === 0 && r.won === 0)).toBe(true);
     expect(rows.find((r) => r.teamId === 'A')).toMatchObject({ points: 1, gamesWon: 1, pointDiff: 12 });
     expect(rows.find((r) => r.teamId === 'B')).toMatchObject({ points: 0, gamesLost: 1, pointDiff: -12 });
-    expect(rows.map((r) => r.teamId)).toEqual(['A', 'C', 'D', 'B']);
+    expect(rows.map((r) => r.teamId)).toEqual(['A', 'B', 'C', 'D']);
   });
 });
 
@@ -120,8 +127,9 @@ describe('club format ordering', () => {
     expect(rows.find((r) => r.teamId === 'B')).toMatchObject({ played: 1, won: 0, points: 1 });
   });
 
-  it('a recorded playoff between two tied teams decides before head-to-head', () => {
-    // A beat B in the pool, but B won the playoff -> B ranks above A; C above D by head-to-head
+  it('a recorded playoff splits two tied teams, even against the head-to-head', () => {
+    // A beat B in the pool, but B won the playoff -> B ranks above A. C and D have no playoff, so
+    // they stay level even though C beat D.
     const { matches, games } = build([
       done('m1', 'A', 'B', 15, 9), done('m2', 'A', 'C', 15, 9), done('m3', 'D', 'A', 15, 9),
       done('m4', 'B', 'C', 15, 9), done('m5', 'B', 'D', 15, 9), done('m6', 'C', 'D', 15, 9),
@@ -130,17 +138,19 @@ describe('club format ordering', () => {
     const rows = poolStandings(four, matches, games);
     expect(rows.map((r) => r.teamId)).toEqual(['B', 'A', 'C', 'D']);
     expect(rows.find((r) => r.teamId === 'B')!.played).toBe(3); // playoff not counted
-    expect(rows.every((r) => !r.tieUnresolved)).toBe(true);
+    expect(rows.map((r) => r.tieUnresolved)).toEqual([false, false, true, true]);
   });
 
-  it('without the playoff, head-to-head alone decides both two-way ties', () => {
+  it('without a playoff, both two-way ties stay level and the one that matters is flagged', () => {
     const { matches, games } = build([
       done('m1', 'A', 'B', 15, 9), done('m2', 'A', 'C', 15, 9), done('m3', 'D', 'A', 15, 9),
       done('m4', 'B', 'C', 15, 9), done('m5', 'B', 'D', 15, 9), done('m6', 'C', 'D', 15, 9),
     ]);
     const rows = poolStandings(four, matches, games);
     expect(rows.map((r) => r.teamId)).toEqual(['A', 'B', 'C', 'D']);
-    expect(rows.every((r) => !r.tieUnresolved)).toBe(true);
+    expect(rows.every((r) => r.tieUnresolved)).toBe(true);
+    // Two go through: A v B is for first place, so it needs a playoff; C v D decides nothing.
+    expect(unresolvedTies(rows, 2)).toEqual([{ teamIds: ['A', 'B'], affects: 'seeding' }]);
   });
 
   it('head-to-head then score difference resolve two-way ties', () => {

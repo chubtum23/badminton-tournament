@@ -85,10 +85,12 @@ export async function applyResultPlan(
   // The slots already exist, so the scores are written into them rather than the rows being
   // replaced: deleting them would throw away the court and clock of the meeting's other games,
   // and a meeting must always have its full set of slots.
-  for (const g of plan.gamesToWrite) {
-    const wrote = await sb.from('games')
-      .update({ score_a: g.scoreA, score_b: g.scoreB, time_expired: g.timeExpired ?? false, court: null, started_at: null, paused_at: null, paused_ms: 0 })
-      .eq('match_id', matchId).eq('game_no', g.gameNo).select('game_no');
+  // Each write touches its own slot, so they go together rather than one round trip after another
+  // while the result lock is held.
+  const writes = await Promise.all(plan.gamesToWrite.map((g) => sb.from('games')
+    .update({ score_a: g.scoreA, score_b: g.scoreB, time_expired: g.timeExpired ?? false, court: null, started_at: null, paused_at: null, paused_ms: 0 })
+    .eq('match_id', matchId).eq('game_no', g.gameNo).select('game_no')));
+  for (const wrote of writes) {
     if (wrote.error) return fail('invalid_input', wrote.error.message);
     if ((wrote.data ?? []).length === 0) return fail('stale_state', 'A game slot is missing; reload');
   }

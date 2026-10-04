@@ -180,6 +180,10 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
   if (!['pools', 'knockout', 'finished'].includes(ctx.tournament.status)) return fail('stale_state', 'The tournament is not in play');
+  // Rosters are only read for the rating boxes and do not change during play, so they are fetched
+  // before queueing for the lock: every round trip inside it holds up the other courts' saves.
+  const teamsPending = listTeamsWithPlayers(ctx.sb, ctx.tournament.id);
+  teamsPending.catch(() => {}); // awaited below; this only stops an early return leaving it unhandled
   return withResultLock(ctx.sb, ctx.tournament.id, async () => {
     const rows = await listMatches(ctx.sb, ctx.tournament.id);
     const row = rows.find((r) => r.id === matchId);
@@ -195,7 +199,7 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
 
     // Ratings are parsed before the score is written, so a bad rating fails the whole save and the
     // organiser never ends up with a score whose ratings were silently dropped.
-    const teams = await listTeamsWithPlayers(ctx.sb, ctx.tournament.id);
+    const teams = await teamsPending;
     const courtSlots = ratingSlots(teams.find((t) => t.id === row.team_a_id), teams.find((t) => t.id === row.team_b_id), pairingGameNo(row.stage, gameNo));
     const rated = parseRatings(formData, courtSlots);
     if (!rated.ok) return fail('invalid_input', rated.reason);

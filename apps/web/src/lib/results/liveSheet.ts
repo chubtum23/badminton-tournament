@@ -44,6 +44,15 @@ export function liveScore(rallies: readonly Side[]): { a: number; b: number } {
 export const sameSheet = (x: Sheet, y: Sheet) =>
   x.start.server === y.start.server && x.start.receiver === y.start.receiver && encodeRallies(x.rallies) === encodeRallies(y.rallies);
 
+/**
+ * `local` is `server` plus taps of its own: same start, and the server's rallies are where this
+ * one's begin. That is what a phone sees when its own send landed but the reply never came back,
+ * so its later taps go on top of the server's revision rather than being thrown away.
+ */
+export const extendsSheet = (local: Sheet, server: Sheet) =>
+  local.start.server === server.start.server && local.start.receiver === server.start.receiver
+  && encodeRallies(local.rallies).startsWith(encodeRallies(server.rallies));
+
 /** What the scorer's phone remembers between visits. */
 export interface Stored extends Sheet {
   /** The server revision the sheet was based on; 0 if it never reached the server. */
@@ -78,8 +87,8 @@ export const DEFAULT_START: SheetStart = { server: 0, receiver: 2 };
 export function initialSync(local: Stored | null, server: LiveRow | null): SyncState {
   const base = { sending: null, offline: false, takenOver: false, closed: false };
   if (server) {
-    if (local && local.dirty && local.rev === server.rev) {
-      return { ...base, sheet: { start: local.start, rallies: local.rallies }, rev: server.rev, dirty: true };
+    if (local && local.dirty && (local.rev === server.rev || extendsSheet(local, server))) {
+      return { ...base, sheet: { start: local.start, rallies: local.rallies }, rev: server.rev, dirty: !sameSheet(local, server) };
     }
     return { ...base, sheet: { start: server.start, rallies: server.rallies }, rev: server.rev, dirty: false };
   }
@@ -133,6 +142,11 @@ export function syncReducer(state: SyncState, action: SyncAction): SyncState {
       }
       // Stale with no row: the sheet was dropped underneath us. Start it again from this tally.
       if (r.row === null) return { ...state, rev: 0, sending: null, offline: false, dirty: true };
+      // Our own earlier send landed and only its reply was lost: keep the taps made since and
+      // send them on top of the server's revision.
+      if (extendsSheet(state.sheet, r.row)) {
+        return { ...state, rev: r.row.rev, sending: null, offline: false, dirty: !sameSheet(state.sheet, r.row), takenOver: false };
+      }
       return {
         ...state,
         sheet: { start: r.row.start, rallies: r.row.rallies },

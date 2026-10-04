@@ -9,6 +9,10 @@ import { RealtimeRefresh } from '@/components/RealtimeRefresh';
 import { listGames, listLiveGames, listMatches, listTeams } from '@/lib/db/queries';
 import { statusLine } from '@/lib/admin/hub';
 
+// A save can queue behind others for the result lock (up to 25s, lib/results/lock.ts), so the
+// function must be allowed to outlive that wait and still answer.
+export const maxDuration = 60;
+
 const tabs = [
   ['', 'Home'], ['/teams', 'Teams'], ['/matches', 'Matches'], ['/standings', 'Standings'], ['/scoresheet', 'Score sheet'], ['/draw', 'Draw'], ['/announcements', 'Announcements'],
 ] as const;

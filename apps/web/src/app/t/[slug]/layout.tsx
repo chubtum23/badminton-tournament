@@ -9,6 +9,9 @@ import { LocalDateTime } from '@/components/LocalDateTime';
 import { Shell } from '@/components/Shell';
 
 export const dynamic = 'force-dynamic';
+// A save can queue behind others for the result lock (up to 25s, lib/results/lock.ts), so the
+// function must be allowed to outlive that wait and still answer.
+export const maxDuration = 60;
 
 const STAGE: Record<string, string> = { setup: 'Starting soon', pools: 'Pool stage', knockout: 'Knockout', finished: 'Finished' };
 

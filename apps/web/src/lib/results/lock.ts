@@ -3,9 +3,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const TTL_MS = 20_000;
-const WAIT_MS = 8_000;
-const POLL_MS = 150;
+const TTL_MS = 30_000;
+const WAIT_MS = 25_000;
+const POLL_MS = 50;
 
 /** Tournaments whose lock the current request already holds, so a nested action does not wait on itself. */
 const held = new AsyncLocalStorage<ReadonlySet<string>>();
