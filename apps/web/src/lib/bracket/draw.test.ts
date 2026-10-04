@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBracketFromSeats, type PoolResult } from '@tournament/core';
-import { firstRoundPairs, randomSeats, seatsMatch, seededSeats, swapSeats } from './draw';
+import { firstRoundPairs, randomSeats, seatsMatch, seededSeats, swapSeats, hasByeAgainstBye } from './draw';
 
 const pools: PoolResult[] = [
   { poolId: 'P1', ranked: ['a1', 'a2'] },
@@ -86,5 +86,24 @@ describe('the draw drives the bracket', () => {
     // and they are already standing in the final.
     const final = matches.find((m) => m.round === 2);
     expect([final!.teamAId, final!.teamBId]).toContain('b1');
+  });
+});
+
+describe('byes in a random draw', () => {
+  it('never draws two byes against each other', () => {
+    for (const n of [3, 5, 6, 7, 11]) {
+      for (let k = 0; k < 200; k++) {
+        const ids = Array.from({ length: n }, (_, i) => `t${i}`);
+        const seats = randomSeats(ids);
+        expect(hasByeAgainstBye(seats)).toBe(false);
+        expect(seatsMatch(seats, ids)).toBe(true);
+      }
+    }
+  });
+  it('spots a bye-against-bye pair', () => {
+    const pairs = firstRoundPairs(['a', 'b', 'c', 'd', 'e', 'f', null, null]);
+    const seats: (string | null)[] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    seats[pairs[0]![0]] = null; seats[pairs[0]![1]] = null;
+    expect(hasByeAgainstBye(seats)).toBe(true);
   });
 });

@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { moveInDraw, randomiseDraw, replaceTeamInMatch, startKnockout, useSeededDraw } from '@/actions/bracket';
+import { moveInDraw, randomiseDraw, replaceTeamInMatch, startKnockout, undoKnockout, useSeededDraw } from '@/actions/bracket';
+import { knockoutHasPlay } from '@/lib/bracket/undo';
+import { UNLOCK_WORD } from '@/lib/results/freeze';
+import { ConfirmStep } from '@/components/ConfirmStep';
 import { roundTitle } from '@/lib/draw/model';
 import { firstRoundPairs, seatsMatch, seededSeats } from '@/lib/bracket/draw';
 import { DrawEditor } from '@/components/DrawEditor';
@@ -45,6 +48,10 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
     redirectWithMsg(here, await replaceTeamInMatch(slug, String(formData.get('matchId')), side, String(formData.get('teamId'))), 'Team replaced');
   }
   async function randomise() { 'use server'; redirectWithMsg(here, await randomiseDraw(slug), 'Draw randomised'); }
+  async function undo(fd: FormData) {
+    'use server';
+    redirectWithMsg(here, await undoKnockout(slug, String(fd.get('confirm') ?? '')), 'Knockout undone — change the rules or the draw and start it again');
+  }
   async function reseed() { 'use server'; redirectWithMsg(here, await useSeededDraw(slug), 'Back to the seeded draw'); }
 
   if (t.status === 'pools') {
@@ -121,7 +128,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
             </details>
             <form action={start}>
               <SubmitButton
-                confirmMessage="Start the knockout with this bracket? Pool results are frozen from now on and the pools can no longer be unlocked."
+                confirmMessage="Start the knockout with this bracket? Pool results are frozen while the knockout runs. You can undo the start from this page if you need to change the rules or the draw."
                 className={ui.primary}
               >Start knockout with this bracket</SubmitButton>
             </form>
@@ -137,6 +144,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
   const replaceable = matches.filter((m) => m.stage === 'knockout' && m.status !== 'done');
   const selectable = teams.filter((x) => !x.withdrawn);
 
+  const koPlayed = knockoutHasPlay(matchRows, gameRows);
   return (
     <div className="space-y-4">
       <FlashMessage />
@@ -181,6 +189,26 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {(t.status === 'knockout' || t.status === 'finished') && (
+        <section className={`${ui.card} border-red-300`} data-testid="undo-knockout">
+          <div className={ui.head}><h2 className={`${ui.eyebrow} text-red-700`}>Undo knockout start</h2></div>
+          <form action={undo} className="space-y-3 px-7 py-6">
+            <p className="text-[15px] text-muted-strong">
+              Go back to the end of the pools to change the knockout rules or who plays whom. Pool results stay exactly as they are.
+            </p>
+            <ConfirmStep
+              label="Undo knockout start"
+              className={ui.danger}
+              question={koPlayed
+                ? 'Are you sure? Knockout games have been played, and every knockout score is deleted. Pool results are kept. It cannot be undone.'
+                : 'Take the bracket down? Nothing in the knockout has been played, so nothing is lost. Pool results are kept.'}
+            >
+              {koPlayed && <input type="hidden" name="confirm" value={UNLOCK_WORD} />}
+              <SubmitButton className={ui.danger}>Yes, undo the knockout</SubmitButton>
+            </ConfirmStep>
+          </form>
         </section>
       )}
     </div>

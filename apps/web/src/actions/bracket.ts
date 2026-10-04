@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { randomInt, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TournamentRow } from '@/lib/db/types';
-import { randomSeats, seatsMatch, seededSeats, swapSeats, type Seats } from '@/lib/bracket/draw';
+import { hasByeAgainstBye, randomSeats, seatsMatch, seededSeats, swapSeats, type Seats } from '@/lib/bracket/draw';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
@@ -12,6 +12,8 @@ import { matchToRow, settingsFor, slotRowsFor } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
 import { knockoutInput } from '@/lib/bracket/input';
 import { withResultLock } from '@/lib/results/lock';
+import { UNLOCK_WORD } from '@/lib/results/freeze';
+import { knockoutHasPlay } from '@/lib/bracket/undo';
 
 const busy = (message: string): ActionResult => fail('stale_state', message);
 
@@ -60,6 +62,37 @@ export async function startKnockout(slug: string): Promise<ActionResult> {
 }
 
 /**
+ * Takes the knockout back down: deletes every knockout match (their games, live sheets, team
+ * submissions and ratings cascade with them) and returns the tournament to the pool stage, where
+ * the knockout rules and the draw can be changed and the knockout started again. Pool and playoff
+ * results are not touched, and the organiser's draw is kept to edit.
+ *
+ * Nothing played yet means nothing is lost, so a plain confirm does. Once any knockout game has a
+ * score, a clock or a result, the organiser has to type the word as well, as for unlocking pools.
+ */
+export async function undoKnockout(slug: string, confirmation = ''): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  if (ctx.tournament.status !== 'knockout' && ctx.tournament.status !== 'finished') return fail('stale_state', 'The knockout has not started');
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const [rows, gameRows] = await Promise.all([listMatches(ctx.sb, ctx.tournament.id), listGames(ctx.sb, ctx.tournament.id)]);
+    if (knockoutHasPlay(rows, gameRows) && confirmation.trim().toUpperCase() !== UNLOCK_WORD) {
+      return fail('invalid_input', `Knockout games have been played. Type ${UNLOCK_WORD} to confirm deleting them.`);
+    }
+    // Deleting before the status change keeps a retry safe, as in unlockPools: a second attempt
+    // deletes nothing and still completes. Only knockout rows go; pool and playoff rows stay.
+    const del = await ctx.sb.from('matches').delete().eq('tournament_id', ctx.tournament.id).eq('stage', 'knockout');
+    if (del.error) return fail('invalid_input', del.error.message);
+    const back = await ctx.sb.from('tournaments').update({ status: 'pools' })
+      .eq('id', ctx.tournament.id).in('status', ['knockout', 'finished']).select('id');
+    if (back.error) return fail('invalid_input', back.error.message);
+    if ((back.data ?? []).length === 0) return fail('stale_state', 'The tournament moved on; reload');
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
+}
+
+/**
  * The qualifiers as the pools now stand, with the draw the organiser has arranged (or the seeded
  * one). Shared by the three draw actions so they all read the same tables the same way.
  */
@@ -90,6 +123,9 @@ async function writeDraw(slug: string, make: (current: { qualifiers: string[]; s
     const seats = make(current);
     if (seats !== null && !seatsMatch(seats, current.qualifiers)) {
       return fail('invalid_input', 'That draw does not hold exactly the teams that qualified; reload the page');
+    }
+    if (seats !== null && hasByeAgainstBye(seats)) {
+      return fail('invalid_input', 'That would put two byes against each other, and that match could never finish. Give one of them a team instead.');
     }
     const upd = await ctx.sb.from('tournaments').update({ ko_seed_order: seats })
       .eq('id', ctx.tournament.id).eq('status', 'pools').select('id');

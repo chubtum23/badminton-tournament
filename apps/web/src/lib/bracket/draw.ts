@@ -17,15 +17,31 @@ export function seededSeats(qualifiers: readonly PoolResult[], advancePerPool: n
   return Array.from({ length: size }, (_, i) => seeds[i] ?? null);
 }
 
-/** A pure shuffle of the qualifiers across the bracket's places, byes included. */
+const shuffled = <T>(items: readonly T[], random: () => number): T[] => {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+};
+
+/**
+ * A random draw. Byes go into different first-round pairs, each opposite a team: two byes drawn
+ * against each other would leave an empty match that never finishes, and the round after it stuck.
+ * There are always fewer byes than pairs, so this is always possible.
+ */
 export function randomSeats(teamIds: readonly string[], random: () => number = Math.random): Seats {
   const size = bracketSize(teamIds.length);
-  const seats: Seats = Array.from({ length: size }, (_, i) => teamIds[i] ?? null);
-  for (let i = seats.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [seats[i], seats[j]] = [seats[j]!, seats[i]!];
-  }
-  return seats;
+  const pairs = firstRoundPairs(Array.from({ length: size }, () => null));
+  const byePlaces = new Set(shuffled(pairs, random).slice(0, size - teamIds.length).map((p) => p[random() < 0.5 ? 0 : 1]));
+  const teams = shuffled(teamIds, random);
+  return Array.from({ length: size }, (_, i) => (byePlaces.has(i) ? null : teams.shift() ?? null));
+}
+
+/** True when some first-round match would be a bye against a bye. */
+export function hasByeAgainstBye(seats: readonly (string | null)[]): boolean {
+  return firstRoundPairs(seats).some(([a, b]) => seats[a] === null && seats[b] === null);
 }
 
 /**
