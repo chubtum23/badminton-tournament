@@ -7,7 +7,7 @@ import { pairingGameNo, stageGameLabel } from '@/lib/db/mappers';
 import { ratingSlots } from '@/lib/results/ratings';
 import { pairNames } from '@/lib/teams/roster';
 import type { ActionResult } from '@/actions/errors';
-import { clearGameScore, pauseGame, resumeGame, saveGameScore, startGame, takeGameOffCourt } from '@/actions/games';
+import { clearGameScore, pauseGame, restartGame, resumeGame, saveGameScore, startGame, takeGameOffCourt } from '@/actions/games';
 import { CourtClock } from './CourtClock';
 import { GameScoreForm, sheetNames } from './GameScoreForm';
 import { useLiveGame } from './LiveGames';
@@ -191,9 +191,15 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
                     </SubmitButton>
                   </form>
                 )}
+                <form action={() => run(() => restartGame(tournament.slug, match.id, slot.game_no))}>
+                  <SubmitButton
+                    confirmMessage={`Restart ${label}? The clock goes back to the start and the point-by-point score is wiped.`}
+                    className={ui.tiny}
+                  >Restart</SubmitButton>
+                </form>
                 <form action={() => run(() => takeGameOffCourt(tournament.slug, match.id, slot.game_no))}>
                   <SubmitButton
-                    confirmMessage={`Take ${label} off court? Its clock is thrown away and starts from the beginning next time.`}
+                    confirmMessage={`Take ${label} off court? Its clock and point-by-point score are thrown away and start from the beginning next time.`}
                     className={ui.tiny}
                   >Take off court</SubmitButton>
                 </form>

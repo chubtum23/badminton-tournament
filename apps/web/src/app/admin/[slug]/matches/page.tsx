@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
 import { confirmSubmission } from '@/actions/matches';
+import { restartMatch } from '@/actions/games';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
 import { gameSlotsByMatch, listGames, listMatches, listPools, listSubmissions, listTeamsWithPlayers, latestByMatch } from '@/lib/db/queries';
 import { rowToMatch, settingsFor } from '@/lib/db/mappers';
@@ -55,6 +56,12 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
     'use server';
     redirectWithMsg(here, await confirmSubmission(slug, String(formData.get('matchId')), String(formData.get('submissionId'))), 'Result confirmed');
   }
+  async function restart(formData: FormData) {
+    'use server';
+    redirectWithMsg(here, await restartMatch(slug, String(formData.get('matchId'))), 'Match restarted');
+  }
+  /** Started at all: a game on court, a point on its sheet, or a score. */
+  const begun = (m: typeof matches[number]) => (slots[m.id] ?? []).some((s) => s.started_at !== null || s.score_a !== null);
   /** The playable card: one row per game. Finished meetings get the same one so a score entered by
       mistake can still be changed. */
   const card = (m: typeof matches[number]) => (
@@ -64,6 +71,15 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
           {(slots[m.id] ?? []).map((s) => (
             <GameLine key={s.game_no} tournament={t} match={m} slot={s} settings={settingsOf(m)} teams={teams} admin={m.status !== 'pending'} collapsible />
           ))}
+          {begun(m) && (
+            <form action={restart} className="flex justify-end">
+              <input type="hidden" name="matchId" value={m.id} />
+              <SubmitButton
+                confirmMessage="Restart this whole match? Every game's score, clock and point-by-point sheet is wiped and the games come off court."
+                className={ui.tiny}
+              >Restart match</SubmitButton>
+            </form>
+          )}
         </div>
       ) : <p className="text-xs font-bold uppercase tracking-label text-muted">Waiting on both teams.</p>}
     </MatchCard>

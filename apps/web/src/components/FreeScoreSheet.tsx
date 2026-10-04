@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { remainingMs } from '@/lib/results/clock';
 import { replay } from '@/lib/results/scoresheet';
 import {
-  blankSheet, decodeFreeSheet, encodeFreeSheet, FREE_SHEET_KEY, FREE_SHEET_SETTINGS as settings, type FreeSheet, type FreeSide,
+  blankSheet, decodeFreeSheet, decodeHistory, encodeFreeSheet, FREE_HISTORY_KEY, FREE_SHEET_KEY, FREE_SHEET_SETTINGS as settings,
+  pastGameOf, type FreeSheet, type FreeSide, type PastGame,
 } from '@/lib/results/freeSheet';
 import { ScoreSheet } from './ScoreSheet';
 import { ui } from './ui';
@@ -27,19 +28,27 @@ export function FreeScoreSheet({ slug, teams }: {
 
   // The sides fold away once scoring starts, leaving one line naming who is on court.
   const [sidesOpen, setSidesOpen] = useState(true);
+  // Games already played here, newest first, so a tiebreak result can be looked back at.
+  const [history, setHistory] = useState<PastGame[]>([]);
+  const historyKey = FREE_HISTORY_KEY(slug);
 
   useEffect(() => {
     try {
       const stored = decodeFreeSheet(localStorage.getItem(key));
       setSheet(stored);
       setSidesOpen(stored.rallies.length === 0);
+      setHistory(decodeHistory(localStorage.getItem(historyKey)));
     } catch { /* storage blocked */ }
     setLoaded(true);
-  }, [key]);
+  }, [key, historyKey]);
   useEffect(() => {
     if (!loaded) return;
     try { localStorage.setItem(key, encodeFreeSheet(sheet)); } catch { /* storage blocked */ }
   }, [key, sheet, loaded]);
+  useEffect(() => {
+    if (!loaded) return;
+    try { localStorage.setItem(historyKey, JSON.stringify(history)); } catch { /* storage blocked */ }
+  }, [historyKey, history, loaded]);
 
   const setSide = (which: 'a' | 'b', side: FreeSide) => setSheet((s) => ({ ...s, [which]: side }));
   const pickTeam = (which: 'a' | 'b', teamId: string) =>
@@ -49,7 +58,6 @@ export function FreeScoreSheet({ slug, teams }: {
     setSide(which, { ...side, players: i === 0 ? [name, side.players[1]] : [side.players[0], name] });
   };
 
-  const begun = sheet.rallies.length > 0;
   const { clock } = sheet;
   const running = clock.startedAt !== null && clock.pausedAt === null;
   const [now, setNow] = useState(() => Date.now());
@@ -71,8 +79,10 @@ export function FreeScoreSheet({ slug, teams }: {
   const resumeClock = () => setClock({ ...clock, pausedAt: null, pausedMs: clock.pausedMs + (Date.now() - Date.parse(clock.pausedAt!)) });
   const secs = Math.ceil((left ?? (settings.timeCapMinutes ?? 0) * 60_000) / 1000);
   const shown = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+  // The game being put away goes into the history rather than being lost, so no confirm is needed.
   const newGame = () => {
-    if (begun && !window.confirm('Clear the sides and the score and start a new game?')) return;
+    const past = pastGameOf(sheet, crypto.randomUUID(), Date.now());
+    if (past) setHistory((h) => [past, ...h]);
     setSheet(blankSheet());
     setSidesOpen(true);
   };
@@ -160,6 +170,35 @@ export function FreeScoreSheet({ slug, teams }: {
           )}
         </div>
       </section>
+
+      {history.length > 0 && (
+        <section className={ui.card} data-testid="free-sheet-history">
+          <div className={ui.head}>
+            <h2 className={ui.eyebrow}>Games played on this phone</h2>
+            <span className={`${ui.eyebrow} text-muted`}>{history.length}</span>
+          </div>
+          <ul>
+            {history.map((g) => (
+              <li key={g.id} className="flex flex-wrap items-center justify-between gap-3 border-b-hair border-line-soft px-7 py-4 last:border-b-0">
+                <span className="min-w-0">
+                  <span className="block font-display text-base font-extrabold uppercase">
+                    {g.a} <span className="tabular-nums">{g.scoreA}–{g.scoreB}</span> {g.b}
+                  </span>
+                  <span className="block text-sm text-muted">
+                    {g.winner ? `${g.winner} won${g.byTime ? ' on time' : ''}` : 'Unfinished'}
+                    {g.pairA || g.pairB ? ` · ${g.pairA || g.a} v ${g.pairB || g.b}` : ''}
+                    {g.at && !Number.isNaN(Date.parse(g.at)) ? ` · ${new Date(g.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+                  </span>
+                </span>
+                <button type="button" className={ui.tiny} data-testid="free-sheet-delete"
+                  onClick={() => { if (window.confirm(`Delete ${g.a} v ${g.b} (${g.scoreA}–${g.scoreB})?`)) setHistory((h) => h.filter((x) => x.id !== g.id)); }}>
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

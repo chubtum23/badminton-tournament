@@ -15,6 +15,24 @@ import { syncMatchStatus } from '@/lib/schedule/status';
 
 const busy = (message: string): ActionResult => fail('stale_state', message);
 
+type AdminSb = Extract<Awaited<ReturnType<typeof requireAdmin>>, { sb: unknown }>['sb'];
+
+/**
+ * Rubs out a game's point-by-point sheet so a restarted game starts from 0-0 on every screen.
+ * There is no delete policy on live_games, so the sheet is overwritten through push_live_game at
+ * its current revision; a scorer's phone still holding the old taps is then a revision behind and
+ * adopts the blank sheet instead of sending them back.
+ */
+async function wipeLiveSheet(sb: AdminSb, matchId: string, gameNo: number): Promise<string | null> {
+  const cur = await sb.from('live_games').select('server, receiver, rev').eq('match_id', matchId).eq('game_no', gameNo).maybeSingle();
+  if (cur.error) return cur.error.message;
+  if (!cur.data) return null;
+  const res = await sb.rpc('push_live_game', {
+    p_match: matchId, p_game: gameNo, p_server: cur.data.server, p_receiver: cur.data.receiver, p_rallies: '', p_rev: cur.data.rev,
+  });
+  return res.error ? res.error.message : null;
+}
+
 /**
  * Starts one game of a meeting and its clock. With no court given it takes the lowest court no
  * running game is holding, which is what an organiser calling the next game wants — and when they
@@ -42,7 +60,58 @@ export async function startGame(slug: string, matchId: string, gameNo: number, c
   }, busy);
 }
 
-/** Takes a game off its court. The clock is thrown away, because the game will start again. */
+/**
+ * Starts a game on court again from nothing: same court, the clock back to the full time, and the
+ * point-by-point sheet wiped. For a game called on too early or scored wrongly from the start.
+ */
+export async function restartGame(slug: string, matchId: string, gameNo: number): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const slot = (await listGames(ctx.sb, ctx.tournament.id)).find((g) => g.match_id === matchId && g.game_no === gameNo);
+    if (!slot) return fail('invalid_input', 'Unknown game');
+    if (slot.score_a !== null) return fail('match_not_editable', 'That game already has a score; use Clear');
+    if (slot.started_at === null) return fail('stale_state', 'That game is not on court');
+    const upd = await ctx.sb.from('games').update({ started_at: new Date().toISOString(), paused_at: null, paused_ms: 0 })
+      .eq('match_id', matchId).eq('game_no', gameNo).is('score_a', null).not('started_at', 'is', null).select('game_no');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+    const wiped = await wipeLiveSheet(ctx.sb, matchId, gameNo);
+    if (wiped) return fail('invalid_input', wiped);
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
+}
+
+/**
+ * Puts a whole meeting back to unplayed: every score cleared (through clearGameScore, so a decided
+ * meeting's result comes undone the same careful way, and refuses if a later played match hangs on
+ * it), every game off court with its clock thrown away, and every point-by-point sheet wiped.
+ */
+export async function restartMatch(slug: string, matchId: string): Promise<ActionResult> {
+  const ctx = await requireAdmin(slug);
+  if ('error' in ctx) return fail('not_admin');
+  return withResultLock(ctx.sb, ctx.tournament.id, async () => {
+    const games = (await listGames(ctx.sb, ctx.tournament.id)).filter((g) => g.match_id === matchId);
+    if (games.length === 0) return fail('invalid_input', 'Unknown match');
+    for (const g of games.filter((x) => x.score_a !== null).sort((x, y) => y.game_no - x.game_no)) {
+      const cleared = await clearGameScore(slug, matchId, g.game_no);
+      if (!cleared.ok) return cleared;
+    }
+    const off = await ctx.sb.from('games').update({ court: null, started_at: null, paused_at: null, paused_ms: 0 })
+      .eq('match_id', matchId).is('score_a', null);
+    if (off.error) return fail('invalid_input', off.error.message);
+    for (const g of games) {
+      const wiped = await wipeLiveSheet(ctx.sb, matchId, g.game_no);
+      if (wiped) return fail('invalid_input', wiped);
+    }
+    await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, busy);
+}
+
+/** Takes a game off its court. The clock and the point-by-point sheet are thrown away, because the game will start again. */
 export async function takeGameOffCourt(slug: string, matchId: string, gameNo: number): Promise<ActionResult> {
   const ctx = await requireAdmin(slug);
   if ('error' in ctx) return fail('not_admin');
@@ -54,6 +123,8 @@ export async function takeGameOffCourt(slug: string, matchId: string, gameNo: nu
       .eq('match_id', matchId).eq('game_no', gameNo).is('score_a', null).select('game_no');
     if (upd.error) return fail('invalid_input', upd.error.message);
     if ((upd.data ?? []).length === 0) return fail('stale_state', 'That game changed underneath you; reload');
+    const wiped = await wipeLiveSheet(ctx.sb, matchId, gameNo);
+    if (wiped) return fail('invalid_input', wiped);
     await syncMatchStatus(ctx.sb, ctx.tournament.id, matchId);
     revalidateTournament(slug);
     return ok(undefined);

@@ -2,7 +2,8 @@ import { BADMINTON_DEFAULTS, pairFor, pairSlotForGame, type Settings } from '@to
 import type { TeamWithPlayers } from '@/lib/db/queries';
 import { rosterOf } from '@/lib/teams/roster';
 import { decodeRallies, DEFAULT_START, encodeRallies } from './liveSheet';
-import { validStart, type SheetStart, type Side } from './scoresheet';
+import { remainingMs } from './clock';
+import { replay, validStart, type SheetStart, type Side } from './scoresheet';
 
 /**
  * The free score sheet: one game scored on the organiser's phone and nothing else. It belongs to
@@ -56,5 +57,52 @@ export function decodeFreeSheet(raw: string | null): FreeSheet {
     return { a: side(v.a, 1), b: side(v.b, 2), start, rallies: rallies ?? [], clock };
   } catch {
     return blankSheet();
+  }
+}
+
+/** A game already played on this phone, as the history list shows it. */
+export interface PastGame {
+  id: string;
+  /** When it was put away, ISO. */
+  at: string;
+  a: string; b: string;
+  pairA: string; pairB: string;
+  scoreA: number; scoreB: number;
+  /** The winning side's label, or null when it was put away unfinished. */
+  winner: string | null;
+  byTime: boolean;
+}
+
+export const FREE_HISTORY_KEY = (slug: string) => `free-scoresheet-history:${slug}`;
+
+const pair = (side: FreeSide) => side.players.filter((p) => p.trim()).join(' & ');
+
+/** The current sheet as a history entry; null when not a rally has been played. */
+export function pastGameOf(sheet: FreeSheet, id: string, now: number): PastGame | null {
+  if (sheet.rallies.length === 0) return null;
+  const t = replay(FREE_SHEET_SETTINGS, sheet.start, sheet.rallies);
+  const timeUp = remainingMs({ ...sheet.clock, capMinutes: FREE_SHEET_SETTINGS.timeCapMinutes }, now) === 0;
+  const byTime = !t.finished && timeUp && t.scoreA !== t.scoreB;
+  const lead: Side | null = t.finished ? t.winner : byTime ? (t.scoreA > t.scoreB ? 'a' : 'b') : null;
+  return {
+    id, at: new Date(now).toISOString(), a: sheet.a.label, b: sheet.b.label, pairA: pair(sheet.a), pairB: pair(sheet.b),
+    scoreA: t.scoreA, scoreB: t.scoreB, winner: lead === null ? null : lead === 'a' ? sheet.a.label : sheet.b.label, byTime,
+  };
+}
+
+/** Reads the history back, dropping anything malformed rather than failing the page. */
+export function decodeHistory(raw: string | null): PastGame[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (!Array.isArray(v)) return [];
+    const str = (x: unknown) => (typeof x === 'string' ? x : '');
+    const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
+    return v.filter((g) => g && typeof g === 'object' && typeof g.id === 'string').map((g) => ({
+      id: g.id, at: str(g.at), a: str(g.a), b: str(g.b), pairA: str(g.pairA), pairB: str(g.pairB),
+      scoreA: num(g.scoreA), scoreB: num(g.scoreB), winner: typeof g.winner === 'string' ? g.winner : null, byTime: g.byTime === true,
+    }));
+  } catch {
+    return [];
   }
 }
