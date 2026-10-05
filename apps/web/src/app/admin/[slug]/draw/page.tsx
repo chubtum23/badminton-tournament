@@ -8,7 +8,7 @@ import { roundTitle } from '@/lib/draw/model';
 import { firstRoundPairs, seatsMatch, seededSeats } from '@/lib/bracket/draw';
 import { DrawEditor } from '@/components/DrawEditor';
 import { redirectWithMsg } from '@/actions/redirectWithMsg';
-import { gameSlotsByMatch, listGames, listMatches, listPools, listTeams } from '@/lib/db/queries';
+import { gameSlotsByMatch, listGames, listMatches, listPools, listTeamsWithPlayers } from '@/lib/db/queries';
 import { gamesByMatch, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planKnockout } from '@/lib/bracket/plan';
 import { knockoutInput } from '@/lib/bracket/input';
@@ -26,7 +26,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
   if ('error' in ctx) redirect('/login');
   const t = ctx.tournament;
   const [pools, teams, matchRows, gameRows] = await Promise.all([
-    listPools(ctx.sb, t.id), listTeams(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id),
+    listPools(ctx.sb, t.id), listTeamsWithPlayers(ctx.sb, t.id), listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id),
   ]);
   const matches = matchRows.map(rowToMatch);
   const games = gamesByMatch(gameRows);

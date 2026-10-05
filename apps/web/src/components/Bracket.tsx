@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Game, Match } from '@tournament/core';
-import type { GameRow, TeamRow } from '@/lib/db/types';
+import type { GameRow, RosterPlayerRow, TeamRow } from '@/lib/db/types';
+import { firstNames } from '@/lib/teams/roster';
 import type { Pending } from './MatchCard';
 import { ui } from './ui';
 
@@ -13,7 +14,7 @@ function roundTitle(round: number, totalRounds: number): string {
 }
 
 export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
-  matches: Match[]; teams: readonly TeamRow[]; games: Record<string, Game[]>; hrefFor?: (m: Match) => string;
+  matches: Match[]; teams: readonly (TeamRow & { players?: RosterPlayerRow[] })[]; games: Record<string, Game[]>; hrefFor?: (m: Match) => string;
   /** Every game row per match; the courts a live meeting is spread over are read off these. */
   slots?: Record<string, GameRow[]>;
   /** Supplies the unconfirmed submission to label a submitted/disputed box with, if any. */
@@ -43,6 +44,7 @@ export function Bracket({ matches, teams, games, slots, hrefFor, pendingFor }: {
             {t?.seed && <span className="bg-orange-tint px-1.5 text-[11px] font-bold text-orange-ink">#{t.seed}</span>}
             <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
           </span>
+          {firstNames(t) && <span data-testid="player-names" className="block truncate text-[11px] font-normal text-muted">{firstNames(t)}</span>}
           {t?.tagline && <span className="block truncate text-[11px] text-muted">{t.tagline}</span>}
         </span>
         <span className="shrink-0 font-display text-sm font-black tabular-nums">

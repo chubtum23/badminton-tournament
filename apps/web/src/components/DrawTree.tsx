@@ -1,5 +1,6 @@
 import type { Game, Match, Settings, StandingRow } from '@tournament/core';
-import type { GameRow, PoolRow, TeamRow, TournamentRow } from '@/lib/db/types';
+import type { GameRow, PoolRow, RosterPlayerRow, TeamRow, TournamentRow } from '@/lib/db/types';
+import { firstNames } from '@/lib/teams/roster';
 import { centreMatch, drawModel, halfRounds, roundTitle, type DrawPool } from '@/lib/draw/model';
 import { CourtClock } from './CourtClock';
 import { poolTone } from './ui';
@@ -16,7 +17,8 @@ import { poolTone } from './ui';
 export function DrawTree({ tournament, pools, teams, matches, games, slots, standings, settings }: {
   tournament: TournamentRow;
   pools: readonly PoolRow[];
-  teams: readonly TeamRow[];
+  /** With players loaded, each knockout box names them under the team. */
+  teams: readonly (TeamRow & { players?: RosterPlayerRow[] })[];
   matches: readonly Match[];
   /** Scored games per match, for the running score inside each knockout box. */
   games: Readonly<Record<string, Game[]>>;
@@ -40,9 +42,12 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
     const decided = m.status === 'done' && m.decidedBy !== 'played';
     return (
       <div className={`flex items-center justify-between gap-2 px-3 py-2 text-sm ${won ? 'bg-orange-wash font-bold' : ''}`}>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t?.colour ?? '#C9CBDC' }} />
-          <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
+        <span className="min-w-0">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t?.colour ?? '#C9CBDC' }} />
+            <span className="truncate">{t?.name ?? (m.status === 'done' && !id ? 'bye' : 'TBD')}</span>
+          </span>
+          {firstNames(t) && <span data-testid="player-names" className="block truncate pl-4 text-[11px] font-normal text-muted">{firstNames(t)}</span>}
         </span>
         <span className="shrink-0 font-display text-sm font-black tabular-nums">
           {decided ? <span className="text-[11px] uppercase tracking-label text-muted">{m.decidedBy}</span> : scored > 0 ? wonGames : ''}

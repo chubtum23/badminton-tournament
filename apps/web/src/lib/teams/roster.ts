@@ -67,3 +67,16 @@ const MESSAGES: Record<string, string> = {
 export function rosterErrorMessage(dbMessage: string): string {
   return MESSAGES[dbMessage] ?? dbMessage;
 }
+
+/**
+ * "Sam · Alex · Priya": each player's first name, Mixed #1 and Mixed #2 first, then the woman, so a
+ * team called "Team 4" can be told apart at a glance. Empty when the team has no roster loaded.
+ */
+export function firstNames(team: { players?: readonly { name: string; role: RosterRole | null }[] } | undefined): string {
+  const rank = (role: RosterRole | null) => (role === null ? ROSTER_ROLES.length : ROSTER_ROLES.indexOf(role));
+  return [...(team?.players ?? [])]
+    .sort((a, b) => rank(a.role) - rank(b.role))
+    .map((p) => p.name.trim().split(/\s+/)[0] ?? '')
+    .filter((n) => n !== '')
+    .join(' · ');
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { keptPathFrom, pairNames, parseRosterForm, parseSignupForm, photoBlobFrom, rosterErrorMessage, rosterOf } from './roster';
+import { firstNames, keptPathFrom, pairNames, parseRosterForm, parseSignupForm, photoBlobFrom, rosterErrorMessage, rosterOf } from './roster';
 import type { TeamWithPlayers } from '@/lib/db/queries';
 
 const team: TeamWithPlayers = {
@@ -103,5 +103,17 @@ describe('rosterErrorMessage', () => {
     expect(rosterErrorMessage('invalid_input')).toBe('Check the names and try again');
     expect(rosterErrorMessage('stale_state')).toBe('The draw is locked, so teams cannot change');
     expect(rosterErrorMessage('something else')).toBe('something else');
+  });
+});
+
+describe('firstNames', () => {
+  it('lists first names, the two men before the woman', () => {
+    expect(firstNames({ players: [
+      { name: 'Priya Shah', role: 'woman' }, { name: 'Alex  Lee', role: 'mixed2' }, { name: 'Sam', role: 'mixed1' },
+    ] })).toBe('Sam · Alex · Priya');
+  });
+  it('is empty without a roster', () => {
+    expect(firstNames(undefined)).toBe('');
+    expect(firstNames({ players: [] })).toBe('');
   });
 });
