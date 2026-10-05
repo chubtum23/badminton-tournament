@@ -117,7 +117,7 @@ export function DrawTree({ tournament, pools, teams, matches, games, slots, stan
     <div className="flex gap-8" style={{ minHeight: `${Math.max(4, (model.rounds[0]?.length ?? 2) * 6)}rem` }}>
       <div className="dt-round space-y-4">{model.pools.map(poolBox)}</div>
       {totalRounds === 0 ? notStarted : (
-        <div className="dt-l flex gap-8">
+        <div className="dt-l flex flex-1 gap-8">
           {model.rounds.map((list, i) => roundColumn(list, roundTitle(i + 1, totalRounds)))}
         </div>
       )}
