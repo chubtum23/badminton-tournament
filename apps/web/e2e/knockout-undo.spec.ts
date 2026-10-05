@@ -80,8 +80,21 @@ test('knockout rules and draw stay changeable, and undoing the knockout keeps po
   const semi = page.getByTestId('match-card').filter({ hasText: 'Round 1 · #1' });
   await expect(semi.getByTestId('game-row')).toHaveCount(3);
 
-  // With a knockout game played, undo still works (after the Yes) and pool results are untouched.
+  // Started but nothing played: the knockout rules still change, and the game slots follow them.
+  await setKnockoutGames(page, 5);
+  await page.goto(`/admin/${slug}/matches?pool=knockout`);
+  await expect(semi.getByTestId('game-row')).toHaveCount(5);
+  await setKnockoutGames(page, 3);
+  await page.goto(`/admin/${slug}/matches?pool=knockout`);
+  await expect(semi.getByTestId('game-row')).toHaveCount(3);
+  await poolResultsIntact(page);
+
+  // With a knockout game played, the knockout rules fix, undo still works (after the Yes) and pool
+  // results are untouched.
+  await page.goto(`/admin/${slug}/matches?pool=knockout`);
   await playGames(semi, [[15, 9]]);
+  await page.goto(`/admin/${slug}/rules`);
+  await expect(page.getByTestId('ko-rules').getByLabel('Games per match')).toBeDisabled();
   await undo(page);
   await poolResultsIntact(page);
   await page.goto(`/admin/${slug}/draw`);

@@ -8,6 +8,9 @@ import { FlashMessage } from '@/components/FlashMessage';
 import { gameLabel, settingsFor } from '@/lib/db/mappers';
 import { SubmitButton } from '@/components/SubmitButton';
 import { ui } from '@/components/ui';
+import { KnockoutRulesFields } from '@/components/KnockoutRulesFields';
+import { listGames, listMatches } from '@/lib/db/queries';
+import { knockoutHasPlay } from '@/lib/bracket/undo';
 
 const fieldset = 'space-y-5 border-hair border-line p-6';
 const legend = 'px-2 text-xs font-bold uppercase tracking-eyebrow text-navy';
@@ -20,8 +23,14 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
   // Two locks, not one: pool scoring would rewrite finished results the moment the pools start,
   // but the knockout has not been played yet, so its rules (and how many teams advance to it) stay
   // open right up until the knockout is started.
+  // Once the bracket exists, its rules stay open until the first knockout game is scored or put on
+  // court (the same test the knockout undo uses); who qualifies is fixed from the start.
   const locked = t.status !== 'setup';
-  const koLocked = t.status === 'knockout' || t.status === 'finished';
+  const koStarted = t.status === 'knockout' || t.status === 'finished';
+  const koLocked = t.status === 'finished' || (koStarted && await (async () => {
+    const [rows, gameRows] = await Promise.all([listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id)]);
+    return knockoutHasPlay(rows, gameRows);
+  })());
 
   const pool = settingsFor(t, 'pool');
   const knockout = settingsFor(t, 'knockout');
@@ -75,22 +84,20 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
 
         <fieldset className={fieldset}>
           <legend className={legend}>Knockout stage</legend>
-          <label className={ui.check}><input name="ko_same" type="checkbox" className={ui.checkbox} defaultChecked={koSame} disabled={koLocked} /> Same as the pool stage</label>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className={ui.label}>Games per match<input name="ko_gamesPerMatch" type="number" defaultValue={knockout.gamesPerMatch} disabled={koLocked} className={ui.field} /></label>
-            <label className={ui.label}>Points per game<input name="ko_pointsPerGame" type="number" defaultValue={knockout.pointsPerGame} disabled={koLocked} className={ui.field} /></label>
-            <label className={ui.label}>Points cap<input name="ko_maxPoints" type="number" defaultValue={knockout.maxPoints ?? ''} disabled={koLocked} className={ui.field} /><span className={ui.help}>Blank for none.</span></label>
-            <label className={ui.label}>Clock minutes per game<input name="ko_timeCap" type="number" defaultValue={knockout.timeCapMinutes ?? ''} disabled={koLocked} className={ui.field} /><span className={ui.help}>Blank for no clock.</span></label>
-            <label className={ui.check}><input name="ko_winByTwo" type="checkbox" className={ui.checkbox} defaultChecked={knockout.winByTwo} disabled={koLocked} /> Win by two</label>
-          </div>
-          <p className={ui.help}>These are ignored while &ldquo;same as the pool stage&rdquo; is ticked.</p>
+          <KnockoutRulesFields knockout={knockout} same={koSame} locked={koLocked} />
+          {t.status === 'knockout' && !koLocked && (
+            <p className={ui.help}>The knockout has started but nothing in it has been played, so its rules can still change. They fix once the first knockout game is scored or put on court. Pool results are not affected.</p>
+          )}
+          {koLocked && t.status === 'knockout' && (
+            <p className={ui.help}>Knockout games have been played under these rules. To change them, undo the knockout start on the Draw page; pool results are kept.</p>
+          )}
         </fieldset>
 
         <fieldset className={fieldset}>
           <legend className={legend}>Draw</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <label className={ui.label}>Courts<input name="courtCount" type="number" defaultValue={t.court_count} className={ui.field} /><span className={ui.help}>Editable at any time. A game can always start without a court, so this is not a limit on how many run at once.</span></label>
-            <label className={ui.label}>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={koLocked} className={ui.field} /><span className={ui.help}>How many of each pool reach the knockout.</span></label>
+            <label className={ui.label}>Advance per pool<input name="advancePerPool" type="number" defaultValue={t.advance_per_pool} disabled={koStarted} className={ui.field} /><span className={ui.help}>How many of each pool reach the knockout.{koStarted ? ' Fixed once the knockout starts.' : ''}</span></label>
           </div>
         </fieldset>
 
@@ -123,9 +130,9 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
                 {knockout.winByTwo && <input type="hidden" name="ko_winByTwo" value="on" />}
               </>
             )}
-            <input type="hidden" name="advancePerPool" value={t.advance_per_pool} />
           </>
         )}
+        {koStarted && <input type="hidden" name="advancePerPool" value={t.advance_per_pool} />}
 
         {/* Courts stay editable at every stage, so there is always something to save. */}
         <SubmitButton className={ui.primary}>Save rules</SubmitButton>

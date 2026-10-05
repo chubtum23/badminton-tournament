@@ -5,6 +5,14 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { parseSettingsForm, slugify } from '@/lib/tournaments/settingsForm';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TournamentRow } from '@/lib/db/types';
+import { listGames, listMatches } from '@/lib/db/queries';
+import { settingsFor } from '@/lib/db/mappers';
+import { knockoutHasPlay } from '@/lib/bracket/undo';
+import { koSlotChanges } from '@/lib/bracket/koSlots';
+import { withResultLock } from '@/lib/results/lock';
+import { revalidateTournament } from './revalidate';
 
 export async function createTournament(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
@@ -53,25 +61,65 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
       game_labels: v.labels,
     });
   }
+  // null across the ko_* columns means "the knockout uses the pool rules"; 0 in
+  // ko_time_cap_minutes is the sentinel for "the knockout has no clock".
+  const koColumns = {
+    ko_games_per_match: v.knockout ? v.knockout.gamesPerMatch : null,
+    ko_points_per_game: v.knockout ? v.knockout.pointsPerGame : null,
+    ko_win_by_two: v.knockout ? v.knockout.winByTwo : null,
+    ko_max_points: v.knockout ? v.knockout.maxPoints : null,
+    ko_time_cap_minutes: v.knockout ? v.knockout.timeCapMinutes ?? 0 : null,
+  };
   // The knockout has not been played yet, so its format — and how many teams reach it — stays open
-  // through the pool stage and fixes when the knockout is started.
+  // through the pool stage.
   if (ctx.tournament.status === 'setup' || ctx.tournament.status === 'pools') {
-    Object.assign(update, {
-      // null across the ko_* columns means "the knockout uses the pool rules"; 0 in
-      // ko_time_cap_minutes is the sentinel for "the knockout has no clock".
-      ko_games_per_match: v.knockout ? v.knockout.gamesPerMatch : null,
-      ko_points_per_game: v.knockout ? v.knockout.pointsPerGame : null,
-      ko_win_by_two: v.knockout ? v.knockout.winByTwo : null,
-      ko_max_points: v.knockout ? v.knockout.maxPoints : null,
-      ko_time_cap_minutes: v.knockout ? v.knockout.timeCapMinutes ?? 0 : null,
-      advance_per_pool: v.advancePerPool,
-    });
+    Object.assign(update, koColumns, { advance_per_pool: v.advancePerPool });
   }
+  // Once the bracket exists its rules stay open until the first knockout game is scored or put on
+  // court. Who qualified is fixed by then, so advance_per_pool is not written.
+  if (ctx.tournament.status === 'knockout') return updateKnockoutRules(slug, ctx, update, koColumns);
   const upd = await ctx.sb.from('tournaments').update(update).eq('id', ctx.tournament.id);
   if (upd.error) return fail('invalid_input', upd.error.message);
   revalidatePath(`/admin/${slug}`);
   revalidatePath(`/t/${slug}`);
   return ok(undefined);
+}
+
+/**
+ * Saves the rules once the knockout has started. Under the result lock, so no knockout game can be
+ * scored between checking that none has been and changing the rules it would be scored under. When
+ * games per match changes, every (still empty) knockout match gets that many game slots. Pool and
+ * playoff matches are never touched.
+ */
+async function updateKnockoutRules(
+  slug: string,
+  ctx: { sb: SupabaseClient; tournament: TournamentRow },
+  update: Record<string, unknown>,
+  koColumns: Partial<TournamentRow>,
+): Promise<ActionResult> {
+  const t = ctx.tournament;
+  return withResultLock(ctx.sb, t.id, async () => {
+    const [rows, gameRows] = await Promise.all([listMatches(ctx.sb, t.id), listGames(ctx.sb, t.id)]);
+    const open = !knockoutHasPlay(rows, gameRows);
+    if (open) Object.assign(update, koColumns);
+    const upd = await ctx.sb.from('tournaments').update(update).eq('id', t.id).eq('status', 'knockout').select('id');
+    if (upd.error) return fail('invalid_input', upd.error.message);
+    if ((upd.data ?? []).length === 0) return fail('stale_state', 'The tournament moved on; reload');
+    if (open) {
+      const gamesPerMatch = settingsFor({ ...t, ...koColumns }, 'knockout').gamesPerMatch;
+      const { matchIds, insert } = koSlotChanges(rows, gameRows, gamesPerMatch);
+      if (matchIds.length > 0) {
+        const del = await ctx.sb.from('games').delete().in('match_id', matchIds).gt('game_no', gamesPerMatch);
+        if (del.error) return fail('invalid_input', del.error.message);
+      }
+      if (insert.length > 0) {
+        const ins = await ctx.sb.from('games').insert(insert);
+        if (ins.error) return fail('invalid_input', ins.error.message);
+      }
+    }
+    revalidateTournament(slug);
+    return ok(undefined);
+  }, (message) => fail('stale_state', message));
 }
 
 /** Date and venue only; editable at every stage. */

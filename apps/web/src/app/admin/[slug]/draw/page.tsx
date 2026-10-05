@@ -128,7 +128,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
             </details>
             <form action={start}>
               <SubmitButton
-                confirmMessage="Start the knockout with this bracket? Pool results are frozen while the knockout runs. You can undo the start from this page if you need to change the rules or the draw."
+                confirmMessage="Start the knockout with this bracket? Pool results are kept but frozen while the knockout runs. Knockout rules stay editable until the first knockout game is played, and you can undo the start from this page to change the draw."
                 className={ui.primary}
               >Start knockout with this bracket</SubmitButton>
             </form>
