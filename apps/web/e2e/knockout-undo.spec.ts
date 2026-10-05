@@ -64,6 +64,17 @@ test('knockout rules and draw stay changeable, and undoing the knockout keeps po
   await page.reload();
   await expect(page.getByTestId('draw-seat').nth(0)).toHaveValue(second);
 
+  // Move the whole second match to number 1 and back: both pairings travel together.
+  const firstPair = [await seats.nth(0).inputValue(), await seats.nth(1).inputValue()];
+  const secondPair = [await seats.nth(2).inputValue(), await seats.nth(3).inputValue()];
+  await page.getByTestId('draw-match-number').nth(1).selectOption('0');
+  await expect(seats.nth(0)).toHaveValue(secondPair[0]!);
+  await expect(seats.nth(1)).toHaveValue(secondPair[1]!);
+  await expect(seats.nth(2)).toHaveValue(firstPair[0]!);
+  await page.getByTestId('draw-match-number').nth(1).selectOption('0');
+  await expect(seats.nth(0)).toHaveValue(firstPair[0]!);
+  await expect(seats.nth(3)).toHaveValue(secondPair[1]!);
+
   await startKnockout(page);
   await page.goto(`/admin/${slug}/matches?pool=knockout`);
   await expect(openMeetings(page).first().getByTestId('game-row')).toHaveCount(1);

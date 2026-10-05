@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBracketFromSeats, type PoolResult } from '@tournament/core';
-import { firstRoundPairs, randomSeats, seatsMatch, seededSeats, swapSeats, hasByeAgainstBye } from './draw';
+import { firstRoundPairs, randomSeats, seatsMatch, seededSeats, swapSeats, hasByeAgainstBye, swapPairs } from './draw';
 
 const pools: PoolResult[] = [
   { poolId: 'P1', ranked: ['a1', 'a2'] },
@@ -105,5 +105,32 @@ describe('byes in a random draw', () => {
     const seats: (string | null)[] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     seats[pairs[0]![0]] = null; seats[pairs[0]![1]] = null;
     expect(hasByeAgainstBye(seats)).toBe(true);
+  });
+});
+
+describe('swapPairs', () => {
+  // Seed order: pool winners A-D, then runners-up A-D.
+  const seeded = ['A1', 'B1', 'C1', 'D1', 'A2', 'B2', 'C2', 'D2'];
+  const qfs = (seats: (string | null)[]) => firstRoundPairs(seats).map(([a, b]) => `${seats[a]} v ${seats[b]}`);
+
+  it('moves whole quarter-finals to another number, keeping each pairing', () => {
+    expect(qfs(seeded)).toEqual(['A1 v D2', 'D1 v A2', 'B1 v C2', 'C1 v B2']);
+    // The club poster: QF2 is C1 v B2, QF3 D1 v A2, QF4 B1 v C2.
+    const poster = swapPairs(swapPairs(seeded, 1, 3), 2, 3);
+    expect(qfs(poster)).toEqual(['A1 v D2', 'C1 v B2', 'D1 v A2', 'B1 v C2']);
+    expect(seatsMatch(poster, seeded)).toBe(true);
+  });
+
+  it('feeds quarter-finals 1 and 2 into semi-final 1', () => {
+    const poster = swapPairs(swapPairs(seeded, 1, 3), 2, 3);
+    const ms = buildBracketFromSeats(poster, (() => { let n = 0; return () => `m${++n}`; })());
+    const r1 = ms.filter((m) => m.round === 1);
+    expect(r1[0]!.nextMatchId).toBe(r1[1]!.nextMatchId);
+    expect([r1[1]!.teamAId, r1[1]!.teamBId]).toEqual(['C1', 'B2']);
+  });
+
+  it('leaves the draw alone for an unknown or identical number', () => {
+    expect(swapPairs(seeded, 1, 1)).toEqual(seeded);
+    expect(swapPairs(seeded, 1, 9)).toEqual(seeded);
   });
 });

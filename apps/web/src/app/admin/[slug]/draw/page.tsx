@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/actions/guard';
-import { moveInDraw, randomiseDraw, replaceTeamInMatch, startKnockout, undoKnockout, useSeededDraw } from '@/actions/bracket';
+import { moveInDraw, moveMatchInDraw, randomiseDraw, replaceTeamInMatch, startKnockout, undoKnockout, useSeededDraw } from '@/actions/bracket';
 import { knockoutHasPlay } from '@/lib/bracket/undo';
 import { UNLOCK_WORD } from '@/lib/results/freeze';
 import { ConfirmStep } from '@/components/ConfirmStep';
@@ -117,6 +117,7 @@ export default async function BracketAdminPage({ params }: { params: Promise<{ s
                   options={qualifierIds.map((id) => ({ id, name: teamName(teams, id) }))}
                   byes={drawSeats.some((s) => s === null)}
                   move={moveInDraw.bind(null, slug)}
+                  moveMatch={moveMatchInDraw.bind(null, slug)}
                 />
               </div>
             </section>

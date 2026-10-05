@@ -83,3 +83,18 @@ export function firstRoundPairs(seats: readonly (string | null)[]): [number, num
   for (let i = 0; i < order.length; i += 2) pairs.push([order[i]! - 1, order[i + 1]! - 1]);
   return pairs;
 }
+
+/**
+ * Moves a whole first-round match to another match's number, swapping the two. The pairings stay
+ * as they are; only where they sit in the bracket changes, and so who they can meet next.
+ */
+export function swapPairs(seats: readonly (string | null)[], from: number, to: number): Seats {
+  const pairs = firstRoundPairs(seats);
+  const next = [...seats];
+  const x = pairs[from];
+  const y = pairs[to];
+  if (!x || !y || from === to) return next;
+  [next[x[0]], next[y[0]]] = [seats[y[0]] ?? null, seats[x[0]] ?? null];
+  [next[x[1]], next[y[1]]] = [seats[y[1]] ?? null, seats[x[1]] ?? null];
+  return next;
+}

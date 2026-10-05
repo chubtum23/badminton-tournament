@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { randomInt, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TournamentRow } from '@/lib/db/types';
-import { hasByeAgainstBye, randomSeats, seatsMatch, seededSeats, swapSeats, type Seats } from '@/lib/bracket/draw';
+import { hasByeAgainstBye, randomSeats, seatsMatch, seededSeats, swapPairs, swapSeats, type Seats } from '@/lib/bracket/draw';
 import { requireAdmin } from './guard';
 import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
@@ -150,6 +150,12 @@ export async function useSeededDraw(slug: string): Promise<ActionResult> {
 export async function moveInDraw(slug: string, index: number, teamId: string | null): Promise<ActionResult> {
   if (!Number.isInteger(index) || index < 0) return fail('invalid_input', 'Unknown place in the draw');
   return writeDraw(slug, ({ seats }) => swapSeats(seats, index, teamId));
+}
+
+/** Moves a whole first-round match to another match's number (e.g. Quarter-final 2 to 4), swapping the two. */
+export async function moveMatchInDraw(slug: string, from: number, to: number): Promise<ActionResult> {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0) return fail('invalid_input', 'Unknown match in the draw');
+  return writeDraw(slug, ({ seats }) => swapPairs(seats, from, to));
 }
 
 /**
