@@ -3,13 +3,15 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Match, Settings } from '@tournament/core';
 import type { GameRow, RosterPlayerRow, TeamRow, TournamentRow } from '@/lib/db/types';
-import { pairingGameNo, stageGameLabel } from '@/lib/db/mappers';
+import { gameLabel, pairingGameNo, relayTarget, stageGameLabel } from '@/lib/db/mappers';
+import { justSwapped, relayLeg } from '@/lib/results/relay';
+import { liveScore } from '@/lib/results/liveSheet';
 import { ratingSlots } from '@/lib/results/ratings';
 import { pairNames } from '@/lib/teams/roster';
 import type { ActionResult } from '@/actions/errors';
 import { clearGameScore, pauseGame, restartGame, resumeGame, saveGameScore, startGame, takeGameOffCourt } from '@/actions/games';
 import { CourtClock } from './CourtClock';
-import { GameScoreForm, sheetNames } from './GameScoreForm';
+import { GameScoreForm, relayInfo, sheetNames } from './GameScoreForm';
 import { useLiveGame } from './LiveGames';
 import { LiveScore } from './LiveScore';
 import { ScoreSheet } from './ScoreSheet';
@@ -64,7 +66,8 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   const [error, setError] = useState<string | null>(null);
   const [changing, setChanging] = useState(false);
   const [open, setOpen] = useState(false);
-  const label = stageGameLabel(tournament, match.stage, slot.game_no);
+  const label = stageGameLabel(tournament, match.stage, slot.game_no, match.round);
+  const target = relayTarget(tournament, match.stage, match.round);
   // Whose pair is on court: a playoff's only game is the men's doubles.
   const pairingNo = pairingGameNo(match.stage, slot.game_no);
   const nameOf = (id: string | null) => (id ? teams.find((x) => x.id === id)?.name ?? '?' : 'TBD');
@@ -83,7 +86,13 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
   const live = useLiveGame(match.id, slot.game_no);
   const followable = !scored && live !== null && live.rallies.length > 0;
   const [watching, setWatching] = useState(false);
-  const courtSlots = ratingSlots(teams.find((t) => t.id === match.teamAId), teams.find((t) => t.id === match.teamBId), pairingNo);
+  const teamA = teams.find((t) => t.id === match.teamAId), teamB = teams.find((t) => t.id === match.teamBId);
+  const courtSlots = ratingSlots(teamA, teamB, pairingNo, target !== null);
+  // A relay game: which pairs are on in each leg, and where the live score has got to.
+  const relay = target !== null ? relayInfo(target, teamA, teamB, a, b, (n) => gameLabel(tournament, n)) : undefined;
+  const liveNow = live && live.rallies.length > 0 ? liveScore(live.rallies) : null;
+  const leg = relay ? relayLeg(relay.target, liveNow?.a ?? 0, liveNow?.b ?? 0) : null;
+  const swapNow = relay !== undefined && !scored && live !== null && justSwapped(relay.target, live.rallies);
 
   /** Runs one of the court actions inside the form's own pending state, then refreshes. */
   const run = async (fn: () => Promise<ActionResult>) => {
@@ -106,7 +115,12 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
         <span className={`block text-base font-bold uppercase tracking-wide ${scored ? 'text-orange-bright' : ''}`}>
           {label}{scored ? ' — Final' : ''}{scored && slot.time_expired ? ' · time' : ''}
         </span>
-        {(pairA || pairB) && (
+        {relay && leg && !scored && (
+          <span data-testid="relay-leg" className={`mt-0.5 block text-sm font-bold ${swapNow ? 'bg-orange px-2 py-0.5 text-ink' : 'text-orange-ink'}`}>
+            {swapNow ? 'SWAP — ' : ''}Leg {leg} · {relay.legs[leg - 1]!.label}: {relay.legs[leg - 1]!.pairs}
+          </span>
+        )}
+        {!relay && (pairA || pairB) && (
           <span data-testid="pair-names" className={`block text-sm ${scored ? 'text-onnavy-soft' : 'text-muted'}`}>
             {pairA ?? '—'} · {pairB ?? '—'}
           </span>
@@ -158,7 +172,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
           </button>
           {watching && (
             <ScoreSheet
-              settings={settings} teamA={a} teamB={b} names={sheetNames(courtSlots, a, b)}
+              settings={settings} teamA={a} teamB={b} names={relay ? relay.legs[0]!.names : sheetNames(courtSlots, a, b)} relay={relay}
               start={live.start} rallies={live.rallies}
             />
           )}
@@ -233,6 +247,7 @@ export function GameLine({ tournament, match, slot, settings, teams, admin, show
               existing={scored ? { scoreA: slot.score_a!, scoreB: slot.score_b!, timeExpired: slot.time_expired } : undefined}
               action={saveGameScore.bind(null, tournament.slug, match.id, slot.game_no)}
               slots={courtSlots}
+              relay={relay}
               confirmMessage={match.status === 'done' ? 'This meeting already has a result. Changing this score may reset every later match that depended on it. Continue?' : undefined}
             />
           )}

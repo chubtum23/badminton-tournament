@@ -4,7 +4,7 @@ import { fail, ok, type ActionResult } from './errors';
 import { revalidateTournament } from './revalidate';
 import { matchResult, rollback, validateGame } from '@tournament/core';
 import { listGames, listMatches, listTeamsWithPlayers } from '@/lib/db/queries';
-import { matchToRow, pairingGameNo, rowToMatch, settingsFor } from '@/lib/db/mappers';
+import { matchToRow, pairingGameNo, relayTarget, rowToMatch, settingsFor } from '@/lib/db/mappers';
 import { planResult } from '@/lib/results/apply';
 import { parseRatings, ratingSlots } from '@/lib/results/ratings';
 import { applyResultPlan, BLANK_GAME } from '@/lib/results/persist';
@@ -189,7 +189,7 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
     const row = rows.find((r) => r.id === matchId);
     if (!row || row.status === 'pending' || !row.team_a_id || !row.team_b_id) return fail('match_not_editable', 'That meeting cannot take a score yet');
     if (poolResultsFrozen(row.stage, ctx.tournament.status)) return fail('match_not_editable', POOL_RESULTS_FROZEN);
-    const settings = settingsFor(ctx.tournament, row.stage);
+    const settings = settingsFor(ctx.tournament, row.stage, row.round);
 
     const scoreA = Number(String(formData.get('scoreA') ?? '').trim());
     const scoreB = Number(String(formData.get('scoreB') ?? '').trim());
@@ -200,7 +200,7 @@ export async function saveGameScore(slug: string, matchId: string, gameNo: numbe
     // Ratings are parsed before the score is written, so a bad rating fails the whole save and the
     // organiser never ends up with a score whose ratings were silently dropped.
     const teams = await teamsPending;
-    const courtSlots = ratingSlots(teams.find((t) => t.id === row.team_a_id), teams.find((t) => t.id === row.team_b_id), pairingGameNo(row.stage, gameNo));
+    const courtSlots = ratingSlots(teams.find((t) => t.id === row.team_a_id), teams.find((t) => t.id === row.team_b_id), pairingGameNo(row.stage, gameNo), relayTarget(ctx.tournament, row.stage, row.round) !== null);
     const rated = parseRatings(formData, courtSlots);
     if (!rated.ok) return fail('invalid_input', rated.reason);
 

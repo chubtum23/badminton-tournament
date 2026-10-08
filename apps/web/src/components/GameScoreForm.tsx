@@ -3,7 +3,8 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { suggestRating, validateGame, type Settings } from '@tournament/core';
 import type { ActionResult } from '@/actions/errors';
-import { RATING_FIELD_PREFIX, type RatingSlot } from '@/lib/results/ratings';
+import { RATING_FIELD_PREFIX, ratingSlots, type RatableTeam, type RatingSlot } from '@/lib/results/ratings';
+import { RELAY_LEGS } from '@/lib/results/relay';
 import { OUTCOME_EVENT, OUTCOME_PREFIX } from './RecentOutcome';
 import { SharedScoreSheet, sheetStorageKey } from './SharedScoreSheet';
 import { useLiveGame } from './LiveGames';
@@ -16,6 +17,23 @@ export function sheetNames(slots: readonly RatingSlot[] | undefined, teamA: stri
   };
   const [a1, a2] = side('a', teamA), [b1, b2] = side('b', teamB);
   return [a1!, a2!, b1!, b2!];
+}
+
+/** A relay game's target and, per leg, its name and the four players on court. */
+export interface RelayInfo {
+  target: number;
+  legs: { label: string; names: [string, string, string, string]; pairs: string }[];
+}
+
+/** Leg n is played by the pairs of game n of a pool meeting: Mixed #1, Mixed #2, men's doubles. */
+export function relayInfo(target: number, teamA: RatableTeam | undefined, teamB: RatableTeam | undefined, nameA: string, nameB: string, labelOf: (n: number) => string): RelayInfo {
+  return {
+    target,
+    legs: RELAY_LEGS.map((n) => {
+      const names = sheetNames(ratingSlots(teamA, teamB, n), nameA, nameB);
+      return { label: labelOf(n), names, pairs: `${names[0]} & ${names[1]} v ${names[2]} & ${names[3]}` };
+    }),
+  };
 }
 
 /** Scores are the numbers on this screen that matter, so they are set in the display face. */
@@ -40,7 +58,7 @@ const outcomeText = (data: unknown): string | null =>
  * turns into a score line, and a finished meeting leaves the "open" filter — so the message is
  * also handed to <RecentOutcome /> at the top of the page.
  */
-export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, existing, action, successText = 'Saved', confirmMessage, slots }: {
+export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, existing, action, successText = 'Saved', confirmMessage, slots, relay }: {
   matchId: string;
   gameNo: number;
   settings: Settings;
@@ -57,6 +75,8 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
   confirmMessage?: string;
   /** The four players on court, if both rosters are complete; no slots means no rating row. */
   slots?: readonly RatingSlot[];
+  /** Set for a knockout relay game: the sheet swaps pairs and names at each third of the target. */
+  relay?: RelayInfo;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -125,7 +145,7 @@ export function GameScoreForm({ matchId, gameNo, settings, label, teamA, teamB, 
       {!existing && sheet && (
         <SharedScoreSheet
           matchId={matchId} gameNo={gameNo} settings={settings} teamA={teamA} teamB={teamB}
-          names={sheetNames(slots, teamA, teamB)}
+          names={relay ? relay.legs[0]!.names : sheetNames(slots, teamA, teamB)} relay={relay}
           onScore={(x, y) => { setA(String(x)); setB(String(y)); }}
         />
       )}

@@ -21,8 +21,10 @@ export type RatableTeam = Pick<TeamRow, 'id' | 'name'> & { players?: RosterPlaye
 /** Rating inputs are named `rating:<playerId>`, so the four boxes need no index of their own. */
 export const RATING_FIELD_PREFIX = 'rating:';
 
-function slotsForSide(team: RatableTeam | undefined, gameNo: number, side: 'a' | 'b'): RatingSlot[] {
+function slotsForSide(team: RatableTeam | undefined, gameNo: number, side: 'a' | 'b', relay: boolean): RatingSlot[] {
   if (!team?.players) return [];
+  // A relay game puts all three of a team's players on court in turn, so all three are rated.
+  if (relay) return team.players.map((p) => ({ playerId: p.id, name: p.name, teamId: team.id, teamName: team.name, side }));
   // A team with an incomplete roster yields no pair, so it simply contributes no boxes: the
   // organiser can still score the game, and the other side is still rated.
   const pair = pairFor(rosterOf({ players: team.players }), pairSlotForGame(gameNo));
@@ -38,8 +40,9 @@ export function ratingSlots(
   teamA: RatableTeam | undefined,
   teamB: RatableTeam | undefined,
   gameNo: number,
+  relay = false,
 ): RatingSlot[] {
-  return [...slotsForSide(teamA, gameNo, 'a'), ...slotsForSide(teamB, gameNo, 'b')];
+  return [...slotsForSide(teamA, gameNo, 'a', relay), ...slotsForSide(teamB, gameNo, 'b', relay)];
 }
 
 /**

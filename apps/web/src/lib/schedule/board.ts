@@ -17,7 +17,7 @@ export function scheduleBoard(input: {
   tournament: TournamentRow; matches: readonly Match[]; slots: readonly GameRow[]; poolOrder: readonly string[]; stage: Stage;
 }): Board {
   const byId = new Map(input.matches.map((m) => [m.id, m]));
-  const label = (m: Match, n: number) => stageGameLabel(input.tournament, m.stage, n);
+  const label = (m: Match, n: number) => stageGameLabel(input.tournament, m.stage, n, m.round);
   const playable = (m: Match | undefined): m is Match =>
     m !== undefined && m.teamAId !== null && m.teamBId !== null && m.status !== 'done';
 

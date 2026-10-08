@@ -69,6 +69,9 @@ export async function updateSettings(slug: string, formData: FormData): Promise<
     ko_win_by_two: v.knockout ? v.knockout.winByTwo : null,
     ko_max_points: v.knockout ? v.knockout.maxPoints : null,
     ko_time_cap_minutes: v.knockout ? v.knockout.timeCapMinutes ?? 0 : null,
+    ko_relay: v.relay !== null,
+    // Targets are kept while relay is off, so ticking it again brings them back.
+    ...(v.relay ? { ko_relay_quarter: v.relay.quarter, ko_relay_semi: v.relay.semi, ko_relay_final: v.relay.final } : {}),
   };
   // The knockout has not been played yet, so its format — and how many teams reach it — stays open
   // through the pool stage.

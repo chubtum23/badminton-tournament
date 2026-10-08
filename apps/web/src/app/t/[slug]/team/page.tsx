@@ -74,7 +74,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
     : m.stage === 'playoff' ? `${poolName(m)} · playoff`
     : roundTitle(m.round ?? 1, totalRounds);
   // Rules are per stage, so each match card is rendered against its own settings.
-  const settingsOf = (m: typeof mine[number]) => settingsFor(me!.tournament, m.stage);
+  const settingsOf = (m: typeof mine[number]) => settingsFor(me!.tournament, m.stage, m.round);
   // Pool colour, matching the Pools and Live pages. A knockout meeting has no pool.
   const tone = (m: typeof mine[number]) => {
     const i = pools.findIndex((p) => p.id === m.poolId);
@@ -116,7 +116,7 @@ export default async function MyTeamPage({ params, searchParams }: { params: Pro
   const scoreForm = (m: typeof mine[number]) => (
     <SubmitScoresForm matchId={m.id} settings={settingsOf(m)} existing={(latest[m.id]?.[sideOf(m)] ?? { games: [] }).games}
       teamA={teamName(teams, m.teamAId)} teamB={teamName(teams, m.teamBId)} action={submitScoresForm.bind(null, slug)} submitLabel="Submit scores"
-      gameLabels={Array.from({ length: settingsOf(m).gamesPerMatch }, (_, i) => stageGameLabel(me!.tournament, m.stage, i + 1))} />
+      gameLabels={Array.from({ length: settingsOf(m).gamesPerMatch }, (_, i) => stageGameLabel(me!.tournament, m.stage, i + 1, m.round))} />
   );
 
   return (

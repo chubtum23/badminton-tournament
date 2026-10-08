@@ -21,7 +21,7 @@ describe('parseSettingsForm', () => {
       ok: true,
       value: {
         pool: { gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13, playAllGames: true },
-        knockout: null, courtCount: 4, advancePerPool: 2, startsAt: null, venue: '',
+        knockout: null, relay: null, courtCount: 4, advancePerPool: 2, startsAt: null, venue: '',
         labels: ['Mixed doubles #1'],
       },
     });
@@ -132,5 +132,19 @@ describe('slugify', () => {
     expect(slugify('Spring Club Night 2026!')).toBe('spring-club-night-2026');
     expect(slugify('  --Hello--  ')).toBe('hello');
     expect(slugify('a'.repeat(50))).toHaveLength(40);
+  });
+});
+
+describe('relay rules', () => {
+  it('reads the three targets and ignores the ordinary knockout boxes', () => {
+    const r = parseSettingsForm(fd({ ...poolFields, ko_relay: 'on', ko_relay_quarter: '45', ko_relay_semi: '63', ko_relay_final: '63', ko_gamesPerMatch: '2' }));
+    expect(r.ok && r.value.relay).toEqual({ quarter: 45, semi: 63, final: 63 });
+    expect(r.ok && r.value.knockout).toBeNull();
+  });
+
+  it('refuses a target that does not divide by 3', () => {
+    const r = parseSettingsForm(fd({ ...poolFields, ko_relay: 'on', ko_relay_quarter: '44', ko_relay_semi: '63', ko_relay_final: '63' }));
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.problems).toContain('quarter-final relay target must be a multiple of 3 between 3 and 300');
   });
 });

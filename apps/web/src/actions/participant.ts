@@ -84,13 +84,13 @@ export async function submitScores(slug: string, matchId: string, formData: Form
   const sb = createServiceSupabase();
   // Cheap authorisation read before doing any work: the match must belong to this tournament and
   // to this team. applySubmission re-derives the side from its own read of the match rows.
-  const row = await sb.from('matches').select('stage, team_a_id, team_b_id').eq('id', matchId).eq('tournament_id', me.tournament.id).maybeSingle();
+  const row = await sb.from('matches').select('stage, round, team_a_id, team_b_id').eq('id', matchId).eq('tournament_id', me.tournament.id).maybeSingle();
   if (row.error || !row.data) return fail('invalid_input', 'Unknown match');
   if (row.data.team_a_id !== me.team.id && row.data.team_b_id !== me.team.id) return fail('not_your_match', 'Your team is not in this match');
 
   // Strict: a row with one box left blank is refused by name rather than read as a 0.
-  const stage = row.data.stage;
-  const parsed = parseGamesForm(formData, settingsFor(me.tournament, stage).gamesPerMatch, (n) => stageGameLabel(me.tournament, stage, n));
+  const { stage, round } = row.data;
+  const parsed = parseGamesForm(formData, settingsFor(me.tournament, stage, round).gamesPerMatch, (n) => stageGameLabel(me.tournament, stage, n, round));
   if (!parsed.ok) return fail('invalid_input', parsed.message);
   const applied = await applySubmission(sb, { tournament: me.tournament, teamId: me.team.id, matchId, games: parsed.games });
   if (!applied.ok) return fail(applied.error, applied.message);

@@ -6,6 +6,7 @@ import { validStart } from '@/lib/results/scoresheet';
 import { decodeRallies, encodeRallies, initialSync, parsePush, syncReducer, type Stored } from '@/lib/results/liveSheet';
 import { useLiveGame } from './LiveGames';
 import { ScoreSheet } from './ScoreSheet';
+import type { RelayInfo } from './GameScoreForm';
 
 /** Where this phone keeps its copy of a sheet, so a refresh or a dropped signal loses nothing. */
 export const sheetStorageKey = (matchId: string, gameNo: number) => `scoresheet:${matchId}:${gameNo}`;
@@ -32,7 +33,7 @@ function loadStored(key: string): Stored | null {
  * it, and any other organiser who opens the same game's sheet picks it up where it stands and can
  * carry on. Only one send is in flight at a time — taps made meanwhile go with the next one.
  */
-export function SharedScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onScore }: {
+export function SharedScoreSheet({ matchId, gameNo, settings, teamA, teamB, names, onScore, relay }: {
   matchId: string;
   gameNo: number;
   settings: Settings;
@@ -40,6 +41,7 @@ export function SharedScoreSheet({ matchId, gameNo, settings, teamA, teamB, name
   teamB: string;
   names: readonly [string, string, string, string];
   onScore: (a: number, b: number) => void;
+  relay?: RelayInfo;
 }) {
   const key = sheetStorageKey(matchId, gameNo);
   const live = useLiveGame(matchId, gameNo);
@@ -92,7 +94,7 @@ export function SharedScoreSheet({ matchId, gameNo, settings, teamA, teamB, name
 
   return (
     <ScoreSheet
-      settings={settings} teamA={teamA} teamB={teamB} names={names}
+      settings={settings} teamA={teamA} teamB={teamB} names={names} relay={relay}
       start={state.sheet.start} rallies={state.sheet.rallies}
       onChange={(next) => dispatch({ type: 'edit', sheet: next })}
       onScore={onScore}

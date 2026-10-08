@@ -32,6 +32,14 @@ export interface TournamentRow {
   ko_time_cap_minutes: number | null;
   /** The organiser's knockout draw: the team in each seed's place, null for a bye. Null until they set one. */
   ko_seed_order: (string | null)[] | null;
+  /** Knockout matches are one relay game each, to the round's target (see relayTarget). */
+  ko_relay: boolean;
+  /** Relay targets: quarter-finals (and any earlier round), semi-finals, final. Multiples of 3. */
+  ko_relay_quarter: number;
+  ko_relay_semi: number;
+  ko_relay_final: number;
+  /** How many rounds the bracket has; written when the knockout starts, null before. */
+  ko_rounds: number | null;
   court_count: number;
   advance_per_pool: number;
   /** Teams may still sign themselves up through /t/[slug]/join. lockPools turns this off. */
@@ -41,7 +49,7 @@ export interface TournamentRow {
 
 /** Every tournament column except `join_code`, which anon and authenticated cannot select. */
 export const TOURNAMENT_PUBLIC_COLUMNS =
-  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, ko_seed_order, court_count, advance_per_pool, signup_open, created_at';
+  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, ko_seed_order, ko_relay, ko_relay_quarter, ko_relay_semi, ko_relay_final, ko_rounds, court_count, advance_per_pool, signup_open, created_at';
 
 /** Public columns only. edit_token is never selected through this type. */
 export interface TeamRow {

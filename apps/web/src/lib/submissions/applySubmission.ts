@@ -65,7 +65,7 @@ async function applySubmissionLocked(sb: SupabaseClient, input: ApplySubmissionI
     const side = row.team_a_id === teamId ? 'a' : row.team_b_id === teamId ? 'b' : null;
     if (!side) return fail('not_your_match', 'Your team is not in this match');
     // Rules are per stage, so they are read from the match, not from the tournament as a whole.
-    const settings = settingsFor(tournament, row.stage);
+    const settings = settingsFor(tournament, row.stage, row.round);
 
     const decision = decideSubmission({
       settings, match: rowToMatch(row), side, games, latest: state.latest[matchId] ?? {},

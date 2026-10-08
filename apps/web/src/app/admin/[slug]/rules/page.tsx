@@ -33,7 +33,8 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
   })());
 
   const pool = settingsFor(t, 'pool');
-  const knockout = settingsFor(t, 'knockout');
+  // The ordinary knockout rules, as stored, whether or not relay is on.
+  const knockout = settingsFor({ ...t, ko_relay: false }, 'knockout');
   // "Same as the pool stage" is the stored state when no ko_* override is set at all.
   const koSame = t.ko_games_per_match === null && t.ko_points_per_game === null && t.ko_win_by_two === null
     && t.ko_max_points === null && t.ko_time_cap_minutes === null;
@@ -84,7 +85,8 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
 
         <fieldset className={fieldset}>
           <legend className={legend}>Knockout stage</legend>
-          <KnockoutRulesFields knockout={knockout} same={koSame} locked={koLocked} />
+          <KnockoutRulesFields knockout={knockout} same={koSame} locked={koLocked} relay={t.ko_relay}
+            targets={{ quarter: t.ko_relay_quarter, semi: t.ko_relay_semi, final: t.ko_relay_final }} />
           {t.status === 'knockout' && !koLocked && (
             <p className={ui.help}>The knockout has started but nothing in it has been played, so its rules can still change. They fix once the first knockout game is scored or put on court. Pool results are not affected.</p>
           )}
@@ -119,7 +121,15 @@ export default async function RulesPage({ params }: { params: Promise<{ slug: st
             {gameNumbers.map((n) => <input key={n} type="hidden" name={`gameLabel${n}`} value={gameLabel(t, n)} />)}
           </>
         )}
-        {koLocked && (
+        {koLocked && t.ko_relay && (
+          <>
+            <input type="hidden" name="ko_relay" value="on" />
+            <input type="hidden" name="ko_relay_quarter" value={t.ko_relay_quarter} />
+            <input type="hidden" name="ko_relay_semi" value={t.ko_relay_semi} />
+            <input type="hidden" name="ko_relay_final" value={t.ko_relay_final} />
+          </>
+        )}
+        {koLocked && !t.ko_relay && (
           <>
             {koSame ? <input type="hidden" name="ko_same" value="on" /> : (
               <>

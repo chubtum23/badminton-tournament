@@ -40,7 +40,9 @@ export async function startKnockout(slug: string): Promise<ActionResult> {
     // Supabase returns no error when an update's filter matches zero rows. This
     // mirrors how lockPools in src/actions/pools.ts claims its status transition
     // before inserting matches.
-    const claim = await ctx.sb.from('tournaments').update({ status: 'knockout' })
+    // ko_rounds tells a final from a semi by round alone, for the relay targets.
+    const koRounds = Math.max(...plan.matches.map((m) => m.round ?? 1));
+    const claim = await ctx.sb.from('tournaments').update({ status: 'knockout', ko_rounds: koRounds })
       .eq('id', t.id).eq('status', 'pools').select('id');
     if (claim.error) return fail('invalid_input', claim.error.message);
     if ((claim.data ?? []).length === 0) return fail('stale_state', 'Knockout was already started');
@@ -83,7 +85,7 @@ export async function undoKnockout(slug: string, confirmation = ''): Promise<Act
     // deletes nothing and still completes. Only knockout rows go; pool and playoff rows stay.
     const del = await ctx.sb.from('matches').delete().eq('tournament_id', ctx.tournament.id).eq('stage', 'knockout');
     if (del.error) return fail('invalid_input', del.error.message);
-    const back = await ctx.sb.from('tournaments').update({ status: 'pools' })
+    const back = await ctx.sb.from('tournaments').update({ status: 'pools', ko_rounds: null })
       .eq('id', ctx.tournament.id).in('status', ['knockout', 'finished']).select('id');
     if (back.error) return fail('invalid_input', back.error.message);
     if ((back.data ?? []).length === 0) return fail('stale_state', 'The tournament moved on; reload');

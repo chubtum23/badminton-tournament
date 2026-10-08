@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rowToMatch, matchToRow, rowToGame, settingsFor, gamesByMatch, teamRefs, gameLabel, slotRowsFor } from './mappers';
+import { rowToMatch, matchToRow, rowToGame, relayTarget, settingsFor, stageGameLabel, gamesByMatch, teamRefs, gameLabel, slotRowsFor } from './mappers';
 import type { MatchRow, TournamentRow, GameRow, ScoredGameRow, TeamRow } from './types';
 
 const row: MatchRow = {
@@ -122,5 +122,35 @@ describe('teamRefs', () => {
   it('keeps id and name only', () => {
     const teams = [{ id: 'x', name: 'Aces', tournament_id: 't', tagline: '', colour: '#000000', seed: null, pool_id: null, pool_order: 0, withdrawn: false, pool_rank_override: null }] as TeamRow[];
     expect(teamRefs(teams)).toEqual([{ id: 'x', name: 'Aces' }]);
+  });
+});
+
+describe('knockout relay', () => {
+  const t = {
+    games_per_match: 3, points_per_game: 15, win_by_two: false, max_points: null, time_cap_minutes: 13, play_all_games: true,
+    ko_games_per_match: null, ko_points_per_game: null, ko_win_by_two: null, ko_max_points: null, ko_time_cap_minutes: null,
+    ko_relay: true, ko_relay_quarter: 45, ko_relay_semi: 63, ko_relay_final: 63, ko_rounds: 3,
+    game_labels: ['Mixed doubles #1', 'Mixed doubles #2', "Men's doubles"],
+  } as unknown as TournamentRow;
+
+  it('sets the target by round: quarters 45, semis and final 63', () => {
+    expect(relayTarget(t, 'knockout', 1)).toBe(45);
+    expect(relayTarget(t, 'knockout', 2)).toBe(63);
+    expect(relayTarget({ ...t, ko_relay_final: 75 }, 'knockout', 3)).toBe(75);
+    // A round of 16 uses the quarter-final target.
+    expect(relayTarget({ ...t, ko_rounds: 4 }, 'knockout', 1)).toBe(45);
+  });
+
+  it('is one game to the target, next point wins, no clock', () => {
+    expect(settingsFor(t, 'knockout', 1)).toEqual({ gamesPerMatch: 1, pointsPerGame: 45, winByTwo: false, maxPoints: null, timeCapMinutes: null, playAllGames: false });
+    expect(stageGameLabel(t, 'knockout', 1, 2)).toBe('Relay to 63');
+  });
+
+  it('leaves pools, playoffs and a non-relay knockout alone', () => {
+    expect(relayTarget(t, 'pool', null)).toBeNull();
+    expect(relayTarget(t, 'playoff', null)).toBeNull();
+    expect(relayTarget({ ...t, ko_relay: false }, 'knockout', 1)).toBeNull();
+    expect(settingsFor(t, 'pool').pointsPerGame).toBe(15);
+    expect(stageGameLabel(t, 'pool', 3)).toBe("Men's doubles");
   });
 });

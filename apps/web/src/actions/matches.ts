@@ -26,7 +26,7 @@ export async function confirmSubmission(slug: string, matchId: string, submissio
     const row = rows.find((r) => r.id === matchId);
     if (!row) return fail('invalid_input', 'Unknown match');
     if (poolResultsFrozen(row.stage, ctx.tournament.status)) return fail('match_not_editable', POOL_RESULTS_FROZEN);
-    const settings = settingsFor(ctx.tournament, row.stage);
+    const settings = settingsFor(ctx.tournament, row.stage, row.round);
     const plan = planResult({ settings, matches: rows.map(rowToMatch), matchId, games: sub.games });
     if ('error' in plan) return fail(plan.error === 'incomplete' ? 'invalid_score' : plan.error, plan.message);
     const persisted = await applyResultPlan(ctx.sb, { tournamentId: ctx.tournament.id, matchId, rows, plan, tournamentStatus: ctx.tournament.status, decidedBy: 'played' });

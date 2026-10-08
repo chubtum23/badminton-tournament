@@ -59,7 +59,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
   tone?: string;
   pending?: Pending;
   /** Supplies the game names when `slots` is given. */
-  tournament?: Pick<TournamentRow, 'game_labels'>;
+  tournament?: Pick<TournamentRow, 'game_labels' | 'ko_relay' | 'ko_relay_quarter' | 'ko_relay_semi' | 'ko_relay_final' | 'ko_rounds'>;
   /**
    * Every game row of the meeting, played or not. When given, the card lists one line per game
    * (its label and score) instead of the old single score column, because a meeting is now three
@@ -87,7 +87,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
   // The loser is dimmed rather than the winner emphasised: both names are already at display
   // weight, so there is no heavier step left to take, and dimming one is the clearer signal.
   const lost = (id: string | null) => match.winnerId !== null && id !== null && match.winnerId !== id;
-  const gameName = (n: number) => (tournament ? stageGameLabel(tournament, match.stage, n) : `Game ${n}`);
+  const gameName = (n: number) => (tournament ? stageGameLabel(tournament, match.stage, n, match.round) : `Game ${n}`);
   /**
    * One side's unconfirmed claim spelled out per game. The per-game rows only fill in from
    * official scores, so without this a single team's submission left every row reading "—".

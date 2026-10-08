@@ -26,7 +26,7 @@ export default async function LivePage({ params }: { params: Promise<{ slug: str
   const label = (m: typeof matches[number]) => m.stage === 'pool' ? poolName(m)
     : m.stage === 'playoff' ? `${poolName(m)} · playoff`
     : `Round ${m.round}`;
-  const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
+  const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage, m.round);
   // Pool colour, so a card is placed at a glance. A knockout meeting has no pool and stays neutral.
   const tone = (m: typeof matches[number]) => {
     const i = pools.findIndex((p) => p.id === m.poolId);

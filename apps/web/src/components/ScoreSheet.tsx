@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Settings } from '@tournament/core';
 import { replay, sideOf, type SheetStart, type Side } from '@/lib/results/scoresheet';
+import { justSwapped, relayLeg } from '@/lib/results/relay';
+import type { RelayInfo } from './GameScoreForm';
 
 /** Fixed widths of the name and S/R columns, and the narrowest a rally box may get (px). */
 const NAME_W = 144;
@@ -20,7 +22,7 @@ const MARK_W_PHONE = 26;
  * It keeps no tally of its own. The scorer's copy lives in useSharedSheet, which shares it with
  * every other screen; without `onChange` this is a read-only view of that shared sheet.
  */
-export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onChange, onScore, sync, doneNote }: {
+export function ScoreSheet({ settings, teamA, teamB, names: baseNames, start, rallies, onChange, onScore, sync, doneNote, relay }: {
   settings: Settings;
   teamA: string;
   teamB: string;
@@ -35,9 +37,28 @@ export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onCh
   sync?: React.ReactNode;
   /** Replaces the line after "Game over" for a sheet with no Save form under it. */
   doneNote?: string;
+  /** A knockout relay game: the row names follow the pair on court, and each swap is called out. */
+  relay?: RelayInfo;
 }) {
   const editable = onChange !== undefined;
   const state = useMemo(() => replay(settings, start, rallies), [settings, start, rallies]);
+  // In a relay the incoming pair takes the outgoing pair's places, so the rows stay and only their
+  // names change with the leg.
+  const leg = relay ? relayLeg(relay.target, state.scoreA, state.scoreB) : null;
+  const names = relay && leg ? relay.legs[leg - 1]!.names : baseNames;
+  const swapNow = relay !== undefined && !state.finished && justSwapped(relay.target, rallies);
+  // The rally columns after which the pairs swapped, marked like the interval on a paper sheet.
+  const swapCols = useMemo(() => {
+    const out = new Set<number>();
+    if (!relay) return out;
+    let a = 0, b = 0;
+    rallies.forEach((r, i) => {
+      const before = relayLeg(relay.target, a, b);
+      if (r === 'a') a++; else b++;
+      if (relayLeg(relay.target, a, b) > before) out.add(i);
+    });
+    return out;
+  }, [relay, rallies]);
 
   useEffect(() => {
     if (rallies.length > 0) onScore?.(state.scoreA, state.scoreB);
@@ -163,7 +184,7 @@ export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onCh
                         data-col={row === 0 ? i : undefined}
                         onClick={next ? () => point(sideOf(row)) : undefined}
                         title={next ? `Point to ${teamOf(sideOf(row))}` : undefined}
-                        className={`${cellBase} ${under} ${next ? 'cursor-pointer bg-orange-wash hover:bg-orange-tint' : bg} ${cell?.interval ? 'border-r-2 border-r-orange' : i === total - 1 ? '' : 'border-r-hair border-r-navy/30'}`}
+                        className={`${cellBase} ${under} ${next ? 'cursor-pointer bg-orange-wash hover:bg-orange-tint' : bg} ${cell?.interval || swapCols.has(i) ? 'border-r-2 border-r-orange' : i === total - 1 ? '' : 'border-r-hair border-r-navy/30'}`}
                       >
                         {cell?.row === row ? cell.score : ''}
                       </td>
@@ -182,6 +203,22 @@ export function ScoreSheet({ settings, teamA, teamB, names, start, rallies, onCh
           Swipe the sheet to see {hidden.right && hidden.left ? 'more' : hidden.right ? 'more rallies' : 'earlier rallies'}
           <span aria-hidden>{hidden.right ? '→' : ''}</span>
         </p>
+      )}
+
+      {relay && leg && (
+        <div data-testid="relay-leg" className={swapNow ? 'bg-orange px-4 py-3 text-ink' : 'border-hair border-line px-4 py-2 text-muted-strong'} aria-live="assertive">
+          {swapNow ? (
+            <>
+              <span className="block font-display text-2xl font-black uppercase">Swap — {relay.legs[leg - 1]!.label} on</span>
+              <span className="block text-sm font-bold">{relay.legs[leg - 1]!.pairs}</span>
+            </>
+          ) : (
+            <span className="text-xs font-bold uppercase tracking-label">
+              Leg {leg} of 3 · {relay.legs[leg - 1]!.label}
+              {leg < 3 ? ` · swap when a team reaches ${(relay.target / 3) * leg}` : ` · first to ${relay.target}`}
+            </span>
+          )}
+        </div>
       )}
 
       <p className="text-sm text-muted" aria-live="polite">

@@ -4,6 +4,8 @@ export interface SettingsInput {
   pool: Settings;
   /** null = same as pool */
   knockout: Settings | null;
+  /** Knockout relay targets per round, or null when the knockout is not played as relays. */
+  relay: { quarter: number; semi: number; final: number } | null;
   courtCount: number;
   advancePerPool: number;
   /** ISO string, or null when the organiser left the date blank. */
@@ -49,17 +51,26 @@ export function parseSettingsForm(fd: FormData): { ok: true; value: SettingsInpu
   const pool = stageSettings(fd, 'pool');
   // The "knockout is the same as the pool stage" checkbox: when it is on, the ko_* inputs on the
   // form are ignored entirely and the tournament stores no overrides.
-  const knockout = fd.get('ko_same') !== null ? null : stageSettings(fd, 'ko');
+  // A relay knockout has its own format, so the ordinary knockout boxes are not read for it.
+  const relay = fd.get('ko_relay') !== null
+    ? { quarter: int(fd, 'ko_relay_quarter'), semi: int(fd, 'ko_relay_semi'), final: int(fd, 'ko_relay_final') }
+    : null;
+  const knockout = relay || fd.get('ko_same') !== null ? null : stageSettings(fd, 'ko');
   const rawStart = String(fd.get('startsAt') ?? '').trim();
   const startsAt = rawStart === '' || Number.isNaN(Date.parse(rawStart)) ? null : new Date(rawStart).toISOString();
   const venue = String(fd.get('venue') ?? '').trim();
   const labels = gameLabels(fd, pool.gamesPerMatch);
   const value: SettingsInput = {
-    pool, knockout, courtCount: int(fd, 'courtCount'), advancePerPool: int(fd, 'advancePerPool'), startsAt, venue, labels,
+    pool, knockout, relay, courtCount: int(fd, 'courtCount'), advancePerPool: int(fd, 'advancePerPool'), startsAt, venue, labels,
   };
   const problems = validateSettings(pool).map((p) => `pool: ${p}`);
   if (labels.some((l) => l === '')) problems.push('game labels must not be blank');
   if (knockout) problems.push(...validateSettings(knockout).map((p) => `knockout: ${p}`));
+  if (relay) {
+    for (const [name, v] of [['quarter-final', relay.quarter], ['semi-final', relay.semi], ['final', relay.final]] as const) {
+      if (!Number.isInteger(v) || v < 3 || v > 300 || v % 3 !== 0) problems.push(`${name} relay target must be a multiple of 3 between 3 and 300`);
+    }
+  }
   if (rawStart !== '' && Number.isNaN(Date.parse(rawStart))) problems.push('start date/time is not valid');
   if (venue.length > 120) problems.push('venue must be at most 120 characters');
   if (!Number.isInteger(value.courtCount) || value.courtCount < 1 || value.courtCount > 50) problems.push('courtCount must be between 1 and 50');

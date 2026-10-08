@@ -39,8 +39,24 @@ export function pairingGameNo(stage: Stage, gameNo: number): number {
   return stage === 'playoff' ? MENS_DOUBLES_GAME : gameNo;
 }
 
-/** The slot's name as the organiser sees it, e.g. "Men's doubles playoff". */
-export function stageGameLabel(t: Pick<TournamentRow, 'game_labels'>, stage: Stage, gameNo: number): string {
+type RelayColumns = Pick<TournamentRow, 'ko_relay' | 'ko_relay_quarter' | 'ko_relay_semi' | 'ko_relay_final' | 'ko_rounds'>;
+
+/**
+ * The target of a knockout relay game in this round, or null when the match is not a relay. The
+ * final and the semi-finals have their own targets; every earlier round uses the quarter-final one,
+ * as does a round asked about before the bracket exists.
+ */
+export function relayTarget(t: RelayColumns, stage: Stage, round: number | null | undefined): number | null {
+  if (stage !== 'knockout' || !t.ko_relay) return null;
+  if (t.ko_rounds === null || round == null) return t.ko_relay_quarter;
+  const fromEnd = t.ko_rounds - round;
+  return fromEnd <= 0 ? t.ko_relay_final : fromEnd === 1 ? t.ko_relay_semi : t.ko_relay_quarter;
+}
+
+/** The slot's name as the organiser sees it, e.g. "Men's doubles playoff" or "Relay to 45". */
+export function stageGameLabel(t: Pick<TournamentRow, 'game_labels'> & RelayColumns, stage: Stage, gameNo: number, round?: number | null): string {
+  const relay = relayTarget(t, stage, round);
+  if (relay !== null) return `Relay to ${relay}`;
   return stage === 'playoff' ? `${gameLabel(t, MENS_DOUBLES_GAME)} playoff` : gameLabel(t, gameNo);
 }
 
@@ -70,7 +86,10 @@ export function gamesByMatch(rows: readonly GameRow[]): Record<string, Game[]> {
  * that means "the knockout has no cap". A knockout that must drop a cap the pool stage sets would
  * need a future column (say `ko_max_points_none boolean`) or the same 0-sentinel treatment.
  */
-export function settingsFor(t: TournamentRow, stage: Stage): Settings {
+export function settingsFor(t: TournamentRow, stage: Stage, round?: number | null): Settings {
+  // A relay game: first to the round's target, next point wins at target-1 all, no clock.
+  const relay = relayTarget(t, stage, round);
+  if (relay !== null) return { gamesPerMatch: 1, pointsPerGame: relay, winByTwo: false, maxPoints: null, timeCapMinutes: null, playAllGames: false };
   const pool: Settings = {
     gamesPerMatch: t.games_per_match, pointsPerGame: t.points_per_game,
     winByTwo: t.win_by_two, maxPoints: t.max_points, timeCapMinutes: t.time_cap_minutes,

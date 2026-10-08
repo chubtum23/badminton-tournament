@@ -26,7 +26,7 @@ export default async function MatchesAdminPage({ params, searchParams }: { param
   ]);
   const matches = matchRows.map(rowToMatch);
   // Rules are per stage, so each meeting's games are rendered against their own settings.
-  const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage);
+  const settingsOf = (m: typeof matches[number]) => settingsFor(t, m.stage, m.round);
   // Every game row of a meeting, played or not: these are what go to court and take a score.
   const slots = gameSlotsByMatch(gameRows);
   const board = scheduleBoard({
