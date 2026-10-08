@@ -1,5 +1,6 @@
 import type { Game, Match } from '@tournament/core';
-import type { GameRow, TeamRow, TournamentRow } from '@/lib/db/types';
+import type { GameRow, RosterPlayerRow, TeamRow, TournamentRow } from '@/lib/db/types';
+import { firstNames } from '@/lib/teams/roster';
 import type { LatestSubmissions } from '@/lib/db/queries';
 import { sameGames } from '@/lib/submissions/decide';
 import { stageGameLabel } from '@/lib/db/mappers';
@@ -54,7 +55,8 @@ const compact = (games: Game[]) => games.map((g) => `${g.scoreA}-${g.scoreB}`).j
  * game stays a plain outlined row, and carries the organiser's controls when it has any.
  */
 export function MatchCard({ match, teams, games, label, tone, pending, tournament, slots, gameList = true, taglines = true, children }: {
-  match: Match; teams: readonly TeamRow[]; games: Game[]; label?: string;
+  /** With players loaded, each side names them by first name under the team. */
+  match: Match; teams: readonly (TeamRow & { players?: RosterPlayerRow[] })[]; games: Game[]; label?: string;
   /** The pool's head tint, from `poolTone(i).head`. Neutral when the meeting has no pool. */
   tone?: string;
   pending?: Pending;
@@ -118,6 +120,7 @@ export function MatchCard({ match, teams, games, label, tone, pending, tournamen
         {t && <TeamAvatar teamName={t.name} colour={t.colour} path={t.photo_path} size={54} />}
         <span className="min-w-0">
           <span className="block truncate">{name}</span>
+          {firstNames(t) && <span data-testid="player-names" className="block truncate font-sans text-sm font-semibold normal-case tracking-normal text-muted-strong">{firstNames(t)}</span>}
           {taglines && tagline(id) && <span className="block truncate font-sans text-xs font-normal normal-case tracking-normal text-muted">{tagline(id)}</span>}
         </span>
       </span>
