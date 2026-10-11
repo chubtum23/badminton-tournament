@@ -19,18 +19,13 @@ describe('sideFromTeam', () => {
 });
 
 describe('FREE_SHEET_SETTINGS', () => {
-  it('is the club game: one game to 15, no win-by-two, a 13-minute clock', () =>
-    expect(FREE_SHEET_SETTINGS).toMatchObject({ gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: 13 }));
+  it('is one game to 15, no win-by-two and no clock', () =>
+    expect(FREE_SHEET_SETTINGS).toMatchObject({ gamesPerMatch: 1, pointsPerGame: 15, winByTwo: false, maxPoints: null, timeCapMinutes: null }));
 });
 
 describe('free sheet storage', () => {
-  it('keeps a running or paused clock across a refresh', () => {
-    const clock = { startedAt: '2026-10-04T09:00:00.000Z', pausedAt: '2026-10-04T09:05:00.000Z', pausedMs: 30_000 };
-    expect(decodeFreeSheet(encodeFreeSheet({ ...blankSheet(), clock })).clock).toEqual(clock);
-  });
-
-  it('treats a clock with no valid start as not started', () =>
-    expect(decodeFreeSheet(JSON.stringify({ clock: { startedAt: 'soon', pausedMs: -5 } })).clock).toEqual(blankSheet().clock));
+  it('drops the clock a sheet was stored with before the clock went', () =>
+    expect(decodeFreeSheet(JSON.stringify({ clock: { startedAt: '2026-10-04T09:00:00.000Z', pausedMs: 0 } }))).toEqual(blankSheet()));
 
   it('round-trips a sheet in progress', () => {
     const sheet = { ...blankSheet(), a: sideFromTeam(team), start: { server: 1, receiver: 3 }, rallies: ['a', 'b', 'a'] as const };
@@ -53,11 +48,6 @@ describe('pastGameOf', () => {
   it('records a finished game with its winner', () => {
     const g = pastGameOf({ ...sides, rallies: Array(15).fill('b') }, 'g1', now)!;
     expect(g).toMatchObject({ a: 'Team 5', b: 'Team 12', pairA: 'Tomoya Kumita & Anh Tuan Cao', scoreA: 0, scoreB: 15, winner: 'Team 12', byTime: false });
-  });
-
-  it('gives a game the leader when the clock has run out', () => {
-    const clock = { startedAt: '2026-10-04T09:40:00.000Z', pausedAt: null, pausedMs: 0 };
-    expect(pastGameOf({ ...sides, clock, rallies: ['a', 'a', 'b'] }, 'g1', now)).toMatchObject({ scoreA: 2, scoreB: 1, winner: 'Team 5', byTime: true });
   });
 
   it('leaves an unfinished game with no winner', () =>

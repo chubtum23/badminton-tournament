@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { remainingMs } from '@/lib/results/clock';
 import { replay } from '@/lib/results/scoresheet';
 import {
   blankSheet, decodeFreeGames, decodeHistory, encodeFreeGames, FREE_GAMES_KEY, FREE_HISTORY_KEY, FREE_SHEET_KEY,
@@ -11,11 +10,11 @@ import { ui } from './ui';
 
 /**
  * Score sheets that belong to no match: as many games at once as there are courts to watch, each
- * with its own two sides, sheet and clock. They are kept on this phone only (so a refresh loses
+ * with its own two sides and sheet. They are kept on this phone only (so a refresh loses
  * nothing) and never touch the tournament. A finished game moves to the history below, where it can
  * be looked back at or deleted.
  *
- * Every game is the club game (to 15 on a 13-minute clock), whatever the event's rules say.
+ * Every game is one game to 15 with no clock, whatever the event's rules say: it is played out.
  */
 export function FreeScoreSheet({ slug, teams }: {
   slug: string;
@@ -67,7 +66,7 @@ export function FreeScoreSheet({ slug, teams }: {
           <div>
             <h2 className={ui.h2}>Score sheets</h2>
             <span className={`${ui.eyebrow} text-muted`}>
-              {games.length === 1 ? '1 game going' : `${games.length} games going`} · each to {settings.pointsPerGame}, {settings.timeCapMinutes} min
+              {games.length === 1 ? '1 game going' : `${games.length} games going`} · each to {settings.pointsPerGame}, no clock
             </span>
           </div>
           <button type="button" className={ui.primary} data-testid="free-sheet-new" onClick={newGame}>Start a new game</button>
@@ -121,9 +120,8 @@ export function FreeScoreSheet({ slug, teams }: {
 }
 
 /**
- * One game: its sides, clock and sheet, folded down to a single line (who, score, clock) when the
- * organiser is watching another court. The clock starts with the first rally or by hand; when it
- * runs out the side ahead wins, and a level score plays one more rally.
+ * One game: its sides and sheet, folded down to a single line (who and the score) when the
+ * organiser is watching another court.
  */
 function FreeGameCard({ game, number, teams, startOpen, onChange, onFinish, onDelete }: {
   game: FreeGame;
@@ -147,30 +145,8 @@ function FreeGameCard({ game, number, teams, startOpen, onChange, onFinish, onDe
     setSide(which, { ...side, players: i === 0 ? [name, side.players[1]] : [side.players[0], name] });
   };
 
-  const { clock } = sheet;
-  const running = clock.startedAt !== null && clock.pausedAt === null;
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    setNow(Date.now());
-    if (!running) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [running, clock]);
-  const left = remainingMs({ ...clock, capMinutes: settings.timeCapMinutes }, now);
-  const timeUp = left === 0;
   const tally = useMemo(() => replay(settings, sheet.start, sheet.rallies), [sheet.start, sheet.rallies]);
-  // At time the side ahead has won; only a level score carries on, for one deciding rally.
-  const decidedByTime = timeUp && !tally.finished && tally.scoreA !== tally.scoreB;
-  const over = tally.finished || decidedByTime;
-
-  const setClock = (next: FreeSheet['clock']) => onChange((s) => ({ ...s, clock: next }));
-  const startClock = () => setClock({ startedAt: new Date().toISOString(), pausedAt: null, pausedMs: 0 });
-  const pauseClock = () => setClock({ ...clock, pausedAt: new Date().toISOString() });
-  const resumeClock = () => setClock({ ...clock, pausedAt: null, pausedMs: clock.pausedMs + (Date.now() - Date.parse(clock.pausedAt!)) });
-  const secs = Math.ceil((left ?? (settings.timeCapMinutes ?? 0) * 60_000) / 1000);
-  const shown = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
-  const clockText = timeUp ? 'TIME' : clock.pausedAt ? `${shown} paused` : shown;
-  const clockTone = timeUp ? 'bg-red-600 text-white' : clock.pausedAt ? 'bg-orange text-ink' : 'bg-navy text-bone';
+  const over = tally.finished;
 
   const pairOf = (side: FreeSide) => side.players.filter((p) => p.trim()).join(' & ');
   const nameOr = (name: string, fallback: string) => name.trim() || fallback;
@@ -190,7 +166,6 @@ function FreeGameCard({ game, number, teams, startOpen, onChange, onFinish, onDe
           </span>
           <span className="flex shrink-0 items-center gap-3">
             <span className="font-display text-2xl font-black tabular-nums">{tally.scoreA}–{tally.scoreB}</span>
-            <span className={`px-2 py-1 font-display text-xs font-black tabular-nums tracking-label ${clockTone}`}>{clockText}</span>
             <span aria-hidden className="text-sm font-bold text-navy">{open ? '▲' : '▼'}</span>
           </span>
         </summary>
@@ -230,30 +205,12 @@ function FreeGameCard({ game, number, teams, startOpen, onChange, onFinish, onDe
         </details>
 
         <div className={`${ui.body} space-y-6`}>
-          <div className="flex flex-wrap items-center gap-3" data-testid="free-sheet-clock">
-            <span className={`px-3 py-1.5 font-display text-lg font-black tabular-nums tracking-label ${clockTone}`}>{clockText}</span>
-            {clock.startedAt === null
-              ? <button type="button" className={ui.tiny} onClick={startClock}>Start clock</button>
-              : !timeUp && <button type="button" className={ui.tiny} onClick={clock.pausedAt ? resumeClock : pauseClock}>{clock.pausedAt ? 'Resume' : 'Pause'}</button>}
-          </div>
-          {timeUp && !tally.finished && (
-            <p className={ui.warn} aria-live="polite">
-              {decidedByTime
-                ? <><b>Time</b> — {tally.scoreA > tally.scoreB ? sheet.a.label : sheet.b.label} win {Math.max(tally.scoreA, tally.scoreB)}–{Math.min(tally.scoreA, tally.scoreB)}.</>
-                : <><b>Time</b> — level at {tally.scoreA}–{tally.scoreB}. The next rally wins it.</>}
-            </p>
-          )}
           <ScoreSheet
             settings={settings} teamA={sheet.a.label} teamB={sheet.b.label} names={names}
             start={sheet.start} rallies={sheet.rallies}
             onChange={(next) => {
-              // A rally after the time has decided it is refused; an undo or a reset still goes through.
-              if (decidedByTime && next.rallies.length > sheet.rallies.length) return;
               if (sheet.rallies.length === 0 && next.rallies.length > 0) setSidesOpen(false);
-              onChange((s) => ({
-                ...s, start: next.start, rallies: next.rallies,
-                clock: s.clock.startedAt === null && next.rallies.length > 0 ? { startedAt: new Date().toISOString(), pausedAt: null, pausedMs: 0 } : s.clock,
-              }));
+              onChange((s) => ({ ...s, start: next.start, rallies: next.rallies }));
             }}
             doneNote=" Press Finish game to move it to the games played below."
           />

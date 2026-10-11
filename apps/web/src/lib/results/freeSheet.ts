@@ -2,7 +2,6 @@ import { BADMINTON_DEFAULTS, pairFor, pairSlotForGame, type Settings } from '@to
 import type { TeamWithPlayers } from '@/lib/db/queries';
 import { rosterOf } from '@/lib/teams/roster';
 import { decodeRallies, DEFAULT_START, encodeRallies } from './liveSheet';
-import { remainingMs } from './clock';
 import { replay, validStart, type SheetStart, type Side } from './scoresheet';
 
 /**
@@ -11,18 +10,15 @@ import { replay, validStart, type SheetStart, type Side } from './scoresheet';
  * breaks a tie in a pool, after which the organiser sorts the pool by hand.
  */
 export interface FreeSide { teamId: string; label: string; players: [string, string] }
-/** The club game whatever the event is set to: one game to 15, no win-by-two, a 13-minute clock. */
-export const FREE_SHEET_SETTINGS: Settings = { ...BADMINTON_DEFAULTS, gamesPerMatch: 1, playAllGames: false };
+/** One game to 15 with no win-by-two and no clock, whatever the event is set to: it is played out. */
+export const FREE_SHEET_SETTINGS: Settings = { ...BADMINTON_DEFAULTS, gamesPerMatch: 1, playAllGames: false, timeCapMinutes: null };
 
-/** The clock as ISO times, like a game on court: null startedAt means it has not been started. */
-export interface FreeClock { startedAt: string | null; pausedAt: string | null; pausedMs: number }
-export interface FreeSheet { a: FreeSide; b: FreeSide; start: SheetStart; rallies: Side[]; clock: FreeClock }
+export interface FreeSheet { a: FreeSide; b: FreeSide; start: SheetStart; rallies: Side[] }
 
 export const FREE_SHEET_KEY = (slug: string) => `free-scoresheet:${slug}`;
 
 const blankSide = (n: number): FreeSide => ({ teamId: '', label: `Side ${n}`, players: ['', ''] });
-const blankClock = (): FreeClock => ({ startedAt: null, pausedAt: null, pausedMs: 0 });
-export const blankSheet = (): FreeSheet => ({ a: blankSide(1), b: blankSide(2), start: DEFAULT_START, rallies: [], clock: blankClock() });
+export const blankSheet = (): FreeSheet => ({ a: blankSide(1), b: blankSide(2), start: DEFAULT_START, rallies: [] });
 
 /** A team picked for a side brings its name and its two men, since a tiebreak is men's doubles. */
 export function sideFromTeam(team: Pick<TeamWithPlayers, 'id' | 'name' | 'players'>): FreeSide {
@@ -36,7 +32,7 @@ export const encodeFreeSheet = (s: FreeSheet): string => JSON.stringify({ ...s, 
 export function decodeFreeSheet(raw: string | null): FreeSheet {
   if (!raw) return blankSheet();
   try {
-    const v = JSON.parse(raw) as Partial<Omit<FreeSheet, 'rallies' | 'clock'>> & { rallies?: unknown };
+    const v = JSON.parse(raw) as Partial<Omit<FreeSheet, 'rallies'>> & { rallies?: unknown };
     const side = (x: unknown, n: number): FreeSide => {
       const s = x as Partial<FreeSide> | undefined;
       const p = Array.isArray(s?.players) ? s.players : [];
@@ -48,13 +44,7 @@ export function decodeFreeSheet(raw: string | null): FreeSheet {
     };
     const rallies = typeof v.rallies === 'string' ? decodeRallies(v.rallies) : null;
     const start = v.start && validStart(v.start) ? v.start : DEFAULT_START;
-    const c = (v as { clock?: Partial<FreeClock> }).clock;
-    const iso = (x: unknown) => (typeof x === 'string' && !Number.isNaN(Date.parse(x)) ? x : null);
-    const startedAt = iso(c?.startedAt);
-    const clock = startedAt
-      ? { startedAt, pausedAt: iso(c?.pausedAt), pausedMs: typeof c?.pausedMs === 'number' && c.pausedMs >= 0 ? c.pausedMs : 0 }
-      : blankClock();
-    return { a: side(v.a, 1), b: side(v.b, 2), start, rallies: rallies ?? [], clock };
+    return { a: side(v.a, 1), b: side(v.b, 2), start, rallies: rallies ?? [] };
   } catch {
     return blankSheet();
   }
@@ -70,6 +60,7 @@ export interface PastGame {
   scoreA: number; scoreB: number;
   /** The winning side's label, or null when it was put away unfinished. */
   winner: string | null;
+  /** Only games kept from when the sheet had a clock can have been won on time. */
   byTime: boolean;
 }
 
@@ -81,12 +72,10 @@ const pair = (side: FreeSide) => side.players.filter((p) => p.trim()).join(' & '
 export function pastGameOf(sheet: FreeSheet, id: string, now: number): PastGame | null {
   if (sheet.rallies.length === 0) return null;
   const t = replay(FREE_SHEET_SETTINGS, sheet.start, sheet.rallies);
-  const timeUp = remainingMs({ ...sheet.clock, capMinutes: FREE_SHEET_SETTINGS.timeCapMinutes }, now) === 0;
-  const byTime = !t.finished && timeUp && t.scoreA !== t.scoreB;
-  const lead: Side | null = t.finished ? t.winner : byTime ? (t.scoreA > t.scoreB ? 'a' : 'b') : null;
+  const lead: Side | null = t.finished ? t.winner : null;
   return {
     id, at: new Date(now).toISOString(), a: sheet.a.label, b: sheet.b.label, pairA: pair(sheet.a), pairB: pair(sheet.b),
-    scoreA: t.scoreA, scoreB: t.scoreB, winner: lead === null ? null : lead === 'a' ? sheet.a.label : sheet.b.label, byTime,
+    scoreA: t.scoreA, scoreB: t.scoreB, winner: lead === null ? null : lead === 'a' ? sheet.a.label : sheet.b.label, byTime: false,
   };
 }
 
@@ -107,7 +96,7 @@ export function decodeHistory(raw: string | null): PastGame[] {
   }
 }
 
-/** Several games can be scored side by side; each keeps its own sides, sheet and clock. */
+/** Several games can be scored side by side; each keeps its own sides and sheet. */
 export interface FreeGame { id: string; sheet: FreeSheet }
 
 export const FREE_GAMES_KEY = (slug: string) => `free-scoresheets:${slug}`;
@@ -130,6 +119,6 @@ export function decodeFreeGames(raw: string | null, legacy: string | null, newId
     } catch { /* fall through to the legacy sheet */ }
   }
   const old = decodeFreeSheet(legacy);
-  const used = old.rallies.length > 0 || old.a.teamId !== '' || old.b.teamId !== '' || old.clock.startedAt !== null;
+  const used = old.rallies.length > 0 || old.a.teamId !== '' || old.b.teamId !== '';
   return used ? [{ id: newId(), sheet: old }] : [];
 }
