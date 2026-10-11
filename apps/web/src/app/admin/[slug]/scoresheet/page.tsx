@@ -11,6 +11,6 @@ export default async function ScoreSheetAdminPage({ params }: { params: Promise<
   const teams = await listTeamsWithPlayers(ctx.sb, ctx.tournament.id);
   return (
     <FreeScoreSheet slug={slug}
-      teams={teams.filter((t) => !t.withdrawn).map(sideFromTeam)} />
+      teams={teams.map(sideFromTeam)} />
   );
 }

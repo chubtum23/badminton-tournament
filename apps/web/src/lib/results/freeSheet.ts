@@ -10,15 +10,23 @@ import { replay, validStart, type SheetStart, type Side } from './scoresheet';
  * breaks a tie in a pool, after which the organiser sorts the pool by hand.
  */
 export interface FreeSide { teamId: string; label: string; players: [string, string] }
-/** One game to 15 with no win-by-two and no clock, whatever the event is set to: it is played out. */
+/** One game with no win-by-two and no clock, whatever the event is set to: first to 15 unless the game says otherwise. */
 export const FREE_SHEET_SETTINGS: Settings = { ...BADMINTON_DEFAULTS, gamesPerMatch: 1, playAllGames: false, timeCapMinutes: null };
 
-export interface FreeSheet { a: FreeSide; b: FreeSide; start: SheetStart; rallies: Side[] }
+/** The most points a game can be played to; anything from 1 up is allowed. */
+export const MAX_FREE_TARGET = 99;
+export const validTarget = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_FREE_TARGET;
+
+/** The rules one game is scored by: the club game, first to its own target. */
+export const freeSettings = (target: number): Settings => ({ ...FREE_SHEET_SETTINGS, pointsPerGame: target });
+
+export interface FreeSheet { a: FreeSide; b: FreeSide; start: SheetStart; rallies: Side[]; target: number }
 
 export const FREE_SHEET_KEY = (slug: string) => `free-scoresheet:${slug}`;
 
 const blankSide = (n: number): FreeSide => ({ teamId: '', label: `Side ${n}`, players: ['', ''] });
-export const blankSheet = (): FreeSheet => ({ a: blankSide(1), b: blankSide(2), start: DEFAULT_START, rallies: [] });
+export const blankSheet = (): FreeSheet =>
+  ({ a: blankSide(1), b: blankSide(2), start: DEFAULT_START, rallies: [], target: FREE_SHEET_SETTINGS.pointsPerGame });
 
 /** A team picked for a side brings its name and its two men, since a tiebreak is men's doubles. */
 export function sideFromTeam(team: Pick<TeamWithPlayers, 'id' | 'name' | 'players'>): FreeSide {
@@ -44,7 +52,8 @@ export function decodeFreeSheet(raw: string | null): FreeSheet {
     };
     const rallies = typeof v.rallies === 'string' ? decodeRallies(v.rallies) : null;
     const start = v.start && validStart(v.start) ? v.start : DEFAULT_START;
-    return { a: side(v.a, 1), b: side(v.b, 2), start, rallies: rallies ?? [] };
+    const target = validTarget(v.target) ? v.target : FREE_SHEET_SETTINGS.pointsPerGame;
+    return { a: side(v.a, 1), b: side(v.b, 2), start, rallies: rallies ?? [], target };
   } catch {
     return blankSheet();
   }
@@ -58,24 +67,32 @@ export interface PastGame {
   a: string; b: string;
   pairA: string; pairB: string;
   scoreA: number; scoreB: number;
+  /** The points it was played to; 0 for games kept from before a game could have its own. */
+  target: number;
   /** The winning side's label, or null when it was put away unfinished. */
   winner: string | null;
   /** Only games kept from when the sheet had a clock can have been won on time. */
   byTime: boolean;
+  /** The organiser gave the game to the winner, whatever the score. */
+  awarded: boolean;
 }
 
 export const FREE_HISTORY_KEY = (slug: string) => `free-scoresheet-history:${slug}`;
 
 const pair = (side: FreeSide) => side.players.filter((p) => p.trim()).join(' & ');
 
-/** The current sheet as a history entry; null when not a rally has been played. */
-export function pastGameOf(sheet: FreeSheet, id: string, now: number): PastGame | null {
-  if (sheet.rallies.length === 0) return null;
-  const t = replay(FREE_SHEET_SETTINGS, sheet.start, sheet.rallies);
-  const lead: Side | null = t.finished ? t.winner : null;
+/**
+ * The current sheet as a history entry. `award` gives the game to that side whatever the score,
+ * even before a rally; otherwise it is null when not a rally has been played.
+ */
+export function pastGameOf(sheet: FreeSheet, id: string, now: number, award?: Side): PastGame | null {
+  if (sheet.rallies.length === 0 && !award) return null;
+  const t = replay(freeSettings(sheet.target), sheet.start, sheet.rallies);
+  const lead: Side | null = award ?? (t.finished ? t.winner : null);
   return {
     id, at: new Date(now).toISOString(), a: sheet.a.label, b: sheet.b.label, pairA: pair(sheet.a), pairB: pair(sheet.b),
-    scoreA: t.scoreA, scoreB: t.scoreB, winner: lead === null ? null : lead === 'a' ? sheet.a.label : sheet.b.label, byTime: false,
+    scoreA: t.scoreA, scoreB: t.scoreB, target: sheet.target,
+    winner: lead === null ? null : lead === 'a' ? sheet.a.label : sheet.b.label, byTime: false, awarded: award !== undefined,
   };
 }
 
@@ -89,7 +106,8 @@ export function decodeHistory(raw: string | null): PastGame[] {
     const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
     return v.filter((g) => g && typeof g === 'object' && typeof g.id === 'string').map((g) => ({
       id: g.id, at: str(g.at), a: str(g.a), b: str(g.b), pairA: str(g.pairA), pairB: str(g.pairB),
-      scoreA: num(g.scoreA), scoreB: num(g.scoreB), winner: typeof g.winner === 'string' ? g.winner : null, byTime: g.byTime === true,
+      scoreA: num(g.scoreA), scoreB: num(g.scoreB), target: num(g.target),
+      winner: typeof g.winner === 'string' ? g.winner : null, byTime: g.byTime === true, awarded: g.awarded === true,
     }));
   } catch {
     return [];
