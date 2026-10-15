@@ -8,12 +8,11 @@ export type GalleryItem = {
   thumb: string;
   full: string;
   /**
-   * The JPEG to save. A JPEG is Drive's own download of the file. A RAW is Drive's full-size JPEG
-   * rendering, which Drive serves inline, so the page fetches it and saves it under `downloadName`.
+   * The full-size JPEG to save: the file itself, or Drive's full-size rendering of a RAW. Both allow
+   * a cross-site fetch, which is how the save button shows progress and hands it to the share sheet.
    */
   download: string;
   downloadName: string;
-  fetchToSave: boolean;
   /** The untouched RAW file, when the photo was shot as one. */
   raw: string | null;
   width: number;
@@ -32,7 +31,6 @@ export function toGalleryItems(rows: readonly GalleryPhotoRow[]): GalleryItem[] 
     full: driveImage(r.drive_file_id, 2560),
     download: r.kind === 'raw' ? driveImage(r.drive_file_id, 'full') : driveOriginal(r.drive_file_id),
     downloadName: r.kind === 'raw' ? jpegNameFor(r.name) : r.name,
-    fetchToSave: r.kind === 'raw',
     raw: r.raw_file_id ? driveOriginal(r.raw_file_id) : null,
     width: r.width,
     height: r.height,

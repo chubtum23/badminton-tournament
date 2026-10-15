@@ -106,9 +106,13 @@ export function driveImage(fileId: string, longEdge: number | 'full'): string {
   return `https://lh3.googleusercontent.com/d/${fileId}=${longEdge === 'full' ? 's0' : `s${longEdge}`}`;
 }
 
-/** The file exactly as uploaded, served as an attachment under its own name. */
+/**
+ * The file exactly as uploaded (byte for byte), as an attachment under its own name. This address
+ * rather than drive.usercontent.google.com because only this one lets a page fetch it: the save
+ * button needs the bytes to show progress and to hand them to the iPhone share sheet.
+ */
 export function driveOriginal(fileId: string): string {
-  return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download`;
+  return `https://lh3.googleusercontent.com/d/${fileId}=d`;
 }
 
 export function driveFolderListing(folderId: string): string {

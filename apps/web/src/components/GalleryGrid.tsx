@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { loadAlbumPage } from '@/actions/gallery';
 import type { GalleryItem } from '@/lib/gallery/items';
+import { RawLink, SavePhoto } from './SavePhoto';
 import { ui } from './ui';
 
 /**
@@ -42,27 +43,6 @@ export function JustifiedGrid({ items, onOpen, rowClass = '[--row:130px] sm:[--r
   );
 }
 
-/** Saves a photo. A RAW's JPEG rendering is fetched and saved under a .jpg name; anything else is a plain download link. */
-async function saveFetched(item: GalleryItem, onBusy: () => void): Promise<void> {
-  let res: Response | null = null;
-  // Google throttles a burst of requests (429); a short wait is usually enough.
-  for (let attempt = 0; attempt < 4; attempt++) {
-    res = await fetch(item.download, { referrerPolicy: 'no-referrer' });
-    if (res.status !== 429) break;
-    onBusy();
-    await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
-  }
-  if (!res?.ok) throw new Error('download failed');
-  const url = URL.createObjectURL(await res.blob());
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = item.downloadName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}
-
 /** Full-screen viewer: arrows, swipe and keys to move, and the photo's downloads. */
 export function PhotoViewer({ items, index, total, onIndex, onClose, onNeedMore }: {
   items: readonly GalleryItem[];
@@ -74,9 +54,6 @@ export function PhotoViewer({ items, index, total, onIndex, onClose, onNeedMore 
   onNeedMore?: () => Promise<number>;
 }) {
   const touchX = useRef<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(false);
-  const [busy, setBusy] = useState(false);
   const current = items[index];
 
   const step = useCallback((d: number) => {
@@ -99,36 +76,14 @@ export function PhotoViewer({ items, index, total, onIndex, onClose, onNeedMore 
     return () => { document.removeEventListener('keydown', key); document.body.style.overflow = ''; };
   }, [step, onClose]);
 
-  useEffect(() => { setSaveError(false); }, [index]);
-
   if (!current) return null;
-  const btn = 'border-hair border-bone/60 px-4 py-3 text-xs font-bold uppercase tracking-label text-bone hover:border-bone sm:px-5 sm:text-sm';
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`Photo ${index + 1} of ${total}`} className="fixed inset-0 z-50 flex flex-col bg-[#10133A]" onClick={onClose}>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-bone" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 text-bone" onClick={(e) => e.stopPropagation()}>
         <span className="text-sm font-bold uppercase tracking-label">{index + 1} / {total}</span>
-        <div className="flex flex-wrap gap-2">
-          {current.fetchToSave ? (
-            <button
-              type="button" data-testid="gallery-download" disabled={saving} className={ui.primary}
-              onClick={async () => {
-                setSaving(true);
-                setSaveError(false);
-                setBusy(false);
-                try { await saveFetched(current, () => setBusy(true)); } catch { setSaveError(true); } finally { setSaving(false); setBusy(false); }
-              }}
-            >
-              {saving ? (busy ? 'Google is busy, retrying…' : 'Saving…') : 'Download'}
-            </button>
-          ) : (
-            <a href={current.download} download={current.downloadName} className={ui.primary} data-testid="gallery-download">Download</a>
-          )}
-          {current.raw && <a href={current.raw} className={btn} data-testid="gallery-raw" title="The original camera file, untouched">RAW</a>}
-          <button type="button" onClick={onClose} className={btn}>Close</button>
-        </div>
+        <button type="button" onClick={onClose} className="border-hair border-bone/60 px-5 py-3 text-sm font-bold uppercase tracking-label text-bone hover:border-bone">Close</button>
       </div>
-      {saveError && <p className="px-4 pb-2 text-sm text-orange" onClick={(e) => e.stopPropagation()}>Couldn&apos;t save that one; try again.</p>}
       <div
         className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4"
         onTouchStart={(e) => { touchX.current = e.touches[0]?.clientX ?? null; }}
@@ -154,6 +109,11 @@ export function PhotoViewer({ items, index, total, onIndex, onClose, onNeedMore 
               className="absolute right-2 top-1/2 -translate-y-1/2 bg-navy/70 px-4 py-6 text-2xl font-bold text-bone hover:bg-navy">›</button>
           </>
         )}
+      </div>
+      {/* Saving sits at the bottom, under the thumb on a phone. */}
+      <div className="flex flex-wrap items-start justify-center gap-3 border-t-hair border-bone/15 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3" onClick={(e) => e.stopPropagation()}>
+        <SavePhoto item={current} />
+        {current.raw && <RawLink href={current.raw} />}
       </div>
     </div>
   );
