@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { GalleryItem } from '@/lib/gallery/items';
+import { stampExifDate } from '@/lib/gallery/exifDate';
 
 type Platform = 'ios' | 'android' | 'desktop';
 type State =
@@ -65,9 +66,12 @@ function downloadBlob(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+const IOS_CHOOSE = 'Choose “Save Image” to put it in your Photos.';
+
+/** `hint` shows once saved; the iPhone also has `choose`, shown while its share sheet is coming up. */
 const LABEL: Record<Platform, { idle: string; done: string; hint: string }> = {
-  ios: { idle: 'Save to Photos', done: 'Done ✓', hint: 'Choose “Save Image” to put it in your Photos.' },
-  android: { idle: 'Save to phone', done: 'Saved ✓', hint: 'Saved to your Downloads; it shows in your Gallery and Google Photos.' },
+  ios: { idle: 'Save to Photos', done: 'Done ✓', hint: 'If you chose “Save Image”, it’s the newest photo in your Photos.' },
+  android: { idle: 'Save to phone', done: 'Saved ✓', hint: 'It’s the newest photo in your Gallery and Google Photos.' },
   desktop: { idle: 'Download', done: 'Downloaded ✓', hint: 'Saved to your Downloads folder.' },
 };
 
@@ -128,8 +132,14 @@ export function SavePhoto({ item }: { item: GalleryItem }) {
     abort.current = ctrl;
     setState({ kind: 'loading', pct: null });
     try {
-      const blob = await fetchWithProgress(item.download, ctrl.signal, (pct) => setState({ kind: 'loading', pct }));
+      let blob = await fetchWithProgress(item.download, ctrl.signal, (pct) => setState({ kind: 'loading', pct }));
       if (ctrl.signal.aborted) return;
+      // A phone files a photo by the date it says it was taken, and the club camera's clock is years
+      // out, so it would land in a past year. Stamped with now, it sits at the top of the camera roll.
+      // A computer download stays the untouched original.
+      if (platform !== 'desktop') {
+        blob = new Blob([stampExifDate(new Uint8Array(await blob.arrayBuffer()), new Date()) as BlobPart], { type: 'image/jpeg' });
+      }
       blobs.current.set(item.id, blob);
       // Keep only the last few in memory; full-size photos are several megabytes each.
       if (blobs.current.size > 3) blobs.current.delete(blobs.current.keys().next().value!);
@@ -183,7 +193,7 @@ export function SavePhoto({ item }: { item: GalleryItem }) {
         </span>
       </button>
       <p aria-live="polite" className="min-h-[1.25rem] text-xs text-bone/80">
-        {state.kind === 'ready' || (state.kind === 'loading' && share) ? LABEL.ios.hint
+        {state.kind === 'ready' || (state.kind === 'loading' && share) ? IOS_CHOOSE
           : state.kind === 'done' ? label.hint
           : state.kind === 'error' ? 'Check your connection and try again.'
           : ''}
