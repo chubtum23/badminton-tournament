@@ -23,7 +23,7 @@ export default async function PublicLayout({ children, params }: { children: Rea
   const [me, announcements, live] = await Promise.all([currentParticipant(slug), listAnnouncements(sb, t.id), listLiveGames(sb, t.id)]);
   // The list comes pinned-first, so the newest post has to be picked out rather than taken from the top.
   const latest = announcements.reduce<(typeof announcements)[number] | null>((a, b) => (!a || b.created_at > a.created_at ? b : a), null);
-  const tabs: Array<readonly [string, string]> = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket'], ['/teams', 'Teams'], ['/players', 'Power leaderboard'], ['/announcements', 'Announcements']];
+  const tabs: Array<readonly [string, string]> = [['', 'Live'], ['/pools', 'Pools'], ['/bracket', 'Bracket'], ['/teams', 'Teams'], ['/players', 'Power leaderboard'], ['/announcements', 'Announcements'], ['/photos', 'Photos']];
   if (me) tabs.push(['/team', `My team: ${me.team.name}`]);
   if (t.status === 'setup' && t.signup_open && !me) tabs.push(['/join', 'Join']);
   return (

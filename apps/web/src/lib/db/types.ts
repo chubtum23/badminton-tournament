@@ -40,6 +40,8 @@ export interface TournamentRow {
   ko_relay_final: number;
   /** How many rounds the bracket has; written when the knockout starts, null before. */
   ko_rounds: number | null;
+  gallery_folder_id: string | null;
+  gallery_synced_at: string | null;
   court_count: number;
   advance_per_pool: number;
   /** Teams may still sign themselves up through /t/[slug]/join. lockPools turns this off. */
@@ -49,7 +51,7 @@ export interface TournamentRow {
 
 /** Every tournament column except `join_code`, which anon and authenticated cannot select. */
 export const TOURNAMENT_PUBLIC_COLUMNS =
-  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, ko_seed_order, ko_relay, ko_relay_quarter, ko_relay_semi, ko_relay_final, ko_rounds, court_count, advance_per_pool, signup_open, created_at';
+  'id, slug, name, sport, status, starts_at, venue, games_per_match, points_per_game, win_by_two, max_points, time_cap_minutes, play_all_games, game_labels, ko_games_per_match, ko_points_per_game, ko_win_by_two, ko_max_points, ko_time_cap_minutes, ko_seed_order, ko_relay, ko_relay_quarter, ko_relay_semi, ko_relay_final, ko_rounds, court_count, advance_per_pool, signup_open, gallery_folder_id, gallery_synced_at, created_at';
 
 /** Public columns only. edit_token is never selected through this type. */
 export interface TeamRow {
@@ -164,3 +166,45 @@ export interface AnnouncementRow {
 
 /** A score sheet being kept point by point; see lib/results/liveSheet.ts. */
 export interface LiveGameRow { match_id: string; game_no: number; server: number; receiver: number; rallies: string; rev: number }
+
+/** One subfolder of the tournament's shared Drive folder; see lib/gallery/sync.ts. */
+export interface GalleryAlbumRow {
+  id: string;
+  tournament_id: string;
+  drive_folder_id: string;
+  drive_name: string;
+  title: string | null;
+  sort_order: number;
+  hidden: boolean;
+}
+
+export interface GallerySummaryRow {
+  album_id: string;
+  visible_count: number;
+  total_count: number;
+  cover_file_id: string | null;
+  cover_width: number | null;
+  cover_height: number | null;
+}
+
+export interface GalleryAlbum extends GalleryAlbumRow {
+  visible: number;
+  total: number;
+  cover: { fileId: string; width: number; height: number } | null;
+}
+
+/** One photo in Drive. `width`/`height` give its shape only (measured from a small rendering). */
+export interface GalleryPhotoRow {
+  id: string;
+  tournament_id: string;
+  album_id: string;
+  drive_file_id: string;
+  name: string;
+  kind: 'jpeg' | 'raw';
+  raw_file_id: string | null;
+  width: number;
+  height: number;
+  sort_order: number | null;
+  highlight: boolean;
+  hidden: boolean;
+}

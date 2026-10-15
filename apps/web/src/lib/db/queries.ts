@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AnnouncementRow, GameRow, LiveGameRow, MatchRow, PoolRow, RatingRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
+import type { AnnouncementRow, GalleryAlbum, GalleryAlbumRow, GalleryPhotoRow, GallerySummaryRow, GameRow, LiveGameRow, MatchRow, PoolRow, RatingRow, RosterPlayerRow, SubmissionRow, TeamRow, TournamentRow } from './types';
 import { TEAM_PUBLIC_COLUMNS, TOURNAMENT_PUBLIC_COLUMNS } from './types';
 
 function must<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
@@ -176,4 +176,46 @@ export async function loadTournamentBundle(sb: SupabaseClient, slug: string): Pr
 export async function listLiveGames(sb: SupabaseClient, tournamentId: string): Promise<LiveGameRow[]> {
   const res = await sb.from('live_games').select('match_id, game_no, server, receiver, rallies, rev').eq('tournament_id', tournamentId);
   return res.error ? [] : ((res.data ?? []) as LiveGameRow[]);
+}
+
+/** Photos in the organiser's arranged order: positioned ones first, then the rest in camera order. */
+function arranged<T extends { order: (c: string, o?: { ascending?: boolean; nullsFirst?: boolean }) => T }>(q: T): T {
+  return q.order('sort_order', { ascending: true, nullsFirst: false }).order('name').order('id');
+}
+
+/** Albums in the organiser's order, each with its counts and cover. Hidden albums included; callers filter. */
+export async function listGalleryAlbums(sb: SupabaseClient, tournamentId: string): Promise<GalleryAlbum[]> {
+  const [albums, summary] = await Promise.all([
+    sb.from('gallery_albums').select('*').eq('tournament_id', tournamentId).order('sort_order').order('drive_name'),
+    sb.rpc('gallery_album_summary', { p_tournament: tournamentId }),
+  ]);
+  const rows = must(albums, 'gallery albums') as GalleryAlbumRow[];
+  const sums = new Map((must(summary, 'gallery summary') as GallerySummaryRow[]).map((s) => [s.album_id, s]));
+  return rows.map((a) => {
+    const s = sums.get(a.id);
+    return {
+      ...a,
+      visible: s?.visible_count ?? 0,
+      total: s?.total_count ?? 0,
+      cover: s?.cover_file_id ? { fileId: s.cover_file_id, width: s.cover_width!, height: s.cover_height! } : null,
+    };
+  });
+}
+
+/** One page of an album. `withHidden` is the admin's view. */
+export async function listAlbumPhotos(
+  sb: SupabaseClient, albumId: string, offset: number, limit: number, withHidden = false,
+): Promise<{ rows: GalleryPhotoRow[]; total: number }> {
+  let q = sb.from('gallery_photos').select('*', { count: 'exact' }).eq('album_id', albumId);
+  if (!withHidden) q = q.eq('hidden', false);
+  const res = await arranged(q).range(offset, offset + limit - 1);
+  return { rows: must(res, 'gallery photos') as GalleryPhotoRow[], total: res.count ?? 0 };
+}
+
+/** Starred photos, across every visible album, in album order then each album's own order. */
+export async function listHighlights(sb: SupabaseClient, tournamentId: string, albums: readonly GalleryAlbum[]): Promise<GalleryPhotoRow[]> {
+  const res = await arranged(sb.from('gallery_photos').select('*').eq('tournament_id', tournamentId).eq('highlight', true).eq('hidden', false)).limit(200);
+  const rows = must(res, 'gallery highlights') as GalleryPhotoRow[];
+  const rank = new Map(albums.filter((a) => !a.hidden).map((a, i) => [a.id, i]));
+  return rows.filter((r) => rank.has(r.album_id)).sort((a, b) => rank.get(a.album_id)! - rank.get(b.album_id)!);
 }

@@ -14,7 +14,7 @@ import { statusLine } from '@/lib/admin/hub';
 export const maxDuration = 60;
 
 const tabs = [
-  ['', 'Home'], ['/teams', 'Teams'], ['/matches', 'Matches'], ['/standings', 'Standings'], ['/scoresheet', 'Score sheet'], ['/draw', 'Draw'], ['/announcements', 'Announcements'],
+  ['', 'Home'], ['/teams', 'Teams'], ['/matches', 'Matches'], ['/standings', 'Standings'], ['/scoresheet', 'Score sheet'], ['/draw', 'Draw'], ['/announcements', 'Announcements'], ['/photos', 'Photos'],
 ] as const;
 
 export default async function AdminLayout({ children, params }: { children: React.ReactNode; params: Promise<{ slug: string }> }) {
